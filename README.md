@@ -4,7 +4,7 @@ MVP educacional para análise de jogos e comparação de times da NBA. O projeto
 
 > A base incluída é sintética e não representa a temporada atual. O projeto não utiliza odds e não oferece orientação de apostas.
 
-## Funcionalidades da versão 0.1
+## Funcionalidades da versão 0.2
 
 - Comparação entre dois times;
 - Probabilidade experimental de vitória;
@@ -26,7 +26,18 @@ MVP educacional para análise de jogos e comparação de times da NBA. O projeto
 - Offensive/Defensive Rating oficiais de times (coleta incremental jogo a
   jogo), com aproximação por pontos como reserva;
 - Registro permanente de previsões de times, comparação com o resultado
-  real e histórico de retreinamento dos modelos.
+  real e histórico de retreinamento dos modelos;
+- **Mapa de arremessos**: coleta de arremessos via `ShotChartDetail`, mapa
+  de pontos/calor/hexagonal, volume e eficiência por zona, comparação entre
+  temporadas/times/adversário com explicação automática em linguagem
+  natural, e modelo de previsão de distribuição/eficiência por zona com
+  validação walk-forward;
+- Interface reorganizada em 7 páginas (Visão Geral, Times, Jogadores, Mapa
+  de Arremessos, Temporada, Desempenho, Qualidade do Modelo e Dados e
+  Atualizações), com sistema de design compartilhado (`src/ui/`): selos de
+  fonte/atualização, estados padronizados de vazio/erro/amostra pequena,
+  seletores com preferência salva na URL e coleta incremental de dados
+  reais direto pela interface, sem precisar do terminal.
 
 ## Tecnologias
 
@@ -44,16 +55,22 @@ nba-analytics/
 ├── .streamlit/
 │   └── config.toml
 ├── pages/
+│   ├── 0_Times.py
 │   ├── 1_Jogadores.py
 │   ├── 2_Temporada.py
-│   └── 3_Desempenho.py
+│   ├── 3_Desempenho.py
+│   ├── 4_Mapa_Arremessos.py
+│   ├── 5_Dados_Atualizacoes.py
+│   └── 6_Qualidade_Modelo.py
 ├── scripts/
 │   ├── retrain_models.py
 │   ├── update_advanced_stats.py
 │   ├── update_data.py
+│   ├── update_shots.py
 │   └── update_starter_status.py
 ├── src/
 │   ├── __init__.py
+│   ├── court_chart.py
 │   ├── data.py
 │   ├── features.py
 │   ├── model.py
@@ -65,13 +82,27 @@ nba-analytics/
 │   ├── player_metrics.py
 │   ├── player_model.py
 │   ├── season_simulator.py
+│   ├── shot_connector.py
+│   ├── shot_features.py
+│   ├── shot_model.py
+│   ├── shot_storage.py
 │   ├── simulation.py
-│   └── store.py
+│   ├── store.py
+│   └── ui/
+│       ├── __init__.py
+│       ├── components.py
+│       ├── explanations.py
+│       ├── formatters.py
+│       ├── states.py
+│       └── theme.py
 ├── tests/
 │   ├── test_app.py
+│   ├── test_court_chart.py
 │   ├── test_data.py
+│   ├── test_data_updates_page.py
 │   ├── test_features.py
 │   ├── test_model.py
+│   ├── test_model_quality_page.py
 │   ├── test_player_data.py
 │   ├── test_player_features.py
 │   ├── test_player_index.py
@@ -79,14 +110,30 @@ nba-analytics/
 │   ├── test_player_model.py
 │   ├── test_players_page.py
 │   ├── test_season_simulator.py
+│   ├── test_shot_connector.py
+│   ├── test_shot_features.py
+│   ├── test_shot_model.py
+│   ├── test_shot_storage.py
+│   ├── test_shots_page.py
 │   ├── test_store.py
 │   ├── test_store_advanced.py
 │   ├── test_store_players.py
-│   └── test_store_predictions.py
+│   ├── test_store_predictions.py
+│   ├── test_times_page.py
+│   ├── test_ui_components.py
+│   ├── test_ui_explanations.py
+│   └── test_ui_formatters.py
 ├── app.py
 ├── requirements.txt
 └── README.md
 ```
+
+A página inicial (`app.py`) é a **Visão Geral**: um painel com cartões de
+resumo da base (jogos, times, jogadores, temporadas, arremessos), selo de
+fonte/atualização e atalhos para as demais páginas. A comparação de times
+em si — o que antes vivia em `app.py` — foi movida para `pages/0_Times.py`,
+mantendo a separação de responsabilidades da navegação (seção 3 do
+[planejamento de UI/UX](planejamento_ui_ux_nba_analytics.md)).
 
 ## Como executar no Windows
 
@@ -167,6 +214,27 @@ previsão só fica um pouco menos precisa até a coleta avançar.
 O mesmo `python scripts/update_data.py` já coleta o boxscore de todos os
 jogadores da temporada (uma chamada por temporada, igual à coleta de
 times) e alimenta a página "Jogadores".
+
+### Arremessos (mapa de arremessos)
+
+Baixa os arremessos de cada jogador via `ShotChartDetail` e alimenta a
+página "Mapa de Arremessos":
+
+```powershell
+python scripts/update_shots.py
+```
+
+Assim como o Rating oficial, é **uma chamada por jogador por temporada** —
+lento, então a coleta é incremental e retomável (`--seasons`, `--limit`,
+`--delay`); rode de novo quantas vezes quiser para continuar de onde
+parou. Um jogador com zero arremessos de quadra na temporada (ponta de
+banco, contrato two-way) sempre aparece como "pendente" — é o
+comportamento esperado, não uma falha, e não vale a pena tentar de novo.
+
+Também dá para coletar lotes pequenos (jogos de uma temporada inteira, ou
+até ~30 jogadores de arremessos por vez) direto pela página **"Dados e
+Atualizações"** da barra lateral, com barra de progresso — sem precisar do
+terminal. Coletas grandes continuam melhor pelo terminal em segundo plano.
 
 ## Página de jogadores
 
@@ -392,6 +460,45 @@ Duas abas:
 > a faixa de posição real (direta/Play-In/fora), não o resultado real dos
 > jogos do Play-In em si.
 
+## Mapa de arremessos
+
+Acesse pela barra lateral do Streamlit ("Mapa de Arremessos"). Exige
+arremessos coletados (`python scripts/update_shots.py` ou a página "Dados e
+Atualizações") — não tem base demonstrativa, arremesso é um dado espacial
+que não faz sentido sintetizar. Cinco abas:
+
+- **Mapa de pontos**: cada arremesso na posição em que aconteceu, verde
+  (convertido) ou vermelho (errado);
+- **Mapa de calor**: concentração de tentativas (`Histogram2d` — um
+  histograma 2D discreto, não um contorno suavizado, que interpolaria
+  entre clusters distantes de dados e sugeriria volume onde não há
+  nenhum arremesso);
+- **Mapa hexagonal**: tamanho do hexágono = volume de tentativas, cor =
+  pontos por tentativa numa escala divergente centrada na referência de
+  liga (vermelho acima, azul abaixo);
+- **Por zona**: tabela de volume/eficiência por zona com suavização
+  bayesiana do FG% (`shrunk_fg_pct`) — protege contra amostra pequena,
+  ex.: 3 de 4 não é tratado como 75% de verdade;
+- **Comparações**: duas temporadas, primeiros × últimos N jogos, ou contra
+  um adversário específico (defesa por zona derivada dos arremessos já
+  coletados, sem tabela nova no banco), com uma explicação automática em
+  linguagem natural do que mudou (`src/ui/explanations.py`);
+- **Projeções**: distribuição prevista de arremessos por zona e FG%
+  esperado por zona, treinados com um Ridge por zona (participação e
+  eficiência) sobre os jogos de todos os jogadores já coletados — mesma
+  arquitetura EWMA sem vazamento e defesa por adversário com média
+  expansiva já usada no modelo de jogadores. Minutos e FGA continuam vindo
+  do modelo de jogadores (aba "Projeções" de "Jogadores"); este modelo só
+  decompõe o FGA em zona × eficiência. Validado por walk-forward: o MAE de
+  pontos de bola-de-quadra fica bem abaixo do MAE de prever a média
+  constante (ver "Qualidade do Modelo").
+
+> Free throw fica de fora inteiramente: o `ShotChartDetail` só traz
+> arremessos de quadra (`context_measure_simple="FGA"`). O índice NAPS, a
+> defesa por zona e a referência de liga usam só os jogadores já
+> coletados nesta base, não a liga inteira — ficam mais confiáveis
+> conforme mais jogadores forem coletados.
+
 ## Formato do CSV
 
 O arquivo precisa conter estas colunas:
@@ -441,11 +548,10 @@ lateral para acompanhar:
   vai — são times escolhidos livremente pelo usuário, não uma agenda real
   de jogos futuros), a previsão continua pendente. Isso é esperado, não é
   um erro.
-- **Histórico de treinamento**: cada vez que `python
-  scripts/retrain_models.py` roda, ele grava accuracy/log loss/Brier
-  score/MAE (times) e MAE de minutos/pontos/rebotes/assistências
-  (jogadores) em uma tabela de log, com gráfico de evolução ao longo do
-  tempo.
+
+O histórico de retreinamento (accuracy/log loss/Brier/MAE ao longo do
+tempo, para os três modelos) mudou para a página **"Qualidade do Modelo"**
+— ver seção abaixo.
 
 O modelo de jogadores é avaliado por **validação walk-forward**
 (`src/player_model.py::walk_forward_evaluate`), não um único split 80/20:
@@ -518,6 +624,11 @@ python scripts/retrain_models.py
 > Windows (`taskschd.msc` → Criar Tarefa Básica → apontar para o `python`
 > do `.venv` com o script como argumento).
 >
+> O script avalia os três modelos (times, jogadores e — se houver
+> arremessos coletados — zonas de arremesso, também por validação
+> walk-forward) e grava tudo na mesma tabela de histórico, lida pela
+> página "Qualidade do Modelo".
+
 Jogadores têm o mesmo mecanismo: na aba "Projeções" (página "Jogadores"), o
 botão **"Registrar esta previsão"** salva minutos/pontos/rebotes/
 assistências previstos, a confiança e o adversário escolhido (guardado só
@@ -527,6 +638,40 @@ jogo real do mesmo jogador** — diferente da resolução de times, não exige
 que o adversário real seja o mesmo escolhido na previsão, porque ali o
 adversário é hipotético (não vem de uma agenda real de jogos futuros);
 exigir esse casamento deixaria quase tudo pendente para sempre.
+
+## Qualidade do Modelo
+
+Acesse pela barra lateral do Streamlit ("Qualidade do Modelo") — erros,
+calibração e histórico de retreinamento dos três modelos do projeto (times,
+jogadores e zonas de arremesso), independente de qual time/jogador/
+adversário está selecionado nas páginas de análise. Duas abas:
+
+- **Métricas atuais**: o retreinamento mais recente de cada modelo
+  (accuracy/Log Loss/Brier/MAE para times; MAE e cobertura de intervalo
+  para jogadores; MAE de pontos de bola-de-quadra e MAE de participação
+  por zona para o modelo de zonas);
+- **Histórico de treinamento**: gráfico de evolução dessas métricas ao
+  longo de cada `python scripts/retrain_models.py` já rodado.
+
+Atualize rodando o comando acima no terminal.
+
+## Dados e Atualizações
+
+Acesse pela barra lateral do Streamlit ("Dados e Atualizações") — separa a
+tarefa de importar dados da tarefa de explorar resultados (seção 3 do
+planejamento de UI/UX), trazendo parte da coleta para dentro da interface:
+
+- **Jogos e jogadores por temporada**: baixa uma temporada inteira (jogos +
+  boxscore de jogadores, poucas chamadas) direto pela tela, com barra de
+  progresso;
+- **Arremessos (incremental)**: coleta um lote pequeno (até 30 jogadores)
+  de arremessos, também com progresso na tela.
+
+Coletas grandes (muitas temporadas, ou centenas de jogadores de uma vez)
+continuam melhor pelo terminal em segundo plano — a própria página avisa
+isso e mostra o comando equivalente. Rating oficial e titularidade real
+(uma chamada por jogo cada, ainda mais lentas) continuam só pelo terminal
+(`scripts/update_advanced_stats.py`, `scripts/update_starter_status.py`).
 
 ## Próximas versões
 
@@ -545,4 +690,9 @@ exigir esse casamento deixaria quase tudo pendente para sempre.
 - [x] Filtros de período/casa-fora/adversário/minutos e marcador de troca de time na página de jogadores;
 - [x] Coleta de titularidade (titular/reserva) via `BoxScoreTraditionalV3`, incremental e lenta como o Rating oficial, com aproximação por minutos acima da mediana do time enquanto não coletada;
 - [x] Intervalos por regressão quantílica (opcional, `interval_method="quantile"`): alternativa ao intervalo Normal, comparável via cobertura no `walk_forward_evaluate`; `"normal"` continua sendo o padrão do app.
+- [x] Mapa de arremessos (coleta via `ShotChartDetail`, análise por zona com suavização bayesiana, mapas de pontos/calor/hexagonal, comparações com explicação automática, modelo de previsão de distribuição/eficiência por zona validado por walk-forward);
+- [x] Interface reorganizada (Visão Geral, Times, Qualidade do Modelo e Dados e Atualizações como páginas próprias; sistema de design compartilhado em `src/ui/`: selos de fonte/atualização, estados padronizados, seletores com preferência salva na URL, explicações automáticas em linguagem natural);
+- [x] Coleta de dados reais direto pela interface (jogos/jogadores por temporada e lotes pequenos de arremessos), sem precisar do terminal para o dia a dia;
+- [ ] Layout responsivo para telas menores — não verificado ainda (sem acesso a navegador nas sessões em que foi construído);
+- [ ] Rating oficial e titularidade real ainda cobrem uma fração pequena da base coletada (a app usa a aproximação por pontos/minutos na maioria dos jogos).
 
