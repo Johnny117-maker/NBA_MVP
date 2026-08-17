@@ -1,13 +1,13 @@
 from streamlit.testing.v1 import AppTest
 
 
-def test_players_page_loads_without_exceptions():
+def test_players_page_loads_without_exceptions(app_db):
     app = AppTest.from_file("../pages/1_Jogadores.py")
     app.run(timeout=90)
     assert not app.exception
 
 
-def test_profile_tab_filters_do_not_raise_and_narrow_the_game_count():
+def test_profile_tab_filters_do_not_raise_and_narrow_the_game_count(app_db):
     app = AppTest.from_file("../pages/1_Jogadores.py")
     app.run(timeout=90)
     assert not app.exception
@@ -24,7 +24,7 @@ def test_profile_tab_filters_do_not_raise_and_narrow_the_game_count():
     assert games_after <= games_before
 
 
-def test_profile_tab_shows_a_warning_when_filters_match_no_games():
+def test_profile_tab_shows_a_warning_when_filters_match_no_games(app_db):
     app = AppTest.from_file("../pages/1_Jogadores.py")
     app.run(timeout=90)
     assert not app.exception

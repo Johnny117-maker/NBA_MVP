@@ -1,13 +1,13 @@
 from streamlit.testing.v1 import AppTest
 
 
-def test_model_quality_page_loads_without_exceptions():
+def test_model_quality_page_loads_without_exceptions(app_db):
     app = AppTest.from_file("../pages/6_Qualidade_Modelo.py")
     app.run(timeout=60)
     assert not app.exception
 
 
-def test_model_quality_page_shows_all_three_model_types():
+def test_model_quality_page_shows_all_three_model_types(app_db):
     app = AppTest.from_file("../pages/6_Qualidade_Modelo.py")
     app.run(timeout=60)
     assert not app.exception

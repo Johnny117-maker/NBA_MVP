@@ -1,13 +1,13 @@
 from streamlit.testing.v1 import AppTest
 
 
-def test_shots_page_loads_without_exceptions():
+def test_shots_page_loads_without_exceptions(app_db):
     app = AppTest.from_file("../pages/4_Mapa_Arremessos.py")
     app.run(timeout=60)
     assert not app.exception
 
 
-def test_shots_page_switching_player_does_not_raise():
+def test_shots_page_switching_player_does_not_raise(app_db):
     app = AppTest.from_file("../pages/4_Mapa_Arremessos.py")
     app.run(timeout=60)
     assert not app.exception
@@ -19,7 +19,7 @@ def test_shots_page_switching_player_does_not_raise():
         assert not app.exception
 
 
-def test_shots_page_comparison_modes_do_not_raise():
+def test_shots_page_comparison_modes_do_not_raise(app_db):
     # Cada modo troca de ramo condicional e cria widgets diferentes (ex.: os
     # seletores de temporada só existem no modo "Duas temporadas") — uma
     # instância nova de `AppTest` por modo evita que o driver de teste tente
@@ -40,7 +40,7 @@ def test_shots_page_comparison_modes_do_not_raise():
         assert not app.exception
 
 
-def test_shots_page_zone_projection_updates_without_raising():
+def test_shots_page_zone_projection_updates_without_raising(app_db):
     app = AppTest.from_file("../pages/4_Mapa_Arremessos.py")
     app.run(timeout=60)
     assert not app.exception

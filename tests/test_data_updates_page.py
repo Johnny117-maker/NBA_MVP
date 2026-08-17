@@ -1,13 +1,13 @@
 from streamlit.testing.v1 import AppTest
 
 
-def test_data_updates_page_loads_without_exceptions():
+def test_data_updates_page_loads_without_exceptions(app_db):
     app = AppTest.from_file("../pages/5_Dados_Atualizacoes.py")
     app.run(timeout=30)
     assert not app.exception
 
 
-def test_data_updates_page_shows_pending_shots_summary():
+def test_data_updates_page_shows_pending_shots_summary(app_db):
     app = AppTest.from_file("../pages/5_Dados_Atualizacoes.py")
     app.run(timeout=30)
     assert not app.exception
