@@ -38,7 +38,7 @@ def _arc_path(
     angles = np.radians(np.linspace(start_deg, end_deg, steps))
     xs = center_x + radius * np.cos(angles)
     ys = center_y + radius * np.sin(angles)
-    points = " L ".join(f"{x:.3f},{y:.3f}" for x, y in zip(xs, ys))
+    points = " L ".join(f"{x:.3f},{y:.3f}" for x, y in zip(xs, ys, strict=True))
     return f"M {points}"
 
 
@@ -271,7 +271,17 @@ def _axial_to_pixel(q: np.ndarray, r: np.ndarray, size: float) -> tuple[np.ndarr
     return x, y
 
 
-HEXBIN_COLUMNS = ["hex_q", "hex_r", "center_x", "center_y", "attempts", "makes", "points", "fg_pct", "points_per_shot"]
+HEXBIN_COLUMNS = [
+    "hex_q",
+    "hex_r",
+    "center_x",
+    "center_y",
+    "attempts",
+    "makes",
+    "points",
+    "fg_pct",
+    "points_per_shot",
+]
 
 
 def hexbin_summary(shots: pd.DataFrame, hex_size: float = 2.0) -> pd.DataFrame:
@@ -287,7 +297,9 @@ def hexbin_summary(shots: pd.DataFrame, hex_size: float = 2.0) -> pd.DataFrame:
     made = data["shot_made"].astype(bool)
     data["points"] = np.where(made, data["shot_value"], 0)
 
-    q, r = _pixel_to_axial(data["loc_x_ft"].to_numpy(dtype=float), data["loc_y_ft"].to_numpy(dtype=float), hex_size)
+    q, r = _pixel_to_axial(
+        data["loc_x_ft"].to_numpy(dtype=float), data["loc_y_ft"].to_numpy(dtype=float), hex_size
+    )
     hex_q, hex_r = _axial_round(q, r)
     data = data.assign(hex_q=hex_q, hex_r=hex_r)
 

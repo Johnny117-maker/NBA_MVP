@@ -11,7 +11,6 @@ import pandas as pd
 from .features import engineer_features
 from .store import DEFAULT_DB_PATH, read_raw_games, read_team_advanced_stats
 
-
 REQUIRED_COLUMNS = {
     "game_date",
     "home_team",

@@ -387,6 +387,9 @@ def log_team_prediction(
             ),
         )
         connection.commit()
+        # lastrowid só é None depois de um comando que não seja INSERT — nunca
+        # o caso aqui, mas a assinatura do stdlib permite None.
+        assert cursor.lastrowid is not None
         return int(cursor.lastrowid)
 
 
@@ -499,6 +502,9 @@ def log_player_prediction(
             ),
         )
         connection.commit()
+        # lastrowid só é None depois de um comando que não seja INSERT — nunca
+        # o caso aqui, mas a assinatura do stdlib permite None.
+        assert cursor.lastrowid is not None
         return int(cursor.lastrowid)
 
 
@@ -590,6 +596,9 @@ def log_model_training(
             (trained_at, model_type, n_games, json.dumps(metrics)),
         )
         connection.commit()
+        # lastrowid só é None depois de um comando que não seja INSERT — nunca
+        # o caso aqui, mas a assinatura do stdlib permite None.
+        assert cursor.lastrowid is not None
         return int(cursor.lastrowid)
 
 

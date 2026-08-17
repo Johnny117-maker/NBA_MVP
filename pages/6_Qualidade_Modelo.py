@@ -55,7 +55,12 @@ def _render_player_metrics(latest: pd.Series) -> None:
         {"label": "MAE assistências", "value": f"{metrics['ast_mae']:.1f}"},
     ]
     if "pts_interval_coverage" in metrics:
-        items.append({"label": "Cobertura do intervalo (pts)", "value": f"{metrics['pts_interval_coverage']:.0%}"})
+        items.append(
+            {
+                "label": "Cobertura do intervalo (pts)",
+                "value": f"{metrics['pts_interval_coverage']:.0%}",
+            }
+        )
     components.metric_row(items)
     st.caption(
         f"Validação walk-forward ({metrics.get('n_folds', '—')} folds), treinado em "
@@ -95,7 +100,11 @@ def _render_zone_metrics(latest: pd.Series) -> None:
     )
 
 
-_RENDER_BY_MODEL_TYPE = {"team": _render_team_metrics, "player": _render_player_metrics, "zone": _render_zone_metrics}
+_RENDER_BY_MODEL_TYPE = {
+    "team": _render_team_metrics,
+    "player": _render_player_metrics,
+    "zone": _render_zone_metrics,
+}
 
 
 tab_current, tab_history = st.tabs(["Métricas atuais", "Histórico de treinamento"])

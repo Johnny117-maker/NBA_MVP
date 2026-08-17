@@ -87,7 +87,7 @@ players = list_players(player_games)
 summary = player_season_summary(player_games)
 player_index = build_player_index(player_games)
 player_options = (players["player_name"] + " (" + players["team"] + ")").tolist()
-player_id_by_label = dict(zip(player_options, players["player_id"]))
+player_id_by_label = dict(zip(player_options, players["player_id"], strict=True))
 
 
 @st.cache_data(show_spinner=False)
@@ -401,6 +401,7 @@ with tab_projection:
     with col_rest:
         rest_days = st.number_input("Dias de descanso", 0, 7, 2)
     with col_opponent:
+        opponent_def_rating: float | None
         if team_games is not None:
             opponent_teams = available_teams(team_games)
             selected_opponent = st.selectbox(

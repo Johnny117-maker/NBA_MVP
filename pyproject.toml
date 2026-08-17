@@ -1,0 +1,29 @@
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Linhas de fixture (uma chamada `_shot(...)` por caso, em formato de
+# "tabela") ficam mais fáceis de comparar lado a lado numa linha só do que
+# quebradas — mais legíveis assim do que no formato padrão do ruff aqui.
+"tests/test_shot_features.py" = ["E501"]
+"tests/test_shot_model.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+
+# `tests/` fica de fora do escopo obrigatório: os stubs do `AppTest`
+# (streamlit.testing.v1) devolvem uniões amplas (`Element | Block`) que não
+# refletem o filtro de tipo real feito em runtime (`next(x for x in ... if
+# x.label == ...)`), e fixtures sintéticas (dicts aninhados literais) colapsam
+# para tipos genéricos demais — ruído de inferência, não bug. `src/`, `pages/`,
+# `app.py` e `scripts/` (código de produção) continuam 100% cobertos:
+#   mypy src pages app.py scripts
+exclude = ["^tests/"]

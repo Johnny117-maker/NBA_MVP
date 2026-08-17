@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -159,7 +158,9 @@ def test_simulate_play_in_never_contradicts_itself(season_games, bundle):
     # 6 diretos + 2 vagas do Play-In = 8 classificados por simulação, nesta conferência de 10 times.
     assert (result["made_playoffs"].sum(axis=1) == 8).all()
     # Ninguém pode estar fora do Play-In e mesmo assim classificado sem ter sido direto.
-    eliminated_but_qualified = (~result["play_in_slot"]) & (~result["direct_playoffs"]) & result["made_playoffs"]
+    eliminated_but_qualified = (
+        (~result["play_in_slot"]) & (~result["direct_playoffs"]) & result["made_playoffs"]
+    )
     assert not eliminated_but_qualified.any()
 
 

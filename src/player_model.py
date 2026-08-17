@@ -467,7 +467,7 @@ def range_probabilities(
     boundaries = [-math.inf, *cuts, math.inf]
 
     buckets = []
-    for low, high in zip(boundaries[:-1], boundaries[1:]):
+    for low, high in zip(boundaries[:-1], boundaries[1:], strict=True):
         probability = _bucket_cdf(predicted_value, residual_std, high) - _bucket_cdf(
             predicted_value, residual_std, low
         )
@@ -536,7 +536,7 @@ def walk_forward_evaluate(
         predicted = predict_from_features(bundle, test_fold_valid)
         intervals = _predict_intervals(bundle, test_fold_valid, predicted)
 
-        fold_metrics = {
+        fold_metrics: dict[str, int | float] = {
             "fold": fold_index,
             "n_train": int(train_end),
             "n_test": int(len(test_fold_valid)),

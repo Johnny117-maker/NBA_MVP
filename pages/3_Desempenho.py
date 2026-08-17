@@ -29,7 +29,9 @@ st.caption(
     "previsão' na página inicial e na aba Projeções de Jogadores), comparadas com o "
     "resultado real quando ele acontece."
 )
-st.caption("📊 Erros, calibração e histórico de retreinamento ficam em 'Qualidade do Modelo', na barra lateral.")
+st.caption(
+    "📊 Erros, calibração e histórico de retreinamento ficam em 'Qualidade do Modelo', na barra lateral."
+)
 
 tab_team_predictions, tab_player_predictions = st.tabs(["Previsões de times", "Previsões de jogadores"])
 
@@ -115,7 +117,11 @@ with tab_team_predictions:
         )
         st.dataframe(
             display.style.format(
-                {"Prob. mandante": "{:.1%}", "Placar previsto (M)": "{:.0f}", "Placar previsto (V)": "{:.0f}"},
+                {
+                    "Prob. mandante": "{:.1%}",
+                    "Placar previsto (M)": "{:.0f}",
+                    "Placar previsto (V)": "{:.0f}",
+                },
                 na_rep="—",
             ),
             hide_index=True,

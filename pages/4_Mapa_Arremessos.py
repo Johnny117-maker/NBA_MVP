@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import pandas as pd
 import streamlit as st
 
@@ -51,7 +53,15 @@ theme.inject_base_style()
 def _render_period_comparison(comparison: pd.DataFrame, label_a: str, label_b: str) -> None:
     st.markdown(f"> {explain_zone_shift(comparison, label_a=label_a, label_b=label_b)}")
     display = comparison[
-        ["zone_label", "attempts_a", "attempts_b", "fg_pct_a", "fg_pct_b", "points_per_shot_a", "points_per_shot_b"]
+        [
+            "zone_label",
+            "attempts_a",
+            "attempts_b",
+            "fg_pct_a",
+            "fg_pct_b",
+            "points_per_shot_a",
+            "points_per_shot_b",
+        ]
     ].rename(
         columns={
             "zone_label": "Zona",
@@ -131,7 +141,7 @@ players = _load_players()
 zone_reference = _load_zone_reference()
 
 player_options = players["player_name"].tolist()
-player_id_by_name = dict(zip(players["player_name"], players["player_id"]))
+player_id_by_name = dict(zip(players["player_name"], players["player_id"], strict=True))
 
 selector_col, season_col = st.columns([2, 1])
 with selector_col:
@@ -158,7 +168,10 @@ st.caption(
 )
 
 league_rates = league_zone_rates(zone_reference)
-league_points_per_shot = shot_indicators(zone_reference).get("points_per_shot")
+_league_points_per_shot_raw = shot_indicators(zone_reference).get("points_per_shot")
+league_points_per_shot = (
+    cast(float, _league_points_per_shot_raw) if _league_points_per_shot_raw is not None else None
+)
 
 if shots.empty:
     st.warning("Nenhum arremesso encontrado para esse jogador nessa temporada.")
@@ -168,7 +181,7 @@ indicators = shot_indicators(shots, league_rates=league_rates)
 
 components.metric_row(
     [
-        {"label": "Tentativas", "value": format_int_br(indicators["total_attempts"])},
+        {"label": "Tentativas", "value": format_int_br(cast(int, indicators["total_attempts"]))},
         {"label": "FG%", "value": f"{indicators['fg_pct']:.1%}"},
         {"label": "eFG%", "value": f"{indicators['efg_pct']:.1%}"},
         {"label": "Pontos/tentativa", "value": f"{indicators['points_per_shot']:.2f}"},
@@ -245,16 +258,16 @@ with tab_zones:
     )
 
     highlight_cols = st.columns(3)
-    highlight_cols[0].metric("Zona mais eficiente", indicators["most_efficient_zone"] or "—")
+    highlight_cols[0].metric("Zona mais eficiente", str(indicators["most_efficient_zone"] or "—"))
     highlight_cols[1].metric(
         "Maior vantagem sobre a liga",
-        indicators["best_diff_zone"] or "—",
-        f"{indicators['best_diff_points_per_shot']:+.2f} pts/tentativa"
+        str(indicators["best_diff_zone"] or "—"),
+        f"{cast(float, indicators['best_diff_points_per_shot']):+.2f} pts/tentativa"
         if indicators["best_diff_zone"]
         else None,
     )
     highlight_cols[2].metric(
-        "Muito volume, pouca eficiência", indicators["volume_low_efficiency_zone"] or "—"
+        "Muito volume, pouca eficiência", str(indicators["volume_low_efficiency_zone"] or "—")
     )
 
 with tab_trend:

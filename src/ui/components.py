@@ -71,7 +71,7 @@ def metric_row(items: list[dict]) -> None:
     for start in range(0, len(items), MAX_METRICS_PER_ROW):
         chunk = items[start : start + MAX_METRICS_PER_ROW]
         columns = st.columns(len(chunk))
-        for column, item in zip(columns, chunk):
+        for column, item in zip(columns, chunk, strict=True):
             column.metric(item["label"], item["value"], item.get("delta"), help=item.get("help"))
 
 

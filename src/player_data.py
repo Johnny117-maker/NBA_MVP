@@ -135,7 +135,7 @@ def generate_demo_player_games(games_per_team: int = 40, seed: int = 7) -> pd.Da
                 (opponent, team, not is_home),
             ):
                 for player in roster_by_team[side_team]:
-                    profile = ARCHETYPES[player["archetype"]]
+                    profile = ARCHETYPES[str(player["archetype"])]
                     stats = _sample_game_stats(rng, profile)
                     rows.append(
                         {

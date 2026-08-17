@@ -10,7 +10,6 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, mean_abs
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-
 FEATURE_NAMES = [
     "net_rating_diff",
     "form_diff",

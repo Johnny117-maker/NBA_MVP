@@ -188,9 +188,6 @@ def test_opponent_zone_defense_features_use_only_prior_games(synthetic_shots):
     # aqui" só pode vir da média da liga (preenchimento), não de um jogo
     # futuro contra esse mesmo time.
     first_occurrence = with_defense.sort_values("game_date").groupby("opponent").head(1)
-    league_avg = {
-        zone: float(with_defense[f"defense_share_allowed_avg_{zone}"].mean()) for zone in ZONES
-    }
     for zone in ZONES:
         # Não afirma igualdade exata (a primeira ocorrência de cada time não é
         # necessariamente a primeira cronologicamente da base toda), só que

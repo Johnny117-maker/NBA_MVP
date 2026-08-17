@@ -154,7 +154,8 @@ def simulate_play_in(
     play_in_slot = np.zeros((n_simulations, len(teams)), dtype=bool)
     made_playoffs = np.zeros((n_simulations, len(teams)), dtype=bool)
 
-    for conference in sorted(set(TEAM_CONFERENCE.get(team) for team in teams)):
+    conferences = sorted({TEAM_CONFERENCE[team] for team in teams if team in TEAM_CONFERENCE})
+    for conference in conferences:
         conference_teams = [team for team in teams if TEAM_CONFERENCE.get(team) == conference]
         if len(conference_teams) < DIRECT_PLAYOFF_SEEDS + PLAY_IN_SEEDS:
             continue

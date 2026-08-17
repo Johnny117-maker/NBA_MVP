@@ -96,7 +96,10 @@ with st.spinner(f"Simulando {n_simulations:,} cenários...".replace(",", ".")):
         st.error(str(error))
         st.stop()
 
-known_games_count = (games["season"] == season).sum() - (games.loc[games["season"] == season, "game_date"] >= pd.Timestamp(cutoff_date)).sum()
+season_games = games["season"] == season
+known_games_count = season_games.sum() - (
+    games.loc[season_games, "game_date"] >= pd.Timestamp(cutoff_date)
+).sum()
 st.caption(
     f"{known_games_count} jogos conhecidos antes do corte, "
     f"{len(games[(games['season'] == season) & (games['game_date'] >= pd.Timestamp(cutoff_date))])} "

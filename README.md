@@ -166,6 +166,20 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 pytest -q
 ```
 
+## Lint e checagem de tipos
+
+```powershell
+ruff check .
+mypy src pages app.py scripts
+```
+
+`tests/` fica fora do escopo obrigatório do `mypy` (configurado em
+`pyproject.toml`): os stubs do `AppTest` do Streamlit devolvem tipos amplos
+demais para o filtro feito em runtime nos testes de página, e algumas
+fixtures sintéticas (dicts aninhados literais) colapsam para tipos genéricos
+— ruído de inferência, não bug. `src/`, `pages/`, `app.py` e `scripts/`
+(código de produção) ficam 100% cobertos.
+
 ## Como coletar dados reais
 
 O script abaixo baixa jogos reais da NBA via `nba_api` e salva em um banco
