@@ -1,0 +1,49 @@
+# Ambientes virtuais Python
+.venv/
+venv/
+env/
+
+# Cache e artefatos Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Segredos e configurações locais
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Banco de dados e dados coletados localmente (não versionar bases grandes)
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.db-*
+*.sqlite-wal
+*.sqlite-shm
+
+# Artefatos de modelos treinados
+models/*.joblib
+models/*.pkl
+models/*.pickle
+models/*.onnx
+*.joblib
+
+# Logs, sistema e IDE
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Builds
+build/
+dist/
+*.egg-info/
+
+# Ferramentas de IA locais
+.claude/
