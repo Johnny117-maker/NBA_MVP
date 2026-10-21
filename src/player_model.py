@@ -12,6 +12,17 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+SEASON_BASELINE_FEATURES = [
+    "prev_season_pts_avg",
+    "prev_season_reb_avg",
+    "prev_season_ast_avg",
+    "prev_season_minutes_avg",
+    "prev_season_pts_per_min",
+    "prev_season_reb_per_min",
+    "prev_season_ast_per_min",
+    "prev_season_games",
+]
+
 MINUTES_FEATURES = [
     "minutes_avg5",
     "minutes_avg10",
@@ -24,6 +35,8 @@ MINUTES_FEATURES = [
     "is_back_to_back",
     "is_long_rest",
     "is_home",
+    "prev_season_minutes_avg",
+    "prev_season_games",
 ]
 
 # Janelas curtas captam mudanças de função/volume, enquanto as EMAs de 10
@@ -47,6 +60,10 @@ VOLUME_FEATURES = [
     "is_back_to_back",
     "is_long_rest",
     "is_home",
+    "prev_season_pts_avg",
+    "prev_season_pts_per_min",
+    "prev_season_minutes_avg",
+    "prev_season_games",
 ]
 EFFICIENCY_FEATURES = [
     "ts_pct_avg3",
@@ -64,6 +81,10 @@ EFFICIENCY_FEATURES = [
     "is_back_to_back",
     "is_long_rest",
     "is_home",
+    "prev_season_pts_avg",
+    "prev_season_pts_per_min",
+    "prev_season_minutes_avg",
+    "prev_season_games",
 ]
 
 # Rebotes e assistências continuam como taxa direta (produção por minuto) —
@@ -73,7 +94,9 @@ SIMPLE_RATE_STATS = ["reb", "ast"]
 # Modelo alternativo de pontos por minuto: inclui oportunidade (minutos,
 # titularidade/rotação), volume, eficiência e contexto pré-jogo.
 PTS_DIRECT_FEATURES = list(
-    dict.fromkeys([*MINUTES_FEATURES, *VOLUME_FEATURES, *EFFICIENCY_FEATURES])
+    dict.fromkeys(
+        [*MINUTES_FEATURES, *VOLUME_FEATURES, *EFFICIENCY_FEATURES, *SEASON_BASELINE_FEATURES]
+    )
 )
 
 # No modo quantile, os limites usam a mesma família de características do
@@ -171,16 +194,74 @@ def _rate_features(stat: str) -> list:
         "is_back_to_back",
         "is_long_rest",
         "is_home",
+        f"prev_season_{stat}_avg",
+        f"prev_season_{stat}_per_min",
+        "prev_season_minutes_avg",
+        "prev_season_games",
     ]
 
 
 def _prepare(games: pd.DataFrame) -> pd.DataFrame:
     prepared = games.copy()
+    season_defaults = {
+        "prev_season_pts_avg": 9.0,
+        "prev_season_reb_avg": 4.0,
+        "prev_season_ast_avg": 2.0,
+        "prev_season_minutes_avg": 18.0,
+        "prev_season_pts_per_min": 0.50,
+        "prev_season_reb_per_min": 0.22,
+        "prev_season_ast_per_min": 0.11,
+        "prev_season_games": 0.0,
+    }
+    for column, default in season_defaults.items():
+        if column not in prepared.columns:
+            prepared[column] = default
+        else:
+            prepared[column] = pd.to_numeric(prepared[column], errors="coerce").fillna(default)
+    if "games_since_trade" not in prepared.columns:
+        prepared["games_since_trade"] = 0.0
+    prepared["games_since_trade"] = pd.to_numeric(
+        prepared["games_since_trade"], errors="coerce"
+    ).fillna(0.0).clip(lower=0.0)
     prepared["is_home"] = prepared["is_home"].fillna(False).astype(int)
     prepared["rest_days"] = pd.to_numeric(prepared["rest_days"], errors="coerce").fillna(3).clip(lower=0)
     prepared["is_back_to_back"] = (prepared["rest_days"] <= 1).astype(int)
     prepared["is_long_rest"] = (prepared["rest_days"] >= 4).astype(int)
     return prepared
+
+
+def _season_baseline_weight(prepared: pd.DataFrame) -> np.ndarray:
+    """Peso da média da temporada-base: maior no início de um stint novo.
+
+    Parte de 60% no primeiro jogo do stint, diminui 4 p.p. por jogo e mantém
+    pelo menos 20% da referência anual. O peso é reduzido pela confiabilidade
+    do baseline quando há menos de 10 jogos históricos disponíveis.
+    """
+    games_since_trade = pd.to_numeric(
+        prepared["games_since_trade"], errors="coerce"
+    ).fillna(0.0).clip(lower=0.0).to_numpy()
+    baseline_games = pd.to_numeric(
+        prepared["prev_season_games"], errors="coerce"
+    ).fillna(0.0).clip(lower=0.0).to_numpy()
+    role_weight = np.clip(0.60 - 0.04 * games_since_trade, 0.20, 0.60)
+    reliability = np.clip(baseline_games / 10.0, 0.0, 1.0)
+    return role_weight * reliability
+
+
+def _blend_season_baseline(
+    stat: str,
+    model_prediction: np.ndarray,
+    predicted_minutes: np.ndarray,
+    prepared: pd.DataFrame,
+) -> np.ndarray:
+    """Combina a previsão dinâmica com a média da temporada-base por minuto."""
+    prediction = np.maximum(0.0, np.asarray(model_prediction, dtype=float))
+    baseline_rate = pd.to_numeric(
+        prepared[f"prev_season_{stat}_per_min"], errors="coerce"
+    ).fillna(0.0).clip(lower=0.0).to_numpy()
+    baseline_prediction = baseline_rate * np.maximum(0.0, np.asarray(predicted_minutes, dtype=float))
+    weight = _season_baseline_weight(prepared)
+    return np.maximum(0.0, (1.0 - weight) * prediction + weight * baseline_prediction)
 
 
 def _temporal_train_test_split(
@@ -208,10 +289,105 @@ def _fta_per_fga_ratio(fga_rate: pd.Series, fta_rate: pd.Series) -> pd.Series:
     return (fta_rate / fga_rate.replace(0, np.nan)).fillna(0.0)
 
 
+def _calibrate_minutes_predictions(
+    model_minutes: np.ndarray | pd.Series, features: pd.DataFrame
+) -> np.ndarray:
+    """Combina o modelo de minutos com um prior de rotação observado até o jogo.
+
+    Usa minutos recentes do stint atual, histórico recente geral e média da
+    temporada anterior. O peso do stint cresce com a quantidade de jogos já
+    disputados pelo jogador na passagem atual; em uma troca recente, reduz a
+    confiança nas poucas observações do novo time.
+    """
+    frame = _prepare(features)
+    model_values = np.maximum(0.0, np.asarray(model_minutes, dtype=float).reshape(-1))
+
+    def values(column: str, default: float) -> np.ndarray:
+        if column not in frame.columns:
+            return np.full(len(frame), float(default))
+        return (
+            pd.to_numeric(frame[column], errors="coerce")
+            .fillna(default)
+            .clip(lower=0.0)
+            .to_numpy(dtype=float)
+        )
+
+    stint_fast = values("minutes_avg5_stint", 18.0)
+    stint_slow = values("minutes_avg10_stint", 18.0)
+    career_fast = values("minutes_avg5", 18.0)
+    career_slow = values("minutes_avg10", 18.0)
+    season_minutes = values("prev_season_minutes_avg", 18.0)
+    games_in_stint = values("games_since_trade", 0.0)
+
+    stint_recent = 0.65 * stint_fast + 0.35 * stint_slow
+    career_recent = 0.60 * career_fast + 0.40 * career_slow
+    stint_support = np.clip(games_in_stint / 6.0, 0.0, 1.0)
+    without_stint_history = 0.65 * career_recent + 0.35 * season_minutes
+    history_prior = (
+        stint_support * stint_recent + (1.0 - stint_support) * without_stint_history
+    )
+
+    # Evita que o contexto histórico anule o regressor; aumenta ligeiramente
+    # seu peso conforme há mais jogos observados na rotação atual.
+    history_weight = 0.25 + 0.10 * stint_support
+    calibrated = (1.0 - history_weight) * model_values + history_weight * history_prior
+    return np.maximum(0.0, calibrated)
+
+
+def _prediction_confidence(
+    residual_std: dict[str, float],
+    predicted_minutes: float,
+    stats: dict[str, float],
+    context: dict | pd.Series,
+) -> str:
+    """Rótulo prudente baseado em erro histórico, suporte do histórico e stint.
+
+    É uma classe heurística de incerteza relativa; não é probabilidade de acerto.
+    O histórico de erro é aprendido exclusivamente nos dados de validação temporal.
+    """
+    def get_num(key: str, default: float = 0.0) -> float:
+        try:
+            value = float(context.get(key, default))
+        except (TypeError, ValueError):
+            return default
+        return value if np.isfinite(value) else default
+
+    minutes = max(float(predicted_minutes), 0.0)
+    minutes_ratio = (1.28 * residual_std.get("minutes", MIN_RESIDUAL_STD_MINUTES)) / max(minutes, 12.0)
+    relative_errors = [
+        1.28 * residual_std.get("pts", MIN_RESIDUAL_STD_STAT) / max(stats.get("pts", 0.0), 12.0),
+        1.28 * residual_std.get("reb", MIN_RESIDUAL_STD_STAT) / max(stats.get("reb", 0.0), 4.0),
+        1.28 * residual_std.get("ast", MIN_RESIDUAL_STD_STAT) / max(stats.get("ast", 0.0), 3.0),
+    ]
+    maximum_relative_error = max(relative_errors)
+    historical_games = get_num("games", get_num("games_before", 0.0))
+    stint_games = get_num("games_since_trade", 0.0)
+
+    if (
+        historical_games < 8
+        or minutes < 10
+        or minutes_ratio > 0.45
+        or maximum_relative_error > 0.70
+    ):
+        return "Baixa"
+    if (
+        historical_games >= 20
+        and stint_games >= 8
+        and minutes_ratio <= 0.28
+        and maximum_relative_error <= 0.42
+    ):
+        return "Alta"
+    return "Média"
+
+
 def train_player_models(
     games_with_rolling_features: pd.DataFrame, interval_method: str = "normal"
 ) -> PlayerModelBundle:
     """Treina os modelos de projeção de jogador.
+
+    A estimativa final de pontos, rebotes e assistências combina o modelo
+    dinâmico com a taxa por minuto da temporada-base, com maior peso nessa
+    referência no início de uma nova passagem por um time.
 
     `interval_method="normal"` (padrão): intervalos de pts/reb/ast vêm de
     Normal(0, erro histórico) em torno da previsão central — rápido. A previsão
@@ -231,7 +407,10 @@ def train_player_models(
     train_rows, test_rows = _temporal_train_test_split(ordered, train_fraction=0.8)
 
     minutes_eval = _regression_pipeline().fit(train_rows[MINUTES_FEATURES], train_rows["minutes"])
-    predicted_minutes = np.maximum(0.0, minutes_eval.predict(test_rows[MINUTES_FEATURES]))
+    predicted_minutes_raw = minutes_eval.predict(test_rows[MINUTES_FEATURES])
+    predicted_minutes = _calibrate_minutes_predictions(
+        predicted_minutes_raw, _prepare(test_rows)
+    )
     predicted_minutes_by_index = pd.Series(predicted_minutes, index=test_rows.index)
 
     metrics = {"minutes_mae": float(mean_absolute_error(test_rows["minutes"], predicted_minutes))}
@@ -283,9 +462,18 @@ def train_player_models(
         train_valid[PTS_DIRECT_FEATURES], train_valid["pts"] / train_valid["minutes"]
     )
     predicted_pts_rate = np.maximum(0.0, direct_pts_eval.predict(test_valid[PTS_DIRECT_FEATURES]))
-    predicted_pts = predicted_pts_rate * test_predicted_minutes
+    predicted_pts_unblended = predicted_pts_rate * test_predicted_minutes
+    predicted_pts = _blend_season_baseline(
+        "pts", predicted_pts_unblended, test_predicted_minutes, _prepare(test_valid)
+    )
 
     metrics["pts_mae"] = float(mean_absolute_error(test_valid["pts"], predicted_pts))
+    season_baseline_pts = (
+        _prepare(test_valid)["prev_season_pts_per_min"].to_numpy() * test_predicted_minutes
+    )
+    metrics["pts_season_baseline_mae"] = float(
+        mean_absolute_error(test_valid["pts"], season_baseline_pts)
+    )
     metrics["pts_direct_mae"] = metrics["pts_mae"]
     metrics["pts_chain_mae"] = float(
         mean_absolute_error(test_valid["pts"], predicted_pts_chain)
@@ -306,9 +494,19 @@ def train_player_models(
             train_valid[features], train_valid[stat] / train_valid["minutes"]
         )
         predicted_rate = model.predict(test_valid[features])
-        predicted_stat = np.maximum(0.0, predicted_rate * test_predicted_minutes)
+        predicted_stat_unblended = np.maximum(0.0, predicted_rate * test_predicted_minutes)
+        prepared_test = _prepare(test_valid)
+        predicted_stat = _blend_season_baseline(
+            stat, predicted_stat_unblended, test_predicted_minutes, prepared_test
+        )
 
         metrics[f"{stat}_mae"] = float(mean_absolute_error(test_valid[stat], predicted_stat))
+        season_baseline = (
+            prepared_test[f"prev_season_{stat}_per_min"].to_numpy() * test_predicted_minutes
+        )
+        metrics[f"{stat}_season_baseline_mae"] = float(
+            mean_absolute_error(test_valid[stat], season_baseline)
+        )
         residual_std[stat] = max(
             float(np.std(test_valid[stat].to_numpy() - predicted_stat)), MIN_RESIDUAL_STD_STAT
         )
@@ -374,7 +572,8 @@ def predict_from_features(bundle: PlayerModelBundle, rows: pd.DataFrame) -> pd.D
     """
     prepared = _prepare(rows)
 
-    predicted_minutes = np.maximum(0.0, bundle.minutes_model.predict(prepared[MINUTES_FEATURES]))
+    raw_minutes = bundle.minutes_model.predict(prepared[MINUTES_FEATURES])
+    predicted_minutes = _calibrate_minutes_predictions(raw_minutes, prepared)
 
     predicted_fga_rate = np.maximum(0.0, bundle.fga_model.predict(prepared[VOLUME_FEATURES]))
     predicted_fga = predicted_fga_rate * predicted_minutes
@@ -392,7 +591,10 @@ def predict_from_features(bundle: PlayerModelBundle, rows: pd.DataFrame) -> pd.D
         predicted_pts_rate = np.maximum(
             0.0, bundle.direct_pts_model.predict(prepared[PTS_DIRECT_FEATURES])
         )
-        predicted_pts = predicted_pts_rate * predicted_minutes
+        predicted_pts_raw = predicted_pts_rate * predicted_minutes
+        predicted_pts = _blend_season_baseline(
+            "pts", predicted_pts_raw, predicted_minutes, prepared
+        )
     else:
         # Compatibilidade com bundles antigos e objetos falsos usados em testes.
         predicted_pts = predicted_pts_chain
@@ -409,7 +611,8 @@ def predict_from_features(bundle: PlayerModelBundle, rows: pd.DataFrame) -> pd.D
     )
     for stat in SIMPLE_RATE_STATS:
         rate = bundle.rate_models[stat].predict(prepared[_rate_features(stat)])
-        result[stat] = np.maximum(0.0, rate * predicted_minutes)
+        raw_stat = np.maximum(0.0, rate * predicted_minutes)
+        result[stat] = _blend_season_baseline(stat, raw_stat, predicted_minutes, prepared)
     return result
 
 
@@ -436,8 +639,10 @@ def _predict_intervals(
             features = PTS_QUANTILE_FEATURES if stat == "pts" else _rate_features(stat)
             p10_rate = bundle.quantile_rate_models[stat]["p10"].predict(prepared[features])
             p90_rate = bundle.quantile_rate_models[stat]["p90"].predict(prepared[features])
-            p10_value = np.maximum(0.0, p10_rate * minutes)
-            p90_value = np.maximum(0.0, p90_rate * minutes)
+            p10_raw = np.maximum(0.0, p10_rate * minutes)
+            p90_raw = np.maximum(0.0, p90_rate * minutes)
+            p10_value = _blend_season_baseline(stat, p10_raw, minutes, prepared)
+            p90_value = _blend_season_baseline(stat, p90_raw, minutes, prepared)
             low = np.minimum(p10_value, p90_value)
             high = np.maximum(p10_value, p90_value)
         else:
@@ -506,6 +711,14 @@ def predict_player_game(
                 "opponent_def_rating": opponent_def_rating,
                 "rest_days": rest_days,
                 "is_home": int(is_home),
+                "prev_season_pts_avg": snapshot.get("prev_season_pts_avg", 9.0),
+                "prev_season_reb_avg": snapshot.get("prev_season_reb_avg", 4.0),
+                "prev_season_ast_avg": snapshot.get("prev_season_ast_avg", 2.0),
+                "prev_season_minutes_avg": snapshot.get("prev_season_minutes_avg", 18.0),
+                "prev_season_pts_per_min": snapshot.get("prev_season_pts_per_min", 0.50),
+                "prev_season_reb_per_min": snapshot.get("prev_season_reb_per_min", 0.22),
+                "prev_season_ast_per_min": snapshot.get("prev_season_ast_per_min", 0.11),
+                "prev_season_games": snapshot.get("prev_season_games", 0.0),
             }
         ]
     )
@@ -521,12 +734,12 @@ def predict_player_game(
         stats_low[stat] = float(low_series.iloc[0])
         stats_high[stat] = float(high_series.iloc[0])
 
-    minutes_margin = 1.28 * bundle.residual_std["minutes"]
-    if predicted_minutes < 1.0:
-        confidence = "Baixa"
-    else:
-        ratio = minutes_margin / predicted_minutes
-        confidence = "Baixa" if ratio > 0.5 else "Média" if ratio > 0.25 else "Alta"
+    confidence = _prediction_confidence(
+        bundle.residual_std,
+        predicted_minutes,
+        stats,
+        {**snapshot, "games": snapshot.get("games", 0.0)},
+    )
 
     return PlayerGamePrediction(
         minutes=predicted_minutes,
@@ -644,6 +857,7 @@ def walk_forward_evaluate(
 
     stats_to_evaluate = ["minutes", "pts", *SIMPLE_RATE_STATS]
     fold_results = []
+    prediction_records: list[dict] = []
 
     for fold_index in range(n_folds):
         train_end_date = boundaries[fold_index]
@@ -666,6 +880,35 @@ def walk_forward_evaluate(
         predicted = predict_from_features(bundle, test_fold_valid)
         intervals = _predict_intervals(bundle, test_fold_valid, predicted)
 
+        for row_index, actual_row in test_fold_valid.iterrows():
+            predicted_row = predicted.loc[row_index]
+            forecast_stats = {
+                stat: float(predicted_row[stat]) for stat in ("pts", "reb", "ast")
+            }
+            confidence = _prediction_confidence(
+                bundle.residual_std,
+                float(predicted_row["minutes"]),
+                forecast_stats,
+                actual_row,
+            )
+            record = {
+                "fold": fold_index + 1,
+                "game_date": pd.Timestamp(actual_row["game_date"]).date().isoformat(),
+                "game_id": actual_row.get("game_id"),
+                "player_id": actual_row.get("player_id"),
+                "player_name": actual_row.get("player_name"),
+                "team": actual_row.get("team"),
+                "opponent": actual_row.get("opponent"),
+                "is_home": actual_row.get("is_home"),
+                "confidence": confidence,
+            }
+            for stat in ("minutes", "pts", "reb", "ast"):
+                record[f"predicted_{stat}"] = float(predicted_row[stat])
+                record[f"actual_{stat}"] = float(actual_row[stat])
+                record[f"{stat}_error"] = float(predicted_row[stat] - actual_row[stat])
+                record[f"{stat}_absolute_error"] = abs(record[f"{stat}_error"])
+            prediction_records.append(record)
+
         fold_metrics: dict[str, int | float] = {
             "fold": fold_index,
             "n_train": int(len(train_fold)),
@@ -674,6 +917,9 @@ def walk_forward_evaluate(
         for stat in stats_to_evaluate:
             fold_metrics[f"{stat}_mae"] = float(
                 mean_absolute_error(test_fold_valid[stat], predicted[stat])
+            )
+            fold_metrics[f"{stat}_bias"] = float(
+                (predicted[stat].to_numpy() - test_fold_valid[stat].to_numpy()).mean()
             )
         baseline_points = np.maximum(
             0.0,
@@ -685,6 +931,15 @@ def walk_forward_evaluate(
         fold_metrics["pts_baseline_mae"] = float(
             mean_absolute_error(test_fold_valid["pts"], baseline_points)
         )
+        prepared_fold = _prepare(test_fold_valid)
+        for stat in ("pts", *SIMPLE_RATE_STATS):
+            seasonal_reference = (
+                prepared_fold[f"prev_season_{stat}_per_min"].to_numpy()
+                * predicted["minutes"].to_numpy()
+            )
+            fold_metrics[f"{stat}_season_baseline_mae"] = float(
+                mean_absolute_error(test_fold_valid[stat], seasonal_reference)
+            )
         for stat in ("pts", *SIMPLE_RATE_STATS):
             low, high = intervals[stat]
             inside = (test_fold_valid[stat] >= low) & (test_fold_valid[stat] <= high)
@@ -705,10 +960,29 @@ def walk_forward_evaluate(
         np.mean([fold["pts_baseline_mae"] for fold in fold_results])
     )
     for stat in ("pts", *SIMPLE_RATE_STATS):
+        aggregate[f"{stat}_season_baseline_mae"] = float(
+            np.mean([fold[f"{stat}_season_baseline_mae"] for fold in fold_results])
+        )
+    for stat in ("pts", *SIMPLE_RATE_STATS):
         aggregate[f"{stat}_interval_coverage"] = float(
             np.mean([fold[f"{stat}_interval_coverage"] for fold in fold_results])
         )
+    for stat in stats_to_evaluate:
+        aggregate[f"{stat}_bias"] = float(
+            np.mean([fold[f"{stat}_bias"] for fold in fold_results])
+        )
     aggregate["n_folds"] = len(fold_results)
 
-    return {"folds": fold_results, "aggregate": aggregate}
+    predictions_frame = pd.DataFrame(prediction_records)
+    if not predictions_frame.empty:
+        predictions_frame["game_date"] = pd.to_datetime(predictions_frame["game_date"])
+        predictions_frame = predictions_frame.sort_values(
+            ["game_date", "player_name"], na_position="last"
+        ).reset_index(drop=True)
+
+    return {
+        "folds": fold_results,
+        "aggregate": aggregate,
+        "predictions": predictions_frame,
+    }
 

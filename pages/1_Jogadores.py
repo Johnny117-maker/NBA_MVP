@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -7,7 +9,12 @@ import streamlit as st
 
 from src.data import available_teams, generate_demo_games, load_real_games, team_snapshot
 from src.player_data import load_player_games
-from src.player_features import add_opponent_context, add_rolling_features, assign_team_stints
+from src.player_features import (
+    add_opponent_context,
+    add_rolling_features,
+    assign_team_stints,
+    season_start_year,
+)
 from src.player_index import DIMENSION_LABELS, build_player_index
 from src.player_metrics import compare_players, list_players, player_season_summary, player_snapshot
 from src.player_model import (
@@ -375,10 +382,11 @@ with tab_compare:
 
 with tab_projection:
     st.caption(
-        "Projeta minutos, pontos, rebotes e assistências do próximo jogo a partir da "
-        "média recente do jogador (carreira e passagem atual pelo time, reconhecendo "
-        "trocas) e da força defensiva do próximo adversário. Não usa informação de "
-        "titularidade, lesões ou disponibilidade dos companheiros."
+        "A média da temporada mais recente disponível é a referência inicial para "
+        "pontos, rebotes e assistências. A projeção ajusta essa base conforme minutos, "
+        "forma recente, contexto do adversário e jogos já disputados na passagem pelo "
+        "time atual. A referência perde peso gradualmente quando há evidências de uma "
+        "nova função. Não usa informação confirmada de lesões ou disponibilidade dos companheiros."
     )
 
     try:
@@ -395,13 +403,40 @@ with tab_projection:
     )
     projection_id = player_id_by_label[projection_selection]
 
-    col_home, col_rest, col_opponent = st.columns(3)
+    known_seasons = (
+        player_games["season"].dropna().astype(str).unique().tolist()
+        if "season" in player_games.columns
+        else []
+    )
+    known_years = [season_start_year(value) for value in known_seasons]
+    known_years = [int(year) for year in known_years if pd.notna(year)]
+    now = pd.Timestamp.now()
+    current_season_start = now.year if now.month >= 7 else now.year - 1
+    default_target_start = max([current_season_start, *known_years])
+    default_target_season = f"{default_target_start}-{str(default_target_start + 1)[-2:]}"
+    next_target_start = default_target_start + 1
+    target_season_options = [
+        default_target_season,
+        f"{next_target_start}-{str(next_target_start + 1)[-2:]}",
+    ]
+    target_season = st.selectbox(
+        "Temporada-alvo da previsão",
+        target_season_options,
+        index=0,
+        help=(
+            "A referência estatística será a temporada imediatamente anterior à escolhida. "
+            "Se essa temporada não existir na base, o sistema usa a temporada histórica mais recente."
+        ),
+    )
+
+    col_home, col_rest, col_opponent, col_target_date = st.columns(4)
     with col_home:
         is_home = st.radio("Mando de quadra", ["Casa", "Fora"], horizontal=True) == "Casa"
     with col_rest:
         rest_days = st.number_input("Dias de descanso", 0, 7, 2)
     with col_opponent:
         opponent_def_rating: float | None
+        selected_opponent: str | None = None
         if team_games is not None:
             opponent_teams = available_teams(team_games)
             selected_opponent = st.selectbox(
@@ -411,8 +446,18 @@ with tab_projection:
         else:
             st.caption("Sem base de times disponível para escolher o adversário.")
             opponent_def_rating = None
+    with col_target_date:
+        target_game_date = st.date_input(
+            "Data do jogo previsto",
+            value=date.today() + timedelta(days=1),
+            help=(
+                "Escolha a data exata desta previsão. O resultado será comparado "
+                "somente com a partida do jogador nessa data, se houver."
+            ),
+            key=f"target_game_date_{source}",
+        )
 
-    snapshot = player_snapshot(player_games, projection_id)
+    snapshot = player_snapshot(player_games, projection_id, target_season=target_season)
     prediction = predict_player_game(
         bundle,
         snapshot,
@@ -431,6 +476,32 @@ with tab_projection:
     projection_metrics[2].metric("Rebotes", f"{prediction.stats['reb']:.1f}")
     projection_metrics[3].metric("Assistências", f"{prediction.stats['ast']:.1f}")
 
+    baseline_label = snapshot.get("prev_season_label", "histórico disponível")
+    st.markdown(f"#### Comparação com a temporada-base ({baseline_label})")
+    baseline_columns = st.columns(3)
+    baseline_descriptions = (
+        ("pts", "Pontos", "prev_season_pts_avg"),
+        ("reb", "Rebotes", "prev_season_reb_avg"),
+        ("ast", "Assistências", "prev_season_ast_avg"),
+    )
+    for column, (stat, label, baseline_key) in zip(
+        baseline_columns, baseline_descriptions, strict=True
+    ):
+        baseline_value = float(snapshot.get(baseline_key, 0.0))
+        projected_value = float(prediction.stats[stat])
+        column.metric(
+            f"Média-base — {label}",
+            f"{baseline_value:.1f}",
+            delta=f"{projected_value - baseline_value:+.1f} na projeção",
+            delta_color="normal",
+        )
+    st.caption(
+        "O baseline é a média por jogo da temporada mais recente disponível nos dados. "
+        "A estimativa usa também a taxa por minuto dessa temporada para ajustar os "
+        "resultados aos minutos previstos. Após uma troca de time, a referência anual "
+        "tem maior peso no início e diminui conforme chegam partidas do novo stint."
+    )
+
     if st.button("Registrar esta previsão"):
         projection_player_name = players.loc[
             players["player_id"] == projection_id, "player_name"
@@ -445,10 +516,12 @@ with tab_projection:
             prediction.stats["reb"],
             prediction.stats["ast"],
             prediction.confidence,
+            target_game_date=target_game_date.isoformat(),
         )
         st.success(
-            "Previsão registrada. Acompanhe em 'Desempenho' na barra lateral — lá dá para "
-            "comparar com o próximo jogo real desse jogador depois que ele acontecer."
+            f"Previsão registrada para {target_game_date.strftime('%d/%m/%Y')}. "
+            "Acompanhe em 'Desempenho': ela só será resolvida quando houver dados "
+            "do jogador para a data-alvo e o contexto de adversário/mando coincidir."
         )
 
     st.markdown("###### Como a projeção de pontos foi montada")
@@ -493,7 +566,9 @@ with tab_projection:
     )
     st.caption(
         f"Confiança do modelo: {prediction.confidence}. "
-        "Intervalo experimental de aproximadamente 80%, baseado no erro histórico."
+        "É uma classe de incerteza relativa baseada no erro histórico, quantidade de histórico "
+        "e estabilidade do stint — não uma probabilidade de acerto. O intervalo é experimental "
+        "e sua cobertura deve ser acompanhada na auditoria das previsões resolvidas."
     )
 
     st.markdown("#### Probabilidade de over/under")

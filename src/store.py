@@ -88,11 +88,15 @@ CREATE TABLE IF NOT EXISTS player_predictions (
     player_name TEXT NOT NULL,
     opponent TEXT,
     is_home INTEGER NOT NULL,
+    target_game_date TEXT,
     predicted_minutes REAL NOT NULL,
     predicted_pts REAL NOT NULL,
     predicted_reb REAL NOT NULL,
     predicted_ast REAL NOT NULL,
     confidence TEXT NOT NULL,
+    actual_game_date TEXT,
+    actual_opponent TEXT,
+    actual_is_home INTEGER,
     actual_minutes REAL,
     actual_pts REAL,
     actual_reb REAL,
@@ -164,6 +168,22 @@ def _migrate_player_game_stats(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE player_game_stats ADD COLUMN is_starter INTEGER")
 
 
+def _migrate_player_predictions(connection: sqlite3.Connection) -> None:
+    """Adiciona campos de data/alvo e contexto real sem descartar previsões antigas."""
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(player_predictions)")}
+    migrations = {
+        "target_game_date": "TEXT",
+        "actual_game_date": "TEXT",
+        "actual_opponent": "TEXT",
+        "actual_is_home": "INTEGER",
+    }
+    for column, sql_type in migrations.items():
+        if column not in columns:
+            connection.execute(
+                f"ALTER TABLE player_predictions ADD COLUMN {column} {sql_type}"
+            )
+
+
 def init_db(path: Path = DEFAULT_DB_PATH) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -177,6 +197,7 @@ def init_db(path: Path = DEFAULT_DB_PATH) -> None:
             + _MODEL_TRAINING_LOG_SCHEMA
         )
         _migrate_player_game_stats(connection)
+        _migrate_player_predictions(connection)
 
 
 def upsert_games(games: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> int:
@@ -470,6 +491,7 @@ def log_player_prediction(
     predicted_ast: float,
     confidence: str,
     path: Path = DEFAULT_DB_PATH,
+    target_game_date=None,
 ) -> int:
     """Registra uma previsão de jogador. Retorna o id da linha criada.
 
@@ -484,9 +506,9 @@ def log_player_prediction(
         cursor = connection.execute(
             """
             INSERT INTO player_predictions
-                (created_at, player_id, player_name, opponent, is_home,
+                (created_at, player_id, player_name, opponent, is_home, target_game_date,
                  predicted_minutes, predicted_pts, predicted_reb, predicted_ast, confidence)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 created_at,
@@ -494,6 +516,7 @@ def log_player_prediction(
                 player_name,
                 opponent,
                 int(is_home),
+                str(target_game_date)[:10] if target_game_date is not None else None,
                 predicted_minutes,
                 predicted_pts,
                 predicted_reb,
@@ -512,6 +535,8 @@ def read_player_predictions(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
     path = Path(path)
     if not path.exists():
         return pd.DataFrame()
+    # Executa migrações aditivas em bases anteriores à coluna de data-alvo.
+    init_db(path)
     with sqlite3.connect(path) as connection:
         tables = connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='player_predictions'"
@@ -522,20 +547,40 @@ def read_player_predictions(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
             "SELECT * FROM player_predictions ORDER BY created_at DESC", connection
         )
     if not data.empty:
-        data["created_at"] = pd.to_datetime(data["created_at"])
-        data["resolved_at"] = pd.to_datetime(data["resolved_at"])
+        data["created_at"] = pd.to_datetime(data["created_at"], errors="coerce")
+        data["resolved_at"] = pd.to_datetime(data["resolved_at"], errors="coerce")
+        for column in ("target_game_date", "actual_game_date"):
+            if column in data.columns:
+                data[column] = pd.to_datetime(data[column], errors="coerce")
         data["is_home"] = data["is_home"].astype(bool)
+        if "actual_is_home" in data.columns:
+            data["actual_is_home"] = data["actual_is_home"].astype("boolean")
     return data
 
 
-def resolve_player_predictions(player_games: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> int:
-    """Casa previsões pendentes com o próximo jogo real do mesmo jogador.
+def _normalize_team_key(value: object) -> str:
+    """Normaliza nome completo e sigla NBA para permitir comparar adversários."""
+    import re
 
-    Diferente de `resolve_team_predictions` (que exige o mesmo mandante ×
-    visitante), aqui o critério é só `player_id` — o adversário escolhido na
-    hora da previsão é hipotético, então exigir que bata com o adversário
-    real deixaria quase tudo pendente para sempre. Retorna quantas previsões
-    foram resolvidas nesta chamada.
+    if value is None or pd.isna(value):
+        return ""
+    text = str(value).strip()
+    try:
+        from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
+        lookup = {abbr.casefold(): name for abbr, name in TEAM_ABBREVIATION_TO_NAME.items()}
+        text = lookup.get(text.casefold(), text)
+    except ImportError:
+        pass
+    return re.sub(r"[^a-z0-9]", "", text.casefold())
+
+
+def resolve_player_predictions(player_games: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> int:
+    """Resolve previsões com a partida alvo, evitando casar uma previsão com outro jogo.
+
+    Previsões novas usam `target_game_date` + adversário + mando quando esses
+    campos estão disponíveis. Para previsões antigas sem data-alvo, tenta
+    casar adversário/mando; só usa o próximo jogo por data quando o DataFrame
+    de origem não dispõe dessas colunas (compatibilidade com bases antigas/testes).
     """
     predictions = read_player_predictions(path)
     if predictions.empty:
@@ -546,28 +591,82 @@ def resolve_player_predictions(player_games: pd.DataFrame, path: Path = DEFAULT_
         return 0
 
     games = player_games.copy()
-    games["game_date"] = pd.to_datetime(games["game_date"])
+    if "game_date" not in games.columns or "player_id" not in games.columns:
+        return 0
+    games["game_date"] = pd.to_datetime(games["game_date"], errors="coerce")
+    games["_game_day"] = games["game_date"].dt.normalize()
+    games["_opponent_key"] = (
+        games["opponent"].map(_normalize_team_key)
+        if "opponent" in games.columns
+        else ""
+    )
     resolved_at = datetime.now().isoformat()
-
     resolved_count = 0
+
     with sqlite3.connect(path) as connection:
         for _, prediction in pending.iterrows():
-            candidates = games[
-                (games["player_id"] == prediction["player_id"])
-                & (games["game_date"] > prediction["created_at"])
-            ].sort_values("game_date")
+            player_rows = games[games["player_id"] == prediction["player_id"]].copy()
+            if player_rows.empty:
+                continue
+
+            target_date = prediction.get("target_game_date")
+            has_target_date = target_date is not None and not pd.isna(target_date)
+            if has_target_date:
+                target_day = pd.Timestamp(target_date).normalize()
+                candidates = player_rows[player_rows["_game_day"] == target_day]
+            else:
+                created_at = pd.to_datetime(prediction["created_at"], errors="coerce")
+                candidates = player_rows[player_rows["game_date"] > created_at]
+
             if candidates.empty:
                 continue
 
-            match = candidates.iloc[0]
+            expected_opponent = _normalize_team_key(prediction.get("opponent"))
+            has_actual_opponent = "opponent" in candidates.columns
+            if expected_opponent and has_actual_opponent:
+                opponent_matches = candidates[
+                    candidates["_opponent_key"] == expected_opponent
+                ]
+                if not opponent_matches.empty:
+                    candidates = opponent_matches
+                elif has_target_date or {"is_home"} <= set(candidates.columns):
+                    # Não produzir um falso acerto ligando a previsão a outro jogo.
+                    continue
+
+            if "is_home" in candidates.columns:
+                home_matches = candidates[
+                    candidates["is_home"].astype(bool) == bool(prediction["is_home"])
+                ]
+                if not home_matches.empty:
+                    candidates = home_matches
+                else:
+                    # Mando informado e mando real discordam; não atribuir esse jogo.
+                    continue
+
+            match = candidates.sort_values("game_date").iloc[0]
+            actual_opponent = (
+                str(match["opponent"])
+                if "opponent" in match.index and pd.notna(match["opponent"])
+                else None
+            )
+            actual_is_home = (
+                int(bool(match["is_home"]))
+                if "is_home" in match.index and pd.notna(match["is_home"])
+                else None
+            )
+
             connection.execute(
                 """
                 UPDATE player_predictions
-                SET actual_minutes = ?, actual_pts = ?, actual_reb = ?, actual_ast = ?,
+                SET actual_game_date = ?, actual_opponent = ?, actual_is_home = ?,
+                    actual_minutes = ?, actual_pts = ?, actual_reb = ?, actual_ast = ?,
                     resolved_at = ?
                 WHERE id = ?
                 """,
                 (
+                    pd.Timestamp(match["game_date"]).date().isoformat(),
+                    actual_opponent,
+                    actual_is_home,
                     float(match["minutes"]),
                     float(match["pts"]),
                     float(match["reb"]),

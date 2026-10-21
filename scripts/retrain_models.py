@@ -46,9 +46,20 @@ def main() -> None:
     # aqui, não a cada carregamento da página (ver src/player_model.py).
     evaluation = walk_forward_evaluate(features)
     log_model_training("player", len(player_games), evaluation["aggregate"], DEFAULT_DB_PATH)
+
+    # Grava também a previsão de cada jogador-partida no teste temporal, não
+    # apenas métricas agregadas. A tela de qualidade usa esse arquivo para a
+    # auditoria por rodada e para baixar erros individuais.
+    report_dir = Path(__file__).resolve().parent.parent / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = report_dir / "player_backtest_predictions.csv"
+    evaluation["predictions"].to_csv(report_path, index=False, encoding="utf-8-sig")
+
     print(
         f"  Fonte: {player_source} | {len(player_games)} linhas | "
         f"{evaluation['aggregate']['n_folds']} folds | "
+        f"previsões auditadas: {len(evaluation['predictions'])} | "
+        f"arquivo: {report_path} | "
         f"métricas agregadas: {evaluation['aggregate']}"
     )
 

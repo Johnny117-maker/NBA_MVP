@@ -333,3 +333,84 @@ def test_stint_rolling_average_does_not_leak_across_trade():
     assert second_game_b["minutes_avg10_stint"] == pytest.approx(34.0)
     assert second_game_b["minutes_avg10_stint"] != pytest.approx(second_game_b["minutes_avg10"])
     assert second_game_b["games_since_trade"] == 1
+
+
+def test_previous_season_baselines_use_the_complete_prior_season_without_same_season_leakage():
+    rows = []
+    season_rows = [
+        ("2022-23", "2022-10-20", 10, 4, 2, 20),
+        ("2022-23", "2022-10-22", 20, 6, 4, 40),
+        ("2023-24", "2023-10-20", 30, 8, 5, 35),
+        ("2023-24", "2023-10-22", 28, 7, 6, 34),
+    ]
+    for index, (season, date, points, rebounds, assists, minutes) in enumerate(season_rows):
+        rows.append(
+            {
+                "player_id": 1,
+                "player_name": "Season Test",
+                "team": "Team A",
+                "game_id": f"SEASON-{index}",
+                "game_date": pd.Timestamp(date),
+                "season": season,
+                "minutes": minutes,
+                "pts": points,
+                "reb": rebounds,
+                "ast": assists,
+                "fga": 12,
+                "fta": 3,
+                "true_shooting_pct": 0.55,
+                "usage_pct": 22.0,
+            }
+        )
+
+    result = add_rolling_features(pd.DataFrame(rows))
+    first_season = result[result["season"] == "2022-23"].reset_index(drop=True)
+    next_season = result[result["season"] == "2023-24"].reset_index(drop=True)
+
+    # Primeira partida da base usa prior neutro; a segunda só conhece a primeira.
+    assert first_season.loc[0, "prev_season_pts_avg"] == pytest.approx(9.0)
+    assert first_season.loc[1, "prev_season_pts_avg"] == pytest.approx(10.0)
+    # Cada partida de 2023-24 usa a média completa de 2022-23, independentemente
+    # dos resultados da temporada corrente (30 e 28 pontos).
+    assert next_season["prev_season_pts_avg"].tolist() == pytest.approx([15.0, 15.0])
+    assert next_season["prev_season_reb_avg"].tolist() == pytest.approx([5.0, 5.0])
+    assert next_season["prev_season_ast_avg"].tolist() == pytest.approx([3.0, 3.0])
+    assert next_season["prev_season_minutes_avg"].tolist() == pytest.approx([30.0, 30.0])
+    assert next_season["prev_season_games"].tolist() == pytest.approx([2.0, 2.0])
+
+
+def test_season_labels_that_are_not_nba_seasons_use_only_prior_player_games():
+    rows = _fabricated_player_games()
+    rows["season"] = "DEMO"
+    result = add_rolling_features(rows)
+
+    assert result.iloc[0]["prev_season_pts_avg"] == pytest.approx(9.0)
+    assert result.iloc[1]["prev_season_pts_avg"] == pytest.approx(20.0)
+    assert result.iloc[2]["prev_season_pts_avg"] == pytest.approx(21.0)
+
+
+def test_target_season_selects_the_immediately_previous_season_as_baseline():
+    from src.player_features import latest_season_baseline
+
+    history = pd.DataFrame(
+        [
+            {
+                "player_id": 7, "game_id": "A1", "game_date": pd.Timestamp("2023-10-20"),
+                "season": "2023-24", "minutes": 30, "pts": 20, "reb": 5, "ast": 4,
+            },
+            {
+                "player_id": 7, "game_id": "A2", "game_date": pd.Timestamp("2024-10-20"),
+                "season": "2024-25", "minutes": 36, "pts": 30, "reb": 8, "ast": 7,
+            },
+        ]
+    )
+
+    next_season = latest_season_baseline(history, target_season="2025-26")
+    middle_season = latest_season_baseline(history, target_season="2024-25")
+
+    assert next_season["prev_season_label"] == "2024-25"
+    assert next_season["prev_season_pts_avg"] == pytest.approx(30.0)
+    assert next_season["prev_season_reb_avg"] == pytest.approx(8.0)
+    assert next_season["prev_season_ast_avg"] == pytest.approx(7.0)
+    assert middle_season["prev_season_label"] == "2023-24"
+    assert middle_season["prev_season_pts_avg"] == pytest.approx(20.0)

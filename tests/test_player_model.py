@@ -10,6 +10,8 @@ from src.player_model import (
     PTS_QUANTILE_FEATURES,
     SIMPLE_RATE_STATS,
     PlayerModelBundle,
+    _calibrate_minutes_predictions,
+    _prediction_confidence,
     _predict_intervals,
     _rate_features,
     over_probability,
@@ -160,6 +162,10 @@ def test_walk_forward_evaluate_returns_one_result_per_fold_with_growing_train_si
     assert result["aggregate"]["n_folds"] == 4
     assert result["aggregate"]["pts_baseline_mae"] >= 0
     assert result["aggregate"]["pts_chain_mae"] >= 0
+    assert not result["predictions"].empty
+    assert {"game_date", "player_name", "predicted_pts", "actual_pts", "pts_absolute_error"} <= set(
+        result["predictions"].columns
+    )
 
 
 def test_quantile_interval_method_trains_all_three_percentiles_per_stat(setup_quantile_model):
@@ -283,3 +289,68 @@ def test_walk_forward_evaluate_requires_enough_games():
     # linhas) — não dá para formar nem o primeiro fold.
     with pytest.raises(ValueError):
         walk_forward_evaluate(games_with_features, n_folds=5, min_train_games=10_000)
+
+
+def test_previous_season_blend_starts_more_conservative_after_team_change():
+    from src.player_model import _blend_season_baseline, _season_baseline_weight
+
+    rows = pd.DataFrame(
+        {
+            "games_since_trade": [0, 5, 10],
+            "prev_season_games": [82, 82, 82],
+            "prev_season_pts_per_min": [0.60, 0.60, 0.60],
+            "prev_season_reb_per_min": [0.20, 0.20, 0.20],
+            "prev_season_ast_per_min": [0.10, 0.10, 0.10],
+        }
+    )
+    weights = _season_baseline_weight(rows)
+    assert weights.tolist() == pytest.approx([0.60, 0.40, 0.20])
+
+    blended = _blend_season_baseline(
+        "pts", model_prediction=np.array([30.0, 30.0, 30.0]),
+        predicted_minutes=np.array([30.0, 30.0, 30.0]), prepared=rows,
+    )
+    # Baseline é 18 pontos; com mais jogos no stint, a projeção acompanha mais
+    # o modelo dinâmico (30 pontos) e reduz o peso da temporada anterior.
+    assert blended[0] == pytest.approx(22.8)
+    assert blended[1] == pytest.approx(25.2)
+    assert blended[2] == pytest.approx(27.6)
+
+
+
+def test_minutes_calibration_moves_model_toward_recent_rotation_context():
+    features = pd.DataFrame(
+        [{
+            "minutes_avg5": 32.0,
+            "minutes_avg10": 30.0,
+            "minutes_avg5_stint": 36.0,
+            "minutes_avg10_stint": 34.0,
+            "prev_season_minutes_avg": 31.0,
+            "games_since_trade": 8.0,
+            "is_home": True,
+            "rest_days": 2,
+        }]
+    )
+    calibrated = _calibrate_minutes_predictions(np.array([25.0]), features)
+    assert calibrated[0] > 25.0
+    assert calibrated[0] < 36.0
+
+
+def test_prediction_confidence_is_low_with_little_history():
+    confidence = _prediction_confidence(
+        {"minutes": 4.0, "pts": 5.0, "reb": 2.0, "ast": 2.0},
+        predicted_minutes=30.0,
+        stats={"pts": 25.0, "reb": 8.0, "ast": 5.0},
+        context={"games": 3, "games_since_trade": 2},
+    )
+    assert confidence == "Baixa"
+
+
+def test_prediction_confidence_can_be_high_with_stable_history_and_low_error():
+    confidence = _prediction_confidence(
+        {"minutes": 1.0, "pts": 2.0, "reb": 1.0, "ast": 1.0},
+        predicted_minutes=32.0,
+        stats={"pts": 25.0, "reb": 8.0, "ast": 5.0},
+        context={"games": 100, "games_since_trade": 20},
+    )
+    assert confidence == "Alta"

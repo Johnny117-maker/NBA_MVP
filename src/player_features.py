@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 
@@ -177,6 +179,195 @@ def _historical_rate(player_games: pd.DataFrame, stat: str) -> pd.Series:
     return values.div(minutes.where(minutes > 0))
 
 
+def season_start_year(value: object) -> float:
+    """Extrai o ano inicial de rótulos NBA como ``2024-25`` ou ``2024-2025``.
+
+    Retorna NaN para rótulos demonstrativos (ex.: ``DEMO``), para que esses
+    dados usem um fallback estritamente histórico em vez de inventar temporadas.
+    """
+    if pd.isna(value):
+        return float("nan")
+    text = str(value).strip()
+    match = re.search(r"(?<!\d)(20\d{2})\s*[-/]\s*(?:20\d{2}|\d{2})(?!\d)", text)
+    if match:
+        return float(match.group(1))
+    return float("nan")
+
+
+def _expanding_prior_mean(games: pd.DataFrame, column: str, default: float) -> pd.Series:
+    """Média acumulada por jogador até o jogo anterior, sem vazamento temporal."""
+    values = pd.to_numeric(games[column], errors="coerce")
+    prior = values.groupby(games["player_id"], sort=False).transform(
+        lambda player_values: player_values.shift(1).expanding(min_periods=1).mean()
+    )
+    return prior.fillna(default).astype(float)
+
+
+def add_previous_season_baselines(games: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona médias da temporada anterior para pontos, rebotes e assistências.
+
+    Para cada linha de uma temporada, procura a média completa da temporada
+    imediatamente anterior do mesmo jogador (somando todos os times dessa
+    temporada). Se esse ano não estiver disponível, usa somente jogos anteriores
+    daquele jogador; na estreia absoluta, usa priors neutros documentados.
+    Também cria taxas por minuto para adaptar a média à projeção de minutos.
+    """
+    if games.empty:
+        return games.copy()
+
+    result = games.copy()
+    if "season" in result.columns:
+        result["_season_start_year"] = result["season"].map(season_start_year)
+    else:
+        result["_season_start_year"] = np.nan
+
+    played = result[pd.to_numeric(result["minutes"], errors="coerce").fillna(0) > 0].copy()
+    lookup_columns = ["player_id", "_season_start_year"]
+    if not played.empty and played["_season_start_year"].notna().any():
+        aggregations = {
+            "prev_season_pts_avg": ("pts", "mean"),
+            "prev_season_reb_avg": ("reb", "mean"),
+            "prev_season_ast_avg": ("ast", "mean"),
+            "prev_season_minutes_avg": ("minutes", "mean"),
+            "prev_season_games": (
+                ("game_id", "count") if "game_id" in played.columns else ("minutes", "count")
+            ),
+            "_prev_pts_total": ("pts", "sum"),
+            "_prev_reb_total": ("reb", "sum"),
+            "_prev_ast_total": ("ast", "sum"),
+            "_prev_minutes_total": ("minutes", "sum"),
+        }
+        season_stats = (
+            played.dropna(subset=["_season_start_year"])
+            .groupby(lookup_columns, as_index=False, sort=True)
+            .agg(**aggregations)
+        )
+        denominator = season_stats["_prev_minutes_total"].replace(0, np.nan)
+        season_stats["prev_season_pts_per_min"] = season_stats["_prev_pts_total"] / denominator
+        season_stats["prev_season_reb_per_min"] = season_stats["_prev_reb_total"] / denominator
+        season_stats["prev_season_ast_per_min"] = season_stats["_prev_ast_total"] / denominator
+        lookup = season_stats.set_index(lookup_columns)
+        query_index = pd.MultiIndex.from_arrays(
+            [result["player_id"].to_numpy(), result["_season_start_year"].to_numpy() - 1],
+            names=lookup_columns,
+        )
+        mapped_columns = [
+            "prev_season_pts_avg",
+            "prev_season_reb_avg",
+            "prev_season_ast_avg",
+            "prev_season_minutes_avg",
+            "prev_season_games",
+            "prev_season_pts_per_min",
+            "prev_season_reb_per_min",
+            "prev_season_ast_per_min",
+        ]
+        for column in mapped_columns:
+            result[column] = lookup[column].reindex(query_index).to_numpy()
+    else:
+        for column in (
+            "prev_season_pts_avg", "prev_season_reb_avg", "prev_season_ast_avg",
+            "prev_season_minutes_avg", "prev_season_games", "prev_season_pts_per_min",
+            "prev_season_reb_per_min", "prev_season_ast_per_min",
+        ):
+            result[column] = np.nan
+
+    # Ausência da temporada imediatamente anterior (estreia, base histórica
+    # parcial ou rótulo DEMO): o fallback de cada linha só olha para trás.
+    defaults = {
+        "prev_season_pts_avg": ("pts", INITIAL_PRIORS["pts"]),
+        "prev_season_reb_avg": ("reb", 4.0),
+        "prev_season_ast_avg": ("ast", 2.0),
+        "prev_season_minutes_avg": ("minutes", INITIAL_PRIORS["minutes"]),
+    }
+    for target, (source_column, default) in defaults.items():
+        fallback = _expanding_prior_mean(result, source_column, default)
+        result[target] = pd.to_numeric(result[target], errors="coerce").fillna(fallback)
+
+    # prev_season_games é também uma medida de confiança do baseline. Quando
+    # não existe o ano anterior, conta apenas aparições históricas anteriores.
+    prior_game_count = result.groupby("player_id", sort=False).cumcount().astype(float)
+    result["prev_season_games"] = pd.to_numeric(
+        result["prev_season_games"], errors="coerce"
+    ).fillna(prior_game_count).fillna(0.0)
+
+    for stat in ("pts", "reb", "ast"):
+        target = f"prev_season_{stat}_per_min"
+        values = pd.to_numeric(result[stat], errors="coerce") / pd.to_numeric(
+            result["minutes"], errors="coerce").where(pd.to_numeric(result["minutes"], errors="coerce") > 0)
+        fallback = values.groupby(result["player_id"], sort=False).transform(
+            lambda player_values: player_values.shift(1).expanding(min_periods=1).mean()
+        )
+        initial = INITIAL_PRIORS.get(f"{stat}_per_min", {"reb": 0.22, "ast": 0.11}.get(stat, 0.5))
+        result[target] = pd.to_numeric(result[target], errors="coerce").fillna(fallback).fillna(initial)
+
+    result["prev_season_games"] = result["prev_season_games"].clip(lower=0).astype(float)
+    return result.drop(columns=["_season_start_year"], errors="ignore")
+
+
+def latest_season_baseline(
+    player_history: pd.DataFrame, target_season: str | None = None
+) -> dict:
+    """Resume a temporada imediatamente anterior à temporada-alvo, quando disponível.
+
+    Sem uma temporada-alvo explícita, usa a temporada mais recente disponível
+    (compatibilidade com chamadas antigas e projeções genéricas).
+    """
+    if player_history.empty:
+        raise ValueError("Não há histórico de temporada para calcular a referência.")
+    history = player_history.sort_values("game_date").copy()
+    baseline_rows = None
+    season_label = "histórico disponível"
+    if "season" in history.columns:
+        parsed = history["season"].map(season_start_year)
+    else:
+        parsed = pd.Series(np.nan, index=history.index)
+
+    target_year = season_start_year(target_season) if target_season is not None else np.nan
+    if pd.notna(target_year) and parsed.notna().any():
+        prior_season_rows = history.loc[parsed == target_year - 1]
+        if not prior_season_rows.empty:
+            baseline_rows = prior_season_rows
+            season_label = str(prior_season_rows["season"].iloc[-1])
+
+    if baseline_rows is None:
+        if "season" in history.columns and parsed.notna().any():
+            latest_year = parsed.max()
+            baseline_rows = history.loc[parsed == latest_year]
+            season_label = str(baseline_rows["season"].iloc[-1])
+        elif "season" in history.columns:
+            season_label = str(history["season"].iloc[-1])
+            baseline_rows = history.loc[history["season"].astype(str) == season_label]
+        else:
+            baseline_rows = history
+
+    played = baseline_rows[pd.to_numeric(baseline_rows["minutes"], errors="coerce").fillna(0) > 0]
+    if played.empty:
+        played = history[pd.to_numeric(history["minutes"], errors="coerce").fillna(0) > 0]
+        season_label = "histórico disponível"
+    total_minutes = (
+        float(pd.to_numeric(played["minutes"], errors="coerce").sum())
+        if not played.empty
+        else 0.0
+    )
+    values = {
+        "prev_season_label": season_label,
+        "prev_season_games": float(len(played)),
+        "prev_season_minutes_avg": (
+            float(played["minutes"].mean())
+            if not played.empty
+            else INITIAL_PRIORS["minutes"]
+        ),
+    }
+    for stat, default in (("pts", 9.0), ("reb", 4.0), ("ast", 2.0)):
+        average = float(played[stat].mean()) if not played.empty else default
+        total = float(pd.to_numeric(played[stat], errors="coerce").sum()) if not played.empty else 0.0
+        values[f"prev_season_{stat}_avg"] = average
+        values[f"prev_season_{stat}_per_min"] = (
+            total / total_minutes if total_minutes > 0 else INITIAL_PRIORS.get(f"{stat}_per_min", 0.5)
+        )
+    return values
+
+
 def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
     """Adiciona variáveis pré-jogo e preenchimentos estritamente temporais.
 
@@ -192,6 +383,9 @@ def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
     source = player_games.copy().reset_index(drop=True)
     source["game_date"] = pd.to_datetime(source["game_date"])
     games = assign_team_stints(source).sort_values(["player_id", "game_date"]).copy()
+    # Quantas partidas do jogador já estavam disponíveis antes deste registro.
+    # Serve para avaliar o suporte do histórico sem expor informação futura ao modelo.
+    games["games_before"] = games.groupby("player_id", sort=False).cumcount().astype(float)
     games["_effective_starter"] = effective_starter_flag(games).astype(float)
     player_keys = ["player_id"]
     stint_keys = ["player_id", "team_stint_id"]
@@ -341,6 +535,7 @@ def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
         games["starter_rate_avg10"]
     )
 
+    games = add_previous_season_baselines(games)
     games = games.drop(columns=["_effective_starter"])
     return games.sort_values(["game_date", "player_id"]).reset_index(drop=True)
 

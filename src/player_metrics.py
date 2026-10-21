@@ -3,7 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .player_features import EMA_HALFLIFE_FAST, EMA_HALFLIFE_SLOW, effective_starter_flag
+from .player_features import (
+    EMA_HALFLIFE_FAST,
+    EMA_HALFLIFE_SLOW,
+    effective_starter_flag,
+    latest_season_baseline,
+)
 
 PER36_STATS = ["pts", "reb", "ast", "stl", "blk", "tov"]
 
@@ -136,7 +141,12 @@ def list_players(player_games: pd.DataFrame) -> pd.DataFrame:
     return latest.reset_index().sort_values("player_name").reset_index(drop=True)
 
 
-def player_snapshot(player_games: pd.DataFrame, player_id, window: int = 10) -> dict:
+def player_snapshot(
+    player_games: pd.DataFrame,
+    player_id,
+    window: int = 10,
+    target_season: str | None = None,
+) -> dict:
     """Estado atual de um jogador (médias exponenciais, sem shift).
 
     Usado para prever um jogo genuinamente futuro — diferente das médias
@@ -209,6 +219,10 @@ def player_snapshot(player_games: pd.DataFrame, player_id, window: int = 10) -> 
         "games_since_trade": float(stint_length),
         "games": float(len(full_history)),
     }
+    # A média da temporada mais recente disponível serve como baseline para
+    # a próxima previsão. Depois da transferência, as características de stint
+    # ajustam gradualmente esse ponto de partida conforme chegam novos jogos.
+    snapshot.update(latest_season_baseline(full_history, target_season=target_season))
 
     # Janelas curtas ajudam a captar mudanças recentes sem descartar a média
     # exponencial de carreira. A janela conta partidas, incluindo linhas com

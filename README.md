@@ -332,12 +332,13 @@ times. Minutos vêm de um modelo próprio; rebotes e assistências são
 produção por minuto (minutos × taxa). Para pontos, a previsão central usa um
 **regressor direto de pontos por minuto** (`HistGradientBoostingRegressor`)
 vezes os minutos projetados, com histórico recente, uso ofensivo, volume,
-eficiência e contexto. A cadeia FGA × TS% continua calculada como referência
-interpretável e é comparada no backtest:
+eficiência, contexto e uma referência da temporada-base. A cadeia FGA × TS%
+continua calculada como referência interpretável e é comparada no backtest:
 
 ```text
-Modelo principal:
-  taxa prevista de pontos/minuto × minutos previstos = pontos previstos
+Modelo híbrido principal:
+  (1 - peso anual) × previsão dinâmica
+  + peso anual × taxa da temporada-base × minutos previstos
 
 Referência interpretável:
   FGA previstos × TS% previsto × proporção histórica FTA/FGA
@@ -348,9 +349,10 @@ As características incluem médias recentes dos últimos 3/5/10 jogos,
 minutos e uso ofensivo, eficiência, passagem atual pelo time, descanso,
 mando de quadra e defesa adversária. Os preenchimentos da liga usam apenas
 datas anteriores. A avaliação divide partidas por datas completas, não por
-linhas, e compara o modelo direto à cadeia FGA × TS% e à referência simples
-(taxa recente de pontos × minutos previstos). A interface mostra essas três
-métricas para não presumir que um modelo complexo é sempre melhor. A métrica
+linhas, e compara o modelo híbrido à cadeia FGA × TS%, à referência simples
+(taxa recente de pontos × minutos previstos) e às médias da temporada-base
+adaptadas aos minutos previstos. A interface mostra essas métricas para não
+presumir que um modelo complexo é sempre melhor. A métrica
 de pontos é condicional a o jogador ter registrado minutos na partida; lesões
 e probabilidade pré-jogo de participação ainda não são modeladas.
 
@@ -377,6 +379,14 @@ junto com a taxa de arremessos por minuto: USG% alto é outro jeito de captar
 "a bola passa mais pela mão desse jogador", útil sobretudo logo depois de uma
 troca de time, quando a função ofensiva pode mudar antes mesmo dos minutos
 ou dos arremessos por minuto se estabilizarem.
+
+### Referência da temporada anterior (PTS, REB e AST)
+
+As projeções agora usam também a média da temporada-base mais recente para **pontos, rebotes, assistências e minutos**, além das respectivas taxas por minuto. Para uma linha de `2025-26`, por exemplo, as features de referência são calculadas exclusivamente a partir da temporada `2024-25` do mesmo jogador, com partidas de todos os times somadas quando houve uma troca no meio do ano. Isso dá ao modelo um ponto de partida estável sem assumir que a produção vai continuar igual automaticamente.
+
+A projeção final combina o modelo dinâmico com a taxa da temporada-base ajustada para os minutos previstos. O peso inicial da temporada-base é de até 60% no primeiro jogo de uma nova passagem pelo time; cai 4 pontos percentuais a cada jogo dessa passagem, até o mínimo de 20% após dez jogos. Esse peso é reduzido quando há menos de dez partidas históricas disponíveis para sustentar a média. Assim, o modelo pode acompanhar mudanças de papel, minutos, volume de arremessos e criação de jogadas, sem abandonar completamente o desempenho anterior.
+
+A página **Projeções** mostra a temporada usada como referência e compara a média por jogo de PTS/REB/AST com a estimativa para o próximo jogo. A página **Qualidade do Modelo** também registra o MAE da referência anual, para avaliar se o ajuste pelo modelo melhora ou piora a previsão em relação a simplesmente manter a taxa da temporada-base. Se um jogador mudar de equipe antes de disputar uma partida pelo novo time, o projeto ainda não consegue inferir sozinho a nova função: precisa que os dados da troca/novo time sejam atualizados ou de uma entrada explícita dessa informação.
 
 A aba também tem um seletor de **próximo adversário**: a força defensiva do
 time escolhido (`opponent_def_rating`, média expansiva de pontos sofridos
@@ -672,6 +682,10 @@ estatística) fica como próximo passo antes de revisitar o modo quantílico.
 > da página.
 
 ```powershell
+# Windows
+double-click RETREINAR_MODELOS.bat
+
+# Or in PowerShell
 python scripts/retrain_models.py
 ```
 
@@ -741,7 +755,7 @@ isso e mostra o comando equivalente. Rating oficial e titularidade real
 - [x] Índice próprio (NAPS) e estilo de jogo (primeira versão: sem segmentação por posição, sem impacto on/off, defesa por proxy simples);
 - [x] Previsão de minutos, pontos, rebotes e assistências (primeira versão: sem dados de lesões/escalação do adversário);
 - [x] Simulação de classificação, Play-In e playoffs (primeira versão: força congelada no corte, sem critérios oficiais de desempate);
-- [x] Registro permanente das previsões (times e jogadores, registro manual por botão, resolução sob demanda contra jogos reais já coletados — para jogadores, a resolução casa pelo próximo jogo real do jogador, não pelo adversário hipotético escolhido);
+- [x] Registro permanente das previsões (times e jogadores, registro manual por botão, resolução sob demanda contra jogos reais já coletados — previsões novas são resolvidas pela data-alvo e conferem adversário/mando quando disponíveis; registros legados sem esses campos usam fallback compatível);
 - [x] Retreinamento automático (script `scripts/retrain_models.py` + histórico de métricas; agendamento da execução periódica fica a cargo do usuário);
 - [x] Trajetória do jogador (segunda versão): passagem por time (`team_stint`), contexto do adversário (força defensiva), médias móveis exponenciais, decomposição de pontos em volume × eficiência e validação walk-forward para o log de métricas do modelo de jogadores;
 - [x] Probabilidade por faixa e Usage Rate por passagem no modelo de pontos;
@@ -754,3 +768,31 @@ isso e mostra o comando equivalente. Rating oficial e titularidade real
 - [ ] Layout responsivo para telas menores — não verificado ainda (sem acesso a navegador nas sessões em que foi construído);
 - [ ] Rating oficial e titularidade real ainda cobrem uma fração pequena da base coletada (a app usa a aproximação por pontos/minutos na maioria dos jogos).
 
+
+
+## Auditoria das previsões de jogadores (2026)
+
+A projeção de minutos agora combina a saída do modelo com médias de rotação
+recente e temporada anterior, ponderadas pela quantidade de jogos no stint atual.
+A confiança considera resíduos históricos de minutos, pontos, rebotes e
+assistências e o tamanho do histórico; ela é uma classe heurística de incerteza,
+não uma probabilidade de acerto.
+
+Para gerar um backtest progressivo por data e salvar previsões individuais, no
+Windows dê dois cliques em `RETREINAR_MODELOS.bat`. Ou, com o ambiente virtual
+ativado no PowerShell, execute:
+
+```powershell
+python scripts/retrain_models.py
+```
+
+O relatório `reports/player_backtest_predictions.csv` inclui data, fold, jogador,
+time, adversário, previsão, resultado e erro de minutos/PTS/REB/AST. A página
+**Qualidade do Modelo** exibe MAE por rodada e por jogador e permite exportar o CSV.
+
+Ao registrar uma previsão na página **Jogadores**, selecione a data exata da
+partida. A resolução na página **Desempenho** usa essa data e confere adversário
+e mando quando os dados permitem, evitando associar a previsão à partida errada.
+As previsões antigas são migradas automaticamente; quando não têm data-alvo, a
+resolução tenta verificar adversário/mando. Confira também
+`docs/AUDITORIA_PREVISOES_JOGADORES.md`.

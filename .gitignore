@@ -47,3 +47,6 @@ dist/
 
 # Ferramentas de IA locais
 .claude/
+
+# Backtests locais gerados por scripts/retrain_models.py
+reports/player_backtest_predictions.csv
