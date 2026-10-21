@@ -33,8 +33,24 @@ if errorlevel 1 goto :git_error
 git diff --cached --quiet
 if not errorlevel 1 goto :no_changes
 
-git commit -m "Preparar NBA Analytics Lab para GitHub"
+echo.
+echo Digite a mensagem que deseja registrar neste commit.
+echo Exemplo: Adiciona auditoria das previsoes de jogadores
+echo.
+set "COMMIT_MESSAGE_FILE=%TEMP%\nba-analytics-commit-%RANDOM%-%RANDOM%.txt"
+set "NBA_COMMIT_FILE=%COMMIT_MESSAGE_FILE%"
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$message = Read-Host 'Mensagem do commit'; if ([string]::IsNullOrWhiteSpace($message)) { Write-Host '[ERRO] A mensagem do commit nao pode ficar vazia.'; exit 2 }; [System.IO.File]::WriteAllText($env:NBA_COMMIT_FILE, $message, [System.Text.UTF8Encoding]::new($false))"
 if errorlevel 1 (
+    if exist "%COMMIT_MESSAGE_FILE%" del "%COMMIT_MESSAGE_FILE%" >nul 2>&1
+    echo.
+    echo [ERRO] Nao foi possivel obter uma mensagem valida para o commit.
+    goto :fail
+)
+
+git -c i18n.commitEncoding=UTF-8 commit -F "%COMMIT_MESSAGE_FILE%"
+set "COMMIT_EXIT=%ERRORLEVEL%"
+if exist "%COMMIT_MESSAGE_FILE%" del "%COMMIT_MESSAGE_FILE%" >nul 2>&1
+if not "%COMMIT_EXIT%"=="0" (
     echo.
     echo [ERRO] O commit falhou. Confira git config user.name e user.email.
     echo Exemplo:

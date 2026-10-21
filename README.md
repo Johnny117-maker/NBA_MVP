@@ -187,8 +187,9 @@ O repositório está preparado para usar Git e GitHub. O arquivo `PUBLICAR_GITHU
 
 1. Instale o [Git para Windows](https://git-scm.com/download/win).
 2. Crie no GitHub um repositório **vazio**, sem gerar README, `.gitignore` ou licença automaticamente.
-3. Execute `PUBLICAR_GITHUB.bat` e informe a URL do novo repositório quando solicitado.
-4. Conclua a autenticação do GitHub pelo Git Credential Manager ou pelo método de autenticação configurado no Git. Não coloque tokens ou senhas no código nem nos arquivos `.bat`.
+3. Execute `PUBLICAR_GITHUB.bat`; quando houver alterações, o script pedirá a mensagem do commit e depois solicitará a URL do repositório se ainda não houver um remoto `origin` configurado.
+4. Escreva uma mensagem curta que descreva a mudança, por exemplo `Melhora previsao de pontos e minutos`, e pressione Enter. A mensagem é usada no commit do Git; se não houver alterações staged, nenhum commit novo será criado.
+5. Conclua a autenticação do GitHub pelo Git Credential Manager ou pelo método de autenticação configurado no Git. Não coloque tokens ou senhas no código nem nos arquivos `.bat`.
 
 O projeto inclui `.github/workflows/tests.yml`: o GitHub Actions executa `pytest` automaticamente em novos pushes e pull requests.
 
@@ -796,3 +797,8 @@ e mando quando os dados permitem, evitando associar a previsão à partida errad
 As previsões antigas são migradas automaticamente; quando não têm data-alvo, a
 resolução tenta verificar adversário/mando. Confira também
 `docs/AUDITORIA_PREVISOES_JOGADORES.md`.
+
+
+## Próximo confronto do jogador
+
+Na página **Jogadores → Projeções**, quando a fonte de dados real está selecionada, o app consulta o calendário público oficial da NBA e procura o próximo jogo agendado para a equipe escolhida. Se o calendário estiver indisponível, o confronto pode ser preenchido manualmente. Veja [a documentação](docs/PROXIMO_JOGO_JOGADOR.md).

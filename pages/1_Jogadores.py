@@ -9,6 +9,8 @@ import streamlit as st
 
 from src.data import available_teams, generate_demo_games, load_real_games, team_snapshot
 from src.player_data import load_player_games
+from src.nba_schedule import fetch_nba_schedule, get_next_game_for_team
+from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
 from src.player_features import (
     add_opponent_context,
     add_rolling_features,
@@ -100,6 +102,16 @@ player_id_by_label = dict(zip(player_options, players["player_id"], strict=True)
 @st.cache_data(show_spinner=False)
 def _load_team_games(source: str) -> pd.DataFrame:
     return load_real_games() if source == "real" else generate_demo_games()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_nba_schedule(retry_token: int = 0) -> tuple[pd.DataFrame, str | None]:
+    """Cache schedule for one hour; a changed token forces a fresh lookup."""
+    _ = retry_token  # Included in the cache key so the refresh button bypasses a stale result.
+    try:
+        return fetch_nba_schedule(), None
+    except RuntimeError as error:
+        return pd.DataFrame(), str(error)
 
 
 try:
@@ -429,32 +441,175 @@ with tab_projection:
         ),
     )
 
+    # Identifica automaticamente o próximo jogo pelo calendário oficial da NBA.
+    # A última equipe vista no histórico serve apenas como sugestão: após uma
+    # troca na offseason, o usuário pode selecionar manualmente a equipe atual.
+    projection_history = player_games[
+        player_games["player_id"] == projection_id
+    ].sort_values("game_date")
+    historical_team = (
+        str(projection_history.iloc[-1]["team"]).strip().upper()
+        if not projection_history.empty
+        else ""
+    )
+    schedule_team_code: str | None = None
+    next_game: dict | None = None
+    scheduled_opponent_name: str | None = None
+    schedule_error: str | None = None
+
+    if source == "real":
+        team_codes = sorted(TEAM_ABBREVIATION_TO_NAME)
+        team_default_index = (
+            team_codes.index(historical_team) if historical_team in team_codes else 0
+        )
+        schedule_team_code = st.selectbox(
+            "Equipe atual para localizar o próximo jogo",
+            team_codes,
+            index=team_default_index,
+            format_func=lambda code: f"{code} — {TEAM_ABBREVIATION_TO_NAME[code]}",
+            key=f"next_game_team_{source}_{projection_id}",
+            help=(
+                "A equipe histórica é selecionada por padrão. Se o jogador mudou de time "
+                "nesta offseason e ainda não há jogos dele pela nova equipe na base, "
+                "escolha aqui a equipe atual para procurar o confronto correto."
+            ),
+        )
+        retry_state_key = f"nba_schedule_retry_token_{source}"
+        if st.button("Atualizar calendário oficial", key=f"refresh_nba_schedule_{source}_{projection_id}"):
+            st.session_state[retry_state_key] = int(st.session_state.get(retry_state_key, 0)) + 1
+        retry_token = int(st.session_state.get(retry_state_key, 0))
+        with st.spinner("Consultando o calendário oficial da NBA…"):
+            official_schedule, schedule_error = _load_nba_schedule(retry_token)
+        if schedule_error is None:
+            next_game = get_next_game_for_team(official_schedule, schedule_team_code)
+
+        if next_game is not None:
+            scheduled_opponent_name = str(next_game["opponent_name"])
+            schedule_day = next_game["game_date"]
+            home_away_text = "em casa" if next_game["is_home_for_team"] else "fora de casa"
+            kickoff = pd.to_datetime(
+                next_game.get("game_datetime_utc"), errors="coerce", utc=True
+            )
+            kickoff_text = (
+                f" às {kickoff.tz_convert('America/New_York').strftime('%H:%M')} ET"
+                if pd.notna(kickoff)
+                else ""
+            )
+            st.success(
+                f"Próximo confronto encontrado: **{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
+                f"x {scheduled_opponent_name}**, {schedule_day.strftime('%d/%m/%Y')} "
+                f"({home_away_text}){kickoff_text}. A previsão será calculada para esse jogo."
+            )
+        elif schedule_error:
+            st.warning(
+                "Não foi possível consultar o calendário oficial agora. "
+                "Você ainda pode preencher o confronto manualmente. " + schedule_error
+            )
+        else:
+            st.info(
+                "Não encontrei um jogo futuro agendado para essa equipe no calendário. "
+                "Confira a equipe selecionada ou informe o cenário manualmente."
+            )
+    else:
+        st.info(
+            "A base demonstrativa contém jogadores sintéticos; por isso, não é possível "
+            "associá-los automaticamente à agenda real da NBA. Use os campos manuais abaixo."
+        )
+
+    schedule_target_date = next_game["game_date"] if next_game else date.today() + timedelta(days=1)
+    is_home_default = bool(next_game["is_home_for_team"]) if next_game else True
+    last_history_date = (
+        pd.Timestamp(projection_history.iloc[-1]["game_date"]).date()
+        if not projection_history.empty
+        else date.today()
+    )
+    calendar_gap = max(0, (schedule_target_date - last_history_date).days - 1)
+    rest_days_default = min(7, calendar_gap)
+    if calendar_gap > 14:
+        st.warning(
+            "O histórico mais recente deste jogador está distante do próximo jogo. "
+            "A projeção usa o que há na base e pode não refletir uma rotação ou função nova."
+        )
+
     col_home, col_rest, col_opponent, col_target_date = st.columns(4)
     with col_home:
-        is_home = st.radio("Mando de quadra", ["Casa", "Fora"], horizontal=True) == "Casa"
+        is_home = st.radio(
+            "Mando de quadra",
+            ["Casa", "Fora"],
+            index=0 if is_home_default else 1,
+            horizontal=True,
+            key=f"projection_home_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+        ) == "Casa"
     with col_rest:
-        rest_days = st.number_input("Dias de descanso", 0, 7, 2)
+        rest_days = st.number_input(
+            "Dias de descanso",
+            0,
+            7,
+            rest_days_default,
+            key=f"projection_rest_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+            help="Estimado pela diferença entre a data do último jogo disponível e a data-alvo.",
+        )
     with col_opponent:
-        opponent_def_rating: float | None
-        selected_opponent: str | None = None
-        if team_games is not None:
-            opponent_teams = available_teams(team_games)
-            selected_opponent = st.selectbox(
-                "Próximo adversário", opponent_teams, index=0, key=f"opponent_select_{source}"
+        opponent_def_rating: float | None = None
+        available_opponent_names = available_teams(team_games) if team_games is not None and not team_games.empty else []
+        opponent_options = list(available_opponent_names)
+        if scheduled_opponent_name and scheduled_opponent_name not in opponent_options:
+            opponent_options.append(scheduled_opponent_name)
+        opponent_options = sorted(set(opponent_options))
+        if opponent_options:
+            opponent_choices = list(opponent_options)
+            if source == "real" and next_game is None:
+                opponent_choices = ["Selecione manualmente"] + opponent_choices
+            default_opponent_index = (
+                opponent_choices.index(scheduled_opponent_name)
+                if scheduled_opponent_name in opponent_choices
+                else 0
             )
-            opponent_def_rating = team_snapshot(team_games, selected_opponent)["def_rating"]
+            selected_opponent_value = st.selectbox(
+                "Próximo adversário",
+                opponent_choices,
+                index=default_opponent_index,
+                key=f"projection_opponent_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+            )
+            selected_opponent = (
+                None if selected_opponent_value == "Selecione manualmente" else selected_opponent_value
+            )
+            if (
+                selected_opponent is not None
+                and team_games is not None
+                and selected_opponent in available_opponent_names
+            ):
+                try:
+                    opponent_def_rating = team_snapshot(team_games, selected_opponent)["def_rating"]
+                except ValueError:
+                    opponent_def_rating = None
+            if selected_opponent is not None and opponent_def_rating is None:
+                st.caption(
+                    "Rating defensivo específico não encontrado na base; a previsão usará "
+                    "a referência média da liga para este fator."
+                )
         else:
-            st.caption("Sem base de times disponível para escolher o adversário.")
-            opponent_def_rating = None
+            selected_opponent = st.text_input(
+                "Próximo adversário",
+                value=scheduled_opponent_name or "",
+                key=f"projection_opponent_text_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+                placeholder="Ex.: Boston Celtics",
+            ).strip() or None
     with col_target_date:
         target_game_date = st.date_input(
             "Data do jogo previsto",
-            value=date.today() + timedelta(days=1),
+            value=schedule_target_date,
             help=(
-                "Escolha a data exata desta previsão. O resultado será comparado "
-                "somente com a partida do jogador nessa data, se houver."
+                "Quando o calendário oficial está disponível, este campo começa na data do próximo jogo. "
+                "Você pode alterá-la manualmente para simular outro confronto."
             ),
-            key=f"target_game_date_{source}",
+            key=f"target_game_date_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+        )
+
+    if next_game and target_game_date != next_game["game_date"]:
+        st.warning(
+            "A data escolhida é diferente da data do próximo jogo encontrado. "
+            "A projeção será registrada para a data escolhida; confirme o adversário e o mando."
         )
 
     snapshot = player_snapshot(player_games, projection_id, target_season=target_season)
@@ -509,7 +664,7 @@ with tab_projection:
         log_player_prediction(
             projection_id,
             projection_player_name,
-            selected_opponent if team_games is not None else None,
+            selected_opponent,
             is_home,
             prediction.minutes,
             prediction.stats["pts"],
