@@ -802,3 +802,7 @@ resolução tenta verificar adversário/mando. Confira também
 ## Próximo confronto do jogador
 
 Na página **Jogadores → Projeções**, quando a fonte de dados real está selecionada, o app consulta o calendário público oficial da NBA e procura o próximo jogo agendado para a equipe escolhida. Se o calendário estiver indisponível, o confronto pode ser preenchido manualmente. Veja [a documentação](docs/PROXIMO_JOGO_JOGADOR.md).
+
+## Correções de compatibilidade e contexto defensivo — 21/10/2026
+
+A tela **Qualidade do Modelo** agora continua a funcionar com logs de treinamento antigos que ainda não têm as métricas comparativas da temporada-base. A previsão de pontos também aplica um ajuste pequeno e limitado para considerar o defensive rating do adversário; consulte [`docs/CORRECAO_FALHAS_TESTES_2026-10-21.md`](docs/CORRECAO_FALHAS_TESTES_2026-10-21.md) para detalhes e limitações.

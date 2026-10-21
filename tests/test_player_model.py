@@ -92,7 +92,8 @@ def test_opponent_def_rating_shifts_the_prediction(setup_model):
         bundle, snapshot, is_home=True, rest_days=2, opponent_def_rating=95.0
     )
 
-    assert against_weak_defense.stats["pts"] != against_strong_defense.stats["pts"]
+    # Defensive rating alto significa que o adversário permite mais pontos.
+    assert against_weak_defense.stats["pts"] > against_strong_defense.stats["pts"]
 
 
 

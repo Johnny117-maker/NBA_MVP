@@ -92,26 +92,29 @@ def _render_player_metrics(latest: pd.Series) -> None:
             }
         )
     components.metric_row(items)
-    season_reference_items = [
-        {
-            "label": "MAE pontos — média da temporada-base",
-            "value": f"{metrics['pts_season_baseline_mae']:.1f}",
-        },
-        {
-            "label": "MAE rebotes — média da temporada-base",
-            "value": f"{metrics['reb_season_baseline_mae']:.1f}",
-        },
-        {
-            "label": "MAE assistências — média da temporada-base",
-            "value": f"{metrics['ast_season_baseline_mae']:.1f}",
-        },
-    ]
     season_metric_keys = (
         "pts_season_baseline_mae",
         "reb_season_baseline_mae",
         "ast_season_baseline_mae",
     )
+    # Logs de treinamento antigos não têm as métricas de referência sazonal.
+    # Monte os cartões apenas quando as três métricas estão disponíveis para
+    # evitar que a tela inteira falhe ao ler um registro legado.
     if all(key in metrics for key in season_metric_keys):
+        season_reference_items = [
+            {
+                "label": "MAE pontos — média da temporada-base",
+                "value": f"{metrics['pts_season_baseline_mae']:.1f}",
+            },
+            {
+                "label": "MAE rebotes — média da temporada-base",
+                "value": f"{metrics['reb_season_baseline_mae']:.1f}",
+            },
+            {
+                "label": "MAE assistências — média da temporada-base",
+                "value": f"{metrics['ast_season_baseline_mae']:.1f}",
+            },
+        ]
         with st.expander("Comparar com a média da temporada-base"):
             components.metric_row(season_reference_items)
             st.caption(
@@ -119,6 +122,11 @@ def _render_player_metrics(latest: pd.Series) -> None:
                 "previstos. Compare estes erros com os do modelo híbrido para confirmar "
                 "que os ajustes por forma recente e passagem de time realmente ajudam."
             )
+    else:
+        st.caption(
+            "As métricas comparativas da temporada-base ainda não existem neste registro "
+            "de treinamento. Execute um novo retreinamento para calculá-las."
+        )
     st.caption(
         f"Validação walk-forward por datas completas ({metrics.get('n_folds', '—')} folds), treinado em "
         f"{format_datetime_br(latest['trained_at'])} com {format_int_br(int(latest['n_games']))} linhas. "

@@ -264,6 +264,35 @@ def _blend_season_baseline(
     return np.maximum(0.0, (1.0 - weight) * prediction + weight * baseline_prediction)
 
 
+def _opponent_defense_factor(
+    prepared: pd.DataFrame,
+    league_avg_opponent_def_rating: float,
+) -> np.ndarray:
+    """Ajuste moderado e interpretável de pontos pelo rating defensivo rival.
+
+    O defensive rating representa pontos permitidos por 100 posses: valores
+    mais altos indicam uma defesa mais permissiva, então a projeção de pontos
+    sobe; valores mais baixos reduzem a projeção. A inclinação é deliberadamente
+    conservadora (0,25% por ponto de rating) e limitada a +/-10%, evitando que
+    uma estimativa extrema do adversário domine o modelo individual.
+
+    Esta camada é um prior de contexto para partidas futuras, não uma relação
+    causal estimada pelo teste atual. O backtest deve confirmar se ela melhora
+    o erro em temporadas fora da amostra.
+    """
+    if "opponent_def_rating" not in prepared.columns:
+        return np.ones(len(prepared), dtype=float)
+
+    ratings = pd.to_numeric(prepared["opponent_def_rating"], errors="coerce")
+    reference = float(league_avg_opponent_def_rating)
+    if not np.isfinite(reference) or reference <= 0:
+        return np.ones(len(prepared), dtype=float)
+
+    ratings = ratings.fillna(reference).to_numpy(dtype=float)
+    adjustment = 1.0 + 0.0025 * (ratings - reference)
+    return np.clip(adjustment, 0.90, 1.10)
+
+
 def _temporal_train_test_split(
     rows: pd.DataFrame, train_fraction: float = 0.8
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -463,9 +492,18 @@ def train_player_models(
     )
     predicted_pts_rate = np.maximum(0.0, direct_pts_eval.predict(test_valid[PTS_DIRECT_FEATURES]))
     predicted_pts_unblended = predicted_pts_rate * test_predicted_minutes
+    prepared_test_points = _prepare(test_valid)
     predicted_pts = _blend_season_baseline(
-        "pts", predicted_pts_unblended, test_predicted_minutes, _prepare(test_valid)
+        "pts", predicted_pts_unblended, test_predicted_minutes, prepared_test_points
     )
+    # O ajuste do adversário usa apenas o nível médio de defesa observado no
+    # conjunto de treino, mantendo a mesma lógica da previsão para o próximo jogo.
+    training_defense_reference = float(
+        pd.to_numeric(train_rows["opponent_def_rating"], errors="coerce").mean()
+    )
+    defense_factor = _opponent_defense_factor(prepared_test_points, training_defense_reference)
+    predicted_pts = predicted_pts * defense_factor
+    predicted_pts_chain = predicted_pts_chain * defense_factor
 
     metrics["pts_mae"] = float(mean_absolute_error(test_valid["pts"], predicted_pts))
     season_baseline_pts = (
@@ -599,6 +637,12 @@ def predict_from_features(bundle: PlayerModelBundle, rows: pd.DataFrame) -> pd.D
         # Compatibilidade com bundles antigos e objetos falsos usados em testes.
         predicted_pts = predicted_pts_chain
 
+    opponent_factor = _opponent_defense_factor(
+        prepared, bundle.league_avg_opponent_def_rating
+    )
+    predicted_pts = np.maximum(0.0, predicted_pts * opponent_factor)
+    predicted_pts_chain = np.maximum(0.0, predicted_pts_chain * opponent_factor)
+
     result = pd.DataFrame(
         {
             "minutes": predicted_minutes,
@@ -643,6 +687,12 @@ def _predict_intervals(
             p90_raw = np.maximum(0.0, p90_rate * minutes)
             p10_value = _blend_season_baseline(stat, p10_raw, minutes, prepared)
             p90_value = _blend_season_baseline(stat, p90_raw, minutes, prepared)
+            if stat == "pts":
+                opponent_factor = _opponent_defense_factor(
+                    prepared, bundle.league_avg_opponent_def_rating
+                )
+                p10_value = p10_value * opponent_factor
+                p90_value = p90_value * opponent_factor
             low = np.minimum(p10_value, p90_value)
             high = np.maximum(p10_value, p90_value)
         else:
