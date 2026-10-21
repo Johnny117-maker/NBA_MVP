@@ -105,11 +105,13 @@ def _load_team_games(source: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _load_nba_schedule(retry_token: int = 0) -> tuple[pd.DataFrame, str | None]:
-    """Cache schedule for one hour; a changed token forces a fresh lookup."""
+def _load_nba_schedule(
+    retry_token: int = 0, team_tricode: str | None = None
+) -> tuple[pd.DataFrame, str | None]:
+    """Cache schedule for one hour by team; a changed token forces a fresh lookup."""
     _ = retry_token  # Included in the cache key so the refresh button bypasses a stale result.
     try:
-        return fetch_nba_schedule(), None
+        return fetch_nba_schedule(team_tricode=team_tricode), None
     except RuntimeError as error:
         return pd.DataFrame(), str(error)
 
@@ -479,7 +481,7 @@ with tab_projection:
             st.session_state[retry_state_key] = int(st.session_state.get(retry_state_key, 0)) + 1
         retry_token = int(st.session_state.get(retry_state_key, 0))
         with st.spinner("Consultando o calendário oficial da NBA…"):
-            official_schedule, schedule_error = _load_nba_schedule(retry_token)
+            official_schedule, schedule_error = _load_nba_schedule(retry_token, schedule_team_code)
         if schedule_error is None:
             next_game = get_next_game_for_team(official_schedule, schedule_team_code)
 
@@ -495,20 +497,34 @@ with tab_projection:
                 if pd.notna(kickoff)
                 else ""
             )
+            source_label = str(next_game.get("schedule_source", "NBA oficial"))
             st.success(
-                f"Próximo confronto encontrado: **{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
+                f"Próximo confronto encontrado ({source_label}): **{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
                 f"x {scheduled_opponent_name}**, {schedule_day.strftime('%d/%m/%Y')} "
                 f"({home_away_text}){kickoff_text}. A previsão será calculada para esse jogo."
             )
         elif schedule_error:
             st.warning(
-                "Não foi possível consultar o calendário oficial agora. "
-                "Você ainda pode preencher o confronto manualmente. " + schedule_error
+                "Não foi possível consultar automaticamente o calendário da NBA nem a fonte alternativa ESPN. "
+                "Preencha o adversário e a data manualmente ou tente novamente em outra conexão."
+            )
+            st.caption(
+                "Se a mensagem persistir, verifique se o firewall, antivírus, proxy ou a rede da empresa "
+                "permite conexões HTTPS com os serviços de calendário esportivo."
+            )
+            st.info(
+                "A data sugerida abaixo é apenas uma data manual inicial — não é um jogo confirmado. "
+                "Antes de interpretar a projeção como previsão do próximo confronto, confirme a partida "
+                "em um calendário atualizado e selecione o adversário correto."
             )
         else:
             st.info(
-                "Não encontrei um jogo futuro agendado para essa equipe no calendário. "
+                "Não encontrei um jogo futuro para essa equipe no período consultado. "
                 "Confira a equipe selecionada ou informe o cenário manualmente."
+            )
+            st.caption(
+                "A data sugerida abaixo não deve ser interpretada como confronto confirmado. "
+                "Verifique o calendário antes de usar a projeção como previsão do próximo jogo."
             )
     else:
         st.info(
@@ -527,8 +543,9 @@ with tab_projection:
     rest_days_default = min(7, calendar_gap)
     if calendar_gap > 14:
         st.warning(
-            "O histórico mais recente deste jogador está distante do próximo jogo. "
-            "A projeção usa o que há na base e pode não refletir uma rotação ou função nova."
+            "A base não contém jogos recentes suficientes deste jogador para o confronto selecionado. "
+            "A projeção se apoia em histórico antigo e pode não refletir a rotação, os minutos ou a função atual. "
+            "Execute a atualização dos dados antes de confiar nesta estimativa."
         )
 
     col_home, col_rest, col_opponent, col_target_date = st.columns(4)

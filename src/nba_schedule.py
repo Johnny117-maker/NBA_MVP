@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+import logging
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -15,6 +16,16 @@ NBA_SCHEDULE_URLS = (
     "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json",
     "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json",
 )
+ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+LOGGER = logging.getLogger(__name__)
+
+# ESPN uses a few different abbreviations in some endpoints. Normalize these to
+# the same tricodes stored in the project database.
+ESPN_TRICODE_ALIASES = {
+    "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS",
+    "UTAH": "UTA", "WSH": "WAS",
+}
+
 SCHEDULE_COLUMNS = [
     "game_id",
     "game_date",
@@ -27,6 +38,7 @@ SCHEDULE_COLUMNS = [
     "away_team_tricode",
     "away_team_name",
     "arena_name",
+    "schedule_source",
 ]
 
 
@@ -153,6 +165,7 @@ def parse_nba_schedule_payload(payload: dict[str, Any]) -> pd.DataFrame:
                     "away_team_tricode": away_code,
                     "away_team_name": away_name or away_code,
                     "arena_name": str(_first(game, "arenaName", "arena_name", default="")),
+                    "schedule_source": "NBA oficial",
                 }
             )
 
@@ -167,11 +180,187 @@ def parse_nba_schedule_payload(payload: dict[str, Any]) -> pd.DataFrame:
     return frame.reset_index(drop=True)
 
 
-def fetch_nba_schedule(timeout: float = 8.0) -> pd.DataFrame:
-    """Download the official public NBA schedule from its CDN.
+def _espn_game_date(value: Any) -> date | None:
+    """Parse an ESPN event date into the NBA local game day (US Eastern)."""
+    if value in (None, ""):
+        return None
+    parsed = pd.to_datetime(value, errors="coerce", utc=True)
+    if pd.isna(parsed):
+        return _as_date(value)
+    return parsed.tz_convert(ZoneInfo("America/New_York")).date()
 
-    Raises RuntimeError with a user-readable message if all endpoint variants
-    fail. Callers should cache this function and offer a manual fallback.
+
+def parse_espn_scoreboard_payload(payload: dict[str, Any]) -> pd.DataFrame:
+    """Normalize the public ESPN NBA scoreboard into the common schedule schema."""
+    events = payload.get("events", []) if isinstance(payload, dict) else []
+    if not isinstance(events, list):
+        raise ValueError("O placar da ESPN não contém uma lista válida de eventos.")
+
+    rows: list[dict[str, Any]] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        competitions = event.get("competitions") or []
+        competition = competitions[0] if competitions and isinstance(competitions[0], dict) else {}
+        competitors = competition.get("competitors") or []
+        if not isinstance(competitors, list):
+            continue
+
+        home = next((c for c in competitors if c.get("homeAway") == "home"), None)
+        away = next((c for c in competitors if c.get("homeAway") == "away"), None)
+        if home is None or away is None:
+            continue
+
+        def team_info(item: dict[str, Any]) -> tuple[str | None, str | None]:
+            team = item.get("team") or {}
+            abbreviation = _first(team, "abbreviation")
+            name = _first(team, "displayName", "name", "shortDisplayName")
+            raw_code = str(abbreviation).strip().upper() if abbreviation else None
+            code = ESPN_TRICODE_ALIASES.get(raw_code or "", raw_code)
+            if code not in TEAM_ABBREVIATION_TO_NAME:
+                normalized_name = str(name or "").strip().casefold()
+                code = next(
+                    (
+                        known_code
+                        for known_code, known_name in TEAM_ABBREVIATION_TO_NAME.items()
+                        if known_name.casefold() == normalized_name
+                    ),
+                    None,
+                )
+            if not name and code:
+                name = TEAM_ABBREVIATION_TO_NAME.get(code, code)
+            return code, str(name) if name else None
+
+        home_code, home_name = team_info(home)
+        away_code, away_name = team_info(away)
+        event_date = _first(competition, "date", default=_first(event, "date"))
+        game_day = _espn_game_date(event_date)
+        if not game_day or not home_code or not away_code:
+            continue
+
+        kickoff = _as_utc_timestamp(event_date)
+        status_object = competition.get("status") or event.get("status") or {}
+        status_type = status_object.get("type") or {}
+        state = str(_first(status_type, "state", default="")).lower()
+        status_lookup = {"pre": 1, "in": 2, "post": 3}
+        status_code = status_lookup.get(state)
+        if status_code is None and status_type.get("completed") is True:
+            status_code = 3
+        venue = competition.get("venue") or {}
+        rows.append(
+            {
+                "game_id": str(_first(event, "id", default=_first(competition, "id", default=""))),
+                "game_date": pd.Timestamp(game_day),
+                "game_datetime_utc": kickoff,
+                "game_status": status_code,
+                "game_status_text": str(_first(status_type, "detail", "description", default="")),
+                "game_label": str(_first(event, "name", "shortName", default="")),
+                "home_team_tricode": home_code,
+                "home_team_name": home_name or home_code,
+                "away_team_tricode": away_code,
+                "away_team_name": away_name or away_code,
+                "arena_name": str(_first(venue, "fullName", "name", default="")),
+                "schedule_source": "ESPN (alternativo)",
+            }
+        )
+
+    if not rows:
+        raise ValueError("A resposta da ESPN não continha jogos NBA reconhecíveis.")
+    frame = pd.DataFrame(rows, columns=SCHEDULE_COLUMNS)
+    frame = frame.drop_duplicates(subset=["game_id", "game_date"]).sort_values(
+        ["game_date", "game_datetime_utc"], na_position="last"
+    )
+    return frame.reset_index(drop=True)
+
+
+def _fetch_espn_schedule(
+    *,
+    team_tricode: str | None,
+    start_date: date,
+    lookahead_days: int,
+    timeout: float,
+) -> pd.DataFrame:
+    """Fallback to ESPN's public scoreboard and stop once the team's next game is found.
+
+    A compact date-range request is attempted first. Since date-range behavior can
+    vary by scoreboard deployment, the code falls back to one request per day.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
+        "Accept": "application/json,text/plain,*/*",
+        "Origin": "https://www.espn.com",
+        "Referer": "https://www.espn.com/nba/",
+    }
+    frames: list[pd.DataFrame] = []
+    errors: list[str] = []
+
+    # Try one compact date-range request first. Some ESPN scoreboard deployments
+    # reject ranges, so daily requests remain the reliable fallback below.
+    range_end = start_date + timedelta(days=max(1, lookahead_days) - 1)
+    try:
+        range_response = requests.get(
+            ESPN_SCOREBOARD_URL,
+            params={
+                "dates": f"{start_date:%Y%m%d}-{range_end:%Y%m%d}",
+                "limit": 100,
+            },
+            headers=headers,
+            timeout=min(timeout, 3.0),
+        )
+        range_response.raise_for_status()
+        range_payload = range_response.json()
+        if isinstance(range_payload, dict) and range_payload.get("events"):
+            range_frame = parse_espn_scoreboard_payload(range_payload)
+            frames.append(range_frame)
+            if not team_tricode or get_next_game_for_team(range_frame, team_tricode) is not None:
+                return range_frame
+    except (requests.RequestException, ValueError, TypeError) as error:
+        errors.append(f"ESPN intervalo: {type(error).__name__}")
+
+    for day_offset in range(max(1, lookahead_days)):
+        game_day = start_date + timedelta(days=day_offset)
+        try:
+            response = requests.get(
+                ESPN_SCOREBOARD_URL,
+                params={"dates": game_day.strftime("%Y%m%d"), "limit": 100},
+                headers=headers,
+                timeout=min(timeout, 2.5),
+            )
+            response.raise_for_status()
+            payload = response.json()
+            events = payload.get("events", []) if isinstance(payload, dict) else []
+            if not events:
+                continue
+            frame = parse_espn_scoreboard_payload(payload)
+            frames.append(frame)
+            if team_tricode and get_next_game_for_team(
+                pd.concat(frames, ignore_index=True), team_tricode
+            ) is not None:
+                break
+        except (requests.RequestException, ValueError, TypeError) as error:
+            # Continue through the window: a single bad date should not kill lookup.
+            errors.append(f"{game_day:%Y-%m-%d}: {type(error).__name__}")
+            continue
+
+    if not frames:
+        summary = ", ".join(errors[-3:]) if errors else "nenhum jogo retornado"
+        raise RuntimeError(f"ESPN indisponível ({summary}).")
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(subset=["game_id", "game_date"]).sort_values(
+        ["game_date", "game_datetime_utc"], na_position="last"
+    )
+    return result.reset_index(drop=True)
+
+
+def fetch_nba_schedule(
+    timeout: float = 8.0,
+    team_tricode: str | None = None,
+    lookahead_days: int = 21,
+) -> pd.DataFrame:
+    """Fetch NBA schedule, falling back to ESPN if the NBA CDN is unreachable.
+
+    The source column marks whether rows came from NBA CDN or the ESPN fallback.
+    Raises a concise RuntimeError if neither source is available.
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
@@ -181,19 +370,33 @@ def fetch_nba_schedule(timeout: float = 8.0) -> pd.DataFrame:
     errors: list[str] = []
     for url in NBA_SCHEDULE_URLS:
         try:
-            response = requests.get(url, headers=headers, timeout=timeout)
+            response = requests.get(url, headers=headers, timeout=min(timeout, 4.0))
             response.raise_for_status()
             frame = parse_nba_schedule_payload(response.json())
             if not frame.empty:
                 return frame
-            errors.append(f"{url}: calendário vazio")
+            errors.append("NBA CDN: calendário vazio")
         except (requests.RequestException, ValueError, TypeError) as error:
-            errors.append(f"{url}: {error}")
-    summary = "; ".join(errors[-2:])
-    raise RuntimeError(
-        "Não foi possível consultar o calendário oficial da NBA. "
-        "Verifique sua conexão e tente novamente. " + summary
-    )
+            errors.append(f"NBA CDN {url.rsplit('/', 1)[-1]}: {type(error).__name__}")
+
+    # The official NBA CDN can be blocked/reset by some home or corporate networks.
+    # Use ESPN as an alternate source rather than making the user fill every field.
+    try:
+        now_et = datetime.now(ZoneInfo("America/New_York")).date()
+        return _fetch_espn_schedule(
+            team_tricode=team_tricode,
+            start_date=now_et,
+            lookahead_days=lookahead_days,
+            timeout=min(timeout, 2.5),
+        )
+    except RuntimeError as error:
+        errors.append(str(error))
+        LOGGER.warning("Falha ao consultar calendário NBA/ESPN: %s", "; ".join(errors))
+        raise RuntimeError(
+            "Não foi possível consultar o calendário automaticamente nas fontes NBA e ESPN. "
+            "A rede pode estar bloqueando esses serviços. Preencha o adversário e a data manualmente "
+            "ou tente novamente em outra conexão."
+        ) from error
 
 
 def get_next_game_for_team(

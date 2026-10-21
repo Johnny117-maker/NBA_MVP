@@ -31,3 +31,9 @@ O parser está isolado da requisição HTTP para ser testado com fixtures sem ac
 ## Validação
 
 Execute `EXECUTAR_TESTES.bat` no Windows para rodar toda a suíte. Os testes de calendário verificam a leitura de partidas, escolha do próximo jogo futuro, exclusão de partidas finalizadas/que já começaram e retorno vazio quando não há confronto futuro. A consulta ao CDN depende de conectividade externa e não pode ser validada em ambiente offline.
+
+## Resiliência do calendário
+
+A aplicação tenta primeiro os dois JSONs públicos de calendário da NBA. Se ambos falharem (por exemplo, quando uma rede encerra a conexão com `cdn.nba.com`), tenta o placar público da ESPN, consultando as datas futuras individualmente. Os jogos indicam a fonte (`NBA oficial` ou `ESPN (alternativo)`) na interface.
+
+Se as duas fontes estiverem bloqueadas ou indisponíveis, a tela deixa de exibir a lista bruta de erros de conexão. Ela informa que a consulta automática falhou e mantém os campos manuais para adversário e data. O calendário ESPN é uma alternativa pública, não uma garantia: conexões corporativas, proxies e firewalls também podem bloqueá-lo.
