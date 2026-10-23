@@ -145,7 +145,7 @@ games = games_for_date(schedule, selected_day)
 if schedule_error:
     states.error_state(
         "Não foi possível consultar o calendário da NBA agora.",
-        detail="Confira a conexão e use 'Atualizar calendário' na barra lateral.",
+        detail=f"{schedule_error} Use 'Atualizar calendário' na barra lateral para tentar de novo.",
     )
     st.stop()
 
