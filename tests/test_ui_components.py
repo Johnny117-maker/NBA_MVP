@@ -4,6 +4,14 @@ from streamlit.testing.v1 import AppTest
 from src.ui.components import note, persistent_selectbox
 
 
+def _query_param_value(app, key):
+    """Normalize Streamlit AppTest query params across supported versions."""
+    value = app.query_params[key]
+    if isinstance(value, list) and len(value) == 1:
+        return value[0]
+    return value
+
+
 def test_note_rejects_invalid_kind():
     with pytest.raises(ValueError):
         note("texto", kind="bogus")
@@ -71,7 +79,7 @@ def test_persistent_selectbox_writes_default_choice_to_query_params():
     assert not app.exception
 
     # Streamlit st.query_params retorna uma string quando há um único valor.
-    assert app.query_params["jogador_teste"] == "Ana"
+    assert _query_param_value(app, "jogador_teste") == "Ana"
     assert any("Selecionado: Ana" in md.value for md in app.markdown)
 
 
@@ -106,5 +114,5 @@ def test_persistent_selectbox_updates_query_params_when_changed():
     assert not app.exception
 
     # Não usar lista: st.query_params usa o formato QueryParams atual do Streamlit.
-    assert app.query_params["jogador_teste"] == "Beto"
+    assert _query_param_value(app, "jogador_teste") == "Beto"
     assert any("Selecionado: Beto" in md.value for md in app.markdown)

@@ -312,7 +312,17 @@ def _fetch_espn_schedule(
         if isinstance(range_payload, dict) and range_payload.get("events"):
             range_frame = parse_espn_scoreboard_payload(range_payload)
             frames.append(range_frame)
-            if not team_tricode or get_next_game_for_team(range_frame, team_tricode) is not None:
+            # A successful range response is already the complete requested
+            # scoreboard window. Return it when it contains the requested team,
+            # even if that team's game has just gone final; get_next_game_for_team
+            # remains responsible for excluding completed games from "next game"
+            # selection. This also avoids redundant per-day requests.
+            contains_team = (
+                not team_tricode
+                or team_tricode.upper() in set(range_frame["home_team_tricode"].astype(str).str.upper())
+                or team_tricode.upper() in set(range_frame["away_team_tricode"].astype(str).str.upper())
+            )
+            if contains_team:
                 return range_frame
     except (requests.RequestException, ValueError, TypeError) as error:
         errors.append(f"ESPN intervalo: {type(error).__name__}")
