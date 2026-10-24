@@ -31,7 +31,10 @@ def team_aliases(team: str) -> set[str]:
     return {raw}
 
 
-def build_form_table(player_games: pd.DataFrame) -> pd.DataFrame:
+def build_form_table(
+    player_games: pd.DataFrame,
+    current_roster: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Resume forma recente e temporada mais recente para cada jogador."""
     columns = ["player_id", "player_name", "team", "minutes_recent", "pts_recent", "reb_recent",
                "ast_recent", "pts_season", "pts_delta", "last_game_date", "impact_recent"]
@@ -47,6 +50,19 @@ def build_form_table(player_games: pd.DataFrame) -> pd.DataFrame:
     data = data.dropna(subset=["player_id", "game_date"]).sort_values("game_date")
     if data.empty:
         return pd.DataFrame(columns=columns)
+    current_team_by_player = {}
+    if current_roster is not None and not current_roster.empty:
+        if {"player_id", "team"}.issubset(current_roster.columns):
+            roster = current_roster.dropna(subset=["player_id", "team"])
+            for row in roster.itertuples(index=False):
+                try:
+                    roster_player_id = int(row.player_id)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                roster_team = str(row.team).strip().upper()
+                if roster_team:
+                    current_team_by_player[roster_player_id] = roster_team
+
     result = []
     league_latest_date = data["game_date"].max().normalize()
     for player_id, group in data.groupby("player_id", sort=False):
@@ -71,10 +87,14 @@ def build_form_table(player_games: pd.DataFrame) -> pd.DataFrame:
             tag_parts.append("Reboteiro")
         if ast_recent >= 7:
             tag_parts.append("Criador")
+        player_key = int(player_id) if str(player_id).isdigit() else player_id
+        historical_team = str(group["team"].dropna().iloc[-1])
+        display_team = current_team_by_player.get(player_key, historical_team)
+
         result.append({
-            "player_id": int(player_id) if str(player_id).isdigit() else player_id,
+            "player_id": player_key,
             "player_name": str(group["player_name"].dropna().iloc[-1]),
-            "team": str(group["team"].dropna().iloc[-1]),
+            "team": display_team,
             "minutes_recent": float(recent["minutes"].mean()),
             "pts_recent": pts_recent, "reb_recent": reb_recent, "ast_recent": ast_recent,
             "pts_season": pts_season, "pts_delta": pts_recent - pts_season,

@@ -5,6 +5,7 @@ from datetime import timedelta
 import pandas as pd
 import streamlit as st
 
+from src.current_roster import fetch_current_roster
 from src.daily_games import (
     build_form_table,
     format_tipoff,
@@ -71,9 +72,31 @@ def _load_player_games(db_path: str, updated_at: float) -> pd.DataFrame:
     return load_player_games(source="real", db_path=db_path)
 
 
-@st.cache_resource(show_spinner=False)
-def _form_table(db_path: str, updated_at: float) -> pd.DataFrame:
-    return build_form_table(_load_player_games(db_path, updated_at))
+@st.cache_data(ttl=21600, show_spinner=False)
+def _load_current_roster() -> pd.DataFrame:
+    return fetch_current_roster()
+
+
+@st.cache_data(show_spinner=False)
+def _form_table(
+    db_path: str,
+    updated_at: float,
+    roster_version: str,
+    roster_records: tuple[tuple[int, str], ...],
+) -> pd.DataFrame:
+    # A vers?o do elenco participa da chave do cache.
+    _ = roster_version
+
+    player_games = _load_player_games(db_path, updated_at)
+    current_roster = pd.DataFrame(
+        roster_records,
+        columns=["player_id", "team"],
+    )
+
+    return build_form_table(
+        player_games,
+        current_roster=current_roster,
+    )
 
 
 @st.cache_resource(show_spinner="Treinando o modelo de jogadores...")
@@ -164,8 +187,38 @@ components.source_badge(
 st.markdown(f"#### {len(games)} jogo(s) em {format_date_br(selected_day)}")
 
 if player_data_available:
-    form_table = _form_table(db_path, updated_at)
-    states.stale_data_notice(components.db_last_updated(DEFAULT_DB_PATH), days_threshold=3)
+    current_roster = pd.DataFrame()
+    roster_records = ()
+    roster_version = "historical-fallback"
+
+    try:
+        current_roster = _load_current_roster()
+
+        if not current_roster.empty:
+            roster_records = tuple(
+                (int(row.player_id), str(row.team).strip().upper())
+                for row in current_roster.itertuples(index=False)
+                if str(row.team).strip()
+            )
+            roster_version = str(hash(roster_records))
+
+    except Exception as exc:
+        st.warning(
+            "N?o foi poss?vel consultar o elenco atual da NBA. "
+            "Os destaques usar?o os times registrados no hist?rico. "
+            f"Detalhe: {exc}"
+        )
+
+    form_table = _form_table(
+        db_path,
+        updated_at,
+        roster_version,
+        roster_records,
+    )
+    states.stale_data_notice(
+        components.db_last_updated(DEFAULT_DB_PATH),
+        days_threshold=3,
+    )
 else:
     form_table = pd.DataFrame()
     components.note(
