@@ -179,3 +179,102 @@ def test_log_and_read_model_training_log(tmp_path):
     assert row["model_type"] == "team"
     assert row["n_games"] == 9509
     assert row["metrics"] == metrics
+
+
+
+def test_target_date_resolution_matches_only_the_selected_game(tmp_path):
+    db_path = tmp_path / "nba.db"
+    log_player_prediction(
+        1, "A One", "Boston Celtics", True, 32.0, 25.0, 6.0, 5.0, "Média",
+        path=db_path, target_game_date="2030-01-03",
+    )
+    player_games = pd.DataFrame([
+        {
+            "player_id": 1, "game_date": pd.Timestamp("2030-01-02"),
+            "opponent": "NYK", "is_home": True,
+            "minutes": 30.0, "pts": 20, "reb": 5, "ast": 4,
+        },
+        {
+            "player_id": 1, "game_date": pd.Timestamp("2030-01-03"),
+            "opponent": "BOS", "is_home": True,
+            "minutes": 34.0, "pts": 29, "reb": 7, "ast": 6,
+        },
+        {
+            "player_id": 1, "game_date": pd.Timestamp("2030-01-04"),
+            "opponent": "PHI", "is_home": False,
+            "minutes": 31.0, "pts": 18, "reb": 3, "ast": 8,
+        },
+    ])
+
+    assert resolve_player_predictions(player_games, db_path) == 1
+    row = read_player_predictions(db_path).iloc[0]
+    assert row["actual_game_date"].date().isoformat() == "2030-01-03"
+    assert row["actual_opponent"] == "BOS"
+    assert row["actual_pts"] == 29
+
+
+def test_target_date_does_not_resolve_against_wrong_opponent(tmp_path):
+    db_path = tmp_path / "nba.db"
+    log_player_prediction(
+        1, "A One", "Boston Celtics", True, 32.0, 25.0, 6.0, 5.0, "Média",
+        path=db_path, target_game_date="2030-01-03",
+    )
+    player_games = pd.DataFrame([
+        {
+            "player_id": 1, "game_date": pd.Timestamp("2030-01-03"),
+            "opponent": "NYK", "is_home": True,
+            "minutes": 34.0, "pts": 29, "reb": 7, "ast": 6,
+        },
+    ])
+
+    assert resolve_player_predictions(player_games, db_path) == 0
+    row = read_player_predictions(db_path).iloc[0]
+    assert pd.isna(row["resolved_at"])
+    assert pd.isna(row["actual_game_date"])
+
+
+def test_old_prediction_table_is_migrated_without_losing_rows(tmp_path):
+    import sqlite3
+
+    db_path = tmp_path / "nba.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE player_predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                player_id INTEGER NOT NULL,
+                player_name TEXT NOT NULL,
+                opponent TEXT,
+                is_home INTEGER NOT NULL,
+                predicted_minutes REAL NOT NULL,
+                predicted_pts REAL NOT NULL,
+                predicted_reb REAL NOT NULL,
+                predicted_ast REAL NOT NULL,
+                confidence TEXT NOT NULL,
+                actual_minutes REAL,
+                actual_pts REAL,
+                actual_reb REAL,
+                actual_ast REAL,
+                resolved_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO player_predictions
+                (created_at, player_id, player_name, opponent, is_home,
+                 predicted_minutes, predicted_pts, predicted_reb, predicted_ast, confidence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("2030-01-01T10:00:00", 1, "A One", "Boston Celtics", 1,
+             32.0, 25.0, 6.0, 5.0, "Média"),
+        )
+        connection.commit()
+
+    predictions = read_player_predictions(db_path)
+    assert len(predictions) == 1
+    assert pd.isna(predictions.iloc[0]["target_game_date"])
+    with sqlite3.connect(db_path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(player_predictions)")}
+    assert {"target_game_date", "actual_game_date", "actual_opponent", "actual_is_home"} <= columns

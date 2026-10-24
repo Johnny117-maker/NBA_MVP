@@ -3,7 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .player_features import EMA_HALFLIFE_FAST, EMA_HALFLIFE_SLOW, effective_starter_flag
+from .player_features import (
+    EMA_HALFLIFE_FAST,
+    EMA_HALFLIFE_SLOW,
+    effective_starter_flag,
+    latest_season_baseline,
+)
 
 PER36_STATS = ["pts", "reb", "ast", "stl", "blk", "tov"]
 
@@ -136,7 +141,12 @@ def list_players(player_games: pd.DataFrame) -> pd.DataFrame:
     return latest.reset_index().sort_values("player_name").reset_index(drop=True)
 
 
-def player_snapshot(player_games: pd.DataFrame, player_id, window: int = 10) -> dict:
+def player_snapshot(
+    player_games: pd.DataFrame,
+    player_id,
+    window: int = 10,
+    target_season: str | None = None,
+) -> dict:
     """Estado atual de um jogador (médias exponenciais, sem shift).
 
     Usado para prever um jogo genuinamente futuro — diferente das médias
@@ -185,7 +195,7 @@ def player_snapshot(player_games: pd.DataFrame, player_id, window: int = 10) -> 
         stint_length += 1
     stint_tail = full_history.tail(stint_length)
 
-    return {
+    snapshot = {
         "minutes_avg5": _ema(history, "minutes", EMA_HALFLIFE_FAST),
         "minutes_avg10": _ema(history, "minutes", EMA_HALFLIFE_SLOW),
         "pts_per_min_avg10": _rate(history, "pts", EMA_HALFLIFE_SLOW),
@@ -209,6 +219,48 @@ def player_snapshot(player_games: pd.DataFrame, player_id, window: int = 10) -> 
         "games_since_trade": float(stint_length),
         "games": float(len(full_history)),
     }
+    # A média da temporada mais recente disponível serve como baseline para
+    # a próxima previsão. Depois da transferência, as características de stint
+    # ajustam gradualmente esse ponto de partida conforme chegam novos jogos.
+    snapshot.update(latest_season_baseline(full_history, target_season=target_season))
+
+    # Janelas curtas ajudam a captar mudanças recentes sem descartar a média
+    # exponencial de carreira. A janela conta partidas, incluindo linhas com
+    # minutos zero; taxas ignoram apenas denominadores inválidos dentro dela.
+    for window in (3, 5, 10):
+        recent = history.tail(window)
+        snapshot[f"pts_avg{window}"] = float(recent["pts"].mean()) if not recent.empty else 0.0
+
+    def _recent_rate(frame: pd.DataFrame, stat: str, window: int) -> float:
+        recent = frame.tail(window)
+        valid = recent[recent["minutes"] > 0]
+        if valid.empty:
+            return 0.0
+        values = (valid[stat] / valid["minutes"]).mean()
+        return float(values) if pd.notna(values) else 0.0
+
+    for stat in ("pts", "reb", "ast", "fga", "fta"):
+        for window in (3, 5):
+            snapshot[f"{stat}_per_min_avg{window}"] = _recent_rate(history, stat, window)
+            snapshot[f"{stat}_per_min_avg{window}_stint"] = _recent_rate(
+                stint_tail, stat, window
+            )
+
+    for window in (3, 5):
+        for frame, suffix in ((history, ""), (stint_tail, "_stint")):
+            ts_values = frame.tail(window)["true_shooting_pct"].dropna()
+            usage_values = frame.tail(window)["usage_pct"].dropna()
+            snapshot[f"ts_pct_avg{window}{suffix}"] = (
+                float(ts_values.mean()) if not ts_values.empty else snapshot[f"ts_pct_avg10{suffix}"]
+            )
+            if window == 5:
+                snapshot[f"usg_pct_avg5{suffix}"] = (
+                    float(usage_values.mean())
+                    if not usage_values.empty
+                    else snapshot[f"usg_pct_avg10{suffix}"]
+                )
+
+    return snapshot
 
 
 def player_season_summary(player_games: pd.DataFrame) -> pd.DataFrame:

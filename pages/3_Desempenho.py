@@ -153,9 +153,10 @@ with tab_player_predictions:
                 "('python scripts/update_data.py')."
             )
         st.caption(
-            "A resolução casa cada previsão com o próximo jogo real do mesmo jogador, "
-            "não com o adversário escolhido na hora da previsão — o adversário ali é "
-            "hipotético, não vem de uma agenda real de jogos futuros."
+            "Previsões novas são resolvidas apenas contra uma partida da data-alvo selecionada; "
+            "adversário e mando também são conferidos quando esses dados estão disponíveis. "
+            "Previsões antigas sem data-alvo tentam casar adversário e mando; somente registros "
+            "legados sem esses campos usam a próxima partida disponível."
         )
 
         resolved = player_predictions[player_predictions["resolved_at"].notna()].copy()
@@ -178,12 +179,105 @@ with tab_player_predictions:
             error_columns[2].metric("MAE rebotes", f"{resolved['reb_error'].mean():.1f}")
             error_columns[3].metric("MAE assistências", f"{resolved['ast_error'].mean():.1f}")
 
+            # Comparação empírica das classes de confiança com resultados resolvidos.
+            st.markdown("#### Auditoria da confiança")
+            confidence_audit = (
+                resolved.groupby("confidence", dropna=False)
+                .agg(
+                    previsoes=("id", "count"),
+                    MAE_minutos=("minutes_error", "mean"),
+                    MAE_pontos=("pts_error", "mean"),
+                    MAE_rebotes=("reb_error", "mean"),
+                    MAE_assistencias=("ast_error", "mean"),
+                )
+                .reindex(["Alta", "Média", "Baixa"])
+                .dropna(how="all")
+                .reset_index()
+            )
+            st.dataframe(
+                confidence_audit.style.format(
+                    {
+                        "MAE_minutos": "{:.1f}",
+                        "MAE_pontos": "{:.1f}",
+                        "MAE_rebotes": "{:.1f}",
+                        "MAE_assistencias": "{:.1f}",
+                    },
+                    na_rep="—",
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+            st.caption(
+                "A confiança é uma classe heurística de incerteza. Com poucos registros por "
+                "classe, os erros médios são instáveis; a tabela acumula evidências ao longo "
+                "das rodadas e ajuda a detectar quando previsões marcadas como 'Alta' erram mais."
+            )
+
+            st.markdown("#### Backtest por rodada/data do jogo")
+            for column in ("target_game_date", "actual_game_date"):
+                if column not in resolved.columns:
+                    resolved[column] = pd.NaT
+            resolved["audit_game_date"] = resolved["target_game_date"].combine_first(
+                resolved["actual_game_date"]
+            )
+            resolved["audit_game_date"] = pd.to_datetime(
+                resolved["audit_game_date"], errors="coerce"
+            )
+            missing_date = resolved["audit_game_date"].isna()
+            if missing_date.any():
+                resolved.loc[missing_date, "audit_game_date"] = pd.to_datetime(
+                    resolved.loc[missing_date, "resolved_at"], errors="coerce"
+                ).dt.normalize()
+            resolved["Data da rodada"] = resolved["audit_game_date"].dt.strftime("%Y-%m-%d")
+            round_audit = (
+                resolved.groupby("Data da rodada", dropna=False)
+                .agg(
+                    Jogadores=("player_id", "nunique"),
+                    Previsoes=("id", "count"),
+                    MAE_minutos=("minutes_error", "mean"),
+                    MAE_pontos=("pts_error", "mean"),
+                    MAE_rebotes=("reb_error", "mean"),
+                    MAE_assistencias=("ast_error", "mean"),
+                )
+                .reset_index()
+                .sort_values("Data da rodada", ascending=False)
+            )
+            st.dataframe(
+                round_audit.style.format(
+                    {
+                        "MAE_minutos": "{:.1f}",
+                        "MAE_pontos": "{:.1f}",
+                        "MAE_rebotes": "{:.1f}",
+                        "MAE_assistencias": "{:.1f}",
+                    },
+                    na_rep="—",
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+            st.download_button(
+                "Baixar auditoria das previsões (CSV)",
+                data=resolved.sort_values("audit_game_date").to_csv(index=False).encode("utf-8-sig"),
+                file_name="nba_player_prediction_audit.csv",
+                mime="text/csv",
+            )
+
         st.markdown("#### Todas as previsões")
-        display = player_predictions.rename(
+        display_source = player_predictions.copy()
+        if not resolved.empty:
+            errors_for_display = resolved[
+                ["id", "minutes_error", "pts_error", "reb_error", "ast_error"]
+            ].drop_duplicates("id")
+            display_source = display_source.merge(errors_for_display, on="id", how="left")
+        display = display_source.rename(
             columns={
                 "created_at": "Registrada em",
                 "player_name": "Jogador",
-                "opponent": "Adversário (hipotético)",
+                "opponent": "Adversário previsto",
+                "target_game_date": "Data do jogo previsto",
+                "actual_game_date": "Data do jogo real",
+                "actual_opponent": "Adversário real",
+                "actual_is_home": "Mando real",
                 "is_home": "Casa",
                 "predicted_minutes": "Minutos previstos",
                 "predicted_pts": "Pontos previstos",
@@ -194,6 +288,10 @@ with tab_player_predictions:
                 "actual_pts": "Pontos reais",
                 "actual_reb": "Rebotes reais",
                 "actual_ast": "Assistências reais",
+                "minutes_error": "Erro abs. minutos",
+                "pts_error": "Erro abs. pontos",
+                "reb_error": "Erro abs. rebotes",
+                "ast_error": "Erro abs. assistências",
                 "resolved_at": "Resolvida em",
             }
         ).drop(columns=["id", "player_id"])
@@ -204,6 +302,10 @@ with tab_player_predictions:
                     "Pontos previstos": "{:.1f}",
                     "Rebotes previstos": "{:.1f}",
                     "Assistências previstas": "{:.1f}",
+                    "Erro abs. minutos": "{:.1f}",
+                    "Erro abs. pontos": "{:.1f}",
+                    "Erro abs. rebotes": "{:.1f}",
+                    "Erro abs. assistências": "{:.1f}",
                 },
                 na_rep="—",
             ),

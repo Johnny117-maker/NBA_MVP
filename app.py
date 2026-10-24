@@ -62,7 +62,7 @@ components.metric_row(
 )
 
 st.markdown("#### Comece por aqui")
-action_cols = st.columns(4)
+action_cols = st.columns(5)
 with action_cols[0]:
     st.page_link("pages/0_Times.py", label="Analisar times", icon="🏀")
 with action_cols[1]:
@@ -71,6 +71,8 @@ with action_cols[2]:
     st.page_link("pages/4_Mapa_Arremessos.py", label="Mapa de arremessos", icon="🎯")
 with action_cols[3]:
     st.page_link("pages/5_Dados_Atualizacoes.py", label="Atualizar dados", icon="🔄")
+with action_cols[4]:
+    st.page_link("pages/7_Jogos_do_Dia.py", label="Jogos do dia", icon="📅")
 
 if not real_data_available:
     components.note(

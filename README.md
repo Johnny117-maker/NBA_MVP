@@ -123,6 +123,9 @@ nba-analytics/
 │   ├── test_ui_components.py
 │   ├── test_ui_explanations.py
 │   └── test_ui_formatters.py
+├── EXECUTAR_TESTES.bat
+├── INICIAR_PROJETO.bat
+├── INSTALAR_DEPENDENCIAS.bat
 ├── app.py
 ├── requirements.txt
 └── README.md
@@ -134,6 +137,18 @@ fonte/atualização e atalhos para as demais páginas. A comparação de times
 em si — o que antes vivia em `app.py` — foi movida para `pages/0_Times.py`,
 mantendo a separação de responsabilidades da navegação (seção 3 do
 [planejamento de UI/UX](planejamento_ui_ux_nba_analytics.md)).
+
+## Execucao rapida no Windows com arquivos .bat
+
+Na pasta raiz do projeto ha tres atalhos para facilitar o uso:
+
+1. `INSTALAR_DEPENDENCIAS.bat` — cria o ambiente virtual `.venv`, atualiza o `pip` e baixa/instala todos os pacotes listados em `requirements.txt`. Execute este arquivo primeiro se quiser preparar o projeto manualmente.
+2. `INICIAR_PROJETO.bat` — inicia o Streamlit. Se o ambiente virtual ou o Streamlit ainda nao estiver instalado, chama automaticamente o instalador de dependencias.
+3. `EXECUTAR_TESTES.bat` — executa a suite automatizada com `pytest`.
+
+**Antes de comecar:** extraia o ZIP inteiro para uma pasta local; nao execute os arquivos de dentro do ZIP. E necessario ter Python instalado (preferencialmente Python 3.12) e acesso a internet para baixar os pacotes. O arquivo `.bat` instala as bibliotecas Python, mas nao instala o proprio Python nem atualiza automaticamente os dados da NBA.
+
+Para uso normal, basta dar duplo clique em `INICIAR_PROJETO.bat`. Mantenha a janela aberta enquanto estiver usando a aplicacao. Para parar o servidor, volte a essa janela e pressione `Ctrl+C`.
 
 ## Como executar no Windows
 
@@ -165,6 +180,32 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```powershell
 pytest -q
 ```
+
+## Publicar no GitHub
+
+O repositório está preparado para usar Git e GitHub. O arquivo `PUBLICAR_GITHUB.bat` inicializa o repositório local quando necessário, cria um commit e envia a branch `main` ao remoto configurado. Antes de executá-lo:
+
+1. Instale o [Git para Windows](https://git-scm.com/download/win).
+2. Crie no GitHub um repositório **vazio**, sem gerar README, `.gitignore` ou licença automaticamente.
+3. Execute `PUBLICAR_GITHUB.bat`; quando houver alterações, o script pedirá a mensagem do commit e depois solicitará a URL do repositório se ainda não houver um remoto `origin` configurado.
+4. Escreva uma mensagem curta que descreva a mudança, por exemplo `Melhora previsao de pontos e minutos`, e pressione Enter. A mensagem é usada no commit do Git; se não houver alterações staged, nenhum commit novo será criado.
+5. Conclua a autenticação do GitHub pelo Git Credential Manager ou pelo método de autenticação configurado no Git. Não coloque tokens ou senhas no código nem nos arquivos `.bat`.
+
+O projeto inclui `.github/workflows/tests.yml`: o GitHub Actions executa `pytest` automaticamente em novos pushes e pull requests.
+
+### Por que o banco de dados não vai para o GitHub?
+
+O arquivo local `data/nba.db` não é incluído no repositório, pois a base histórica pode ser muito grande para um arquivo Git comum e muda conforme as coletas. O `.gitignore` mantém bancos SQLite, ambientes virtuais, caches e modelos treinados fora do versionamento. A pasta `data/` fica representada por `data/.gitkeep`.
+
+Após clonar o projeto, é possível abrir a aplicação em modo demonstrativo e coletar dados reais pela página **Dados e Atualizações** ou pelos scripts em `scripts/`. A coleta real depende de conexão com a internet e dos serviços da NBA.
+
+> **Atenção à licença:** este repositório não adiciona uma licença de código aberto em seu nome. Antes de publicar publicamente, escolha e adicione um arquivo `LICENSE` se desejar conceder permissões específicas de reutilização.
+
+
+Os testes de `persistent_selectbox` verificam `st.query_params`, a API atual do
+Streamlit. Quando um parâmetro contém um único valor, o acesso
+`app.query_params["chave"]` retorna uma `str` (por exemplo, `"Ana"`), não uma
+lista como acontecia com a API antiga `st.experimental_get_query_params`.
 
 ## Lint e checagem de tipos
 
@@ -289,35 +330,41 @@ Uma quarta aba, **Projeções**, prevê o próximo jogo de um jogador (como
 descrito no planejamento de sabermetria), com intervalo de incerteza baseado
 no erro histórico de cada modelo — o mesmo princípio do `predict_game` de
 times. Minutos vêm de um modelo próprio; rebotes e assistências são
-produção por minuto (minutos × taxa). **Pontos são decompostos em volume ×
-eficiência**, em vez de uma taxa única "pontos por minuto":
+produção por minuto (minutos × taxa). Para pontos, a previsão central usa um
+**regressor direto de pontos por minuto** (`HistGradientBoostingRegressor`)
+vezes os minutos projetados, com histórico recente, uso ofensivo, volume,
+eficiência, contexto e uma referência da temporada-base. A cadeia FGA × TS%
+continua calculada como referência interpretável e é comparada no backtest:
 
 ```text
-minutos previstos
-  × arremessos por minuto previstos (modelo de volume — FGA)
-  = FGA previstos
-  × proporção histórica FTA/FGA do próprio jogador (razão, não modelo)
-  = FTA previstos
+Modelo híbrido principal:
+  (1 - peso anual) × previsão dinâmica
+  + peso anual × taxa da temporada-base × minutos previstos
 
-TS% previsto (modelo de eficiência — já usa a força do adversário)
-  × 2 × (FGA previstos + 0,44 × FTA previstos)
-  = pontos previstos
+Referência interpretável:
+  FGA previstos × TS% previsto × proporção histórica FTA/FGA
+  → estimativa alternativa de pontos
 ```
 
-Separar volume de eficiência evita misturar duas coisas diferentes numa
-taxa só: "jogou mais e arremessou mais" (volume) reage a minutos e ao
-próprio ritmo do jogador; "arremessou igual, mas acertou mais" (eficiência)
-é o que reage à força do adversário. A aba mostra os três números da cadeia
-(minutos, FGA, TS%) junto com o resultado final. Mostra também o mando de
-quadra, os dias de descanso e o erro médio absoluto (MAE) de cada modelo.
+As características incluem médias recentes dos últimos 3/5/10 jogos,
+minutos e uso ofensivo, eficiência, passagem atual pelo time, descanso,
+mando de quadra e defesa adversária. Os preenchimentos da liga usam apenas
+datas anteriores. A avaliação divide partidas por datas completas, não por
+linhas, e compara o modelo híbrido à cadeia FGA × TS%, à referência simples
+(taxa recente de pontos × minutos previstos) e às médias da temporada-base
+adaptadas aos minutos previstos. A interface mostra essas métricas para não
+presumir que um modelo complexo é sempre melhor. A métrica
+de pontos é condicional a o jogador ter registrado minutos na partida; lesões
+e probabilidade pré-jogo de participação ainda não são modeladas.
 
-Os dois modelos reconhecem **troca de time**: cada jogador tem uma
+Os modelos de minutos, pontos e volume/eficiência reconhecem **troca de time**: cada jogador tem uma
 "passagem" (`team_stint`, `src/player_features.py::assign_team_stints`) por
 time, detectada automaticamente a partir do histórico já coletado (sem
 precisar de nenhuma coleta nova). As médias existem em duas versões —
 carreira inteira e só a passagem atual — e `games_since_trade` diz há
-quantos jogos o jogador está no time atual. O modelo (Ridge) aprende sozinho
-quanto pesar cada uma; nos primeiros jogos depois de uma troca, sem
+quantos jogos o jogador está no time atual. Os modelos Ridge de minutos,
+volume e eficiência aprendem quanto pesar cada uma; o modelo direto de pontos
+usa árvores rasas com regularização. Nos primeiros jogos depois de uma troca, sem
 histórico na passagem nova, a versão "da passagem" cai automaticamente na
 média de carreira.
 
@@ -333,6 +380,14 @@ junto com a taxa de arremessos por minuto: USG% alto é outro jeito de captar
 "a bola passa mais pela mão desse jogador", útil sobretudo logo depois de uma
 troca de time, quando a função ofensiva pode mudar antes mesmo dos minutos
 ou dos arremessos por minuto se estabilizarem.
+
+### Referência da temporada anterior (PTS, REB e AST)
+
+As projeções agora usam também a média da temporada-base mais recente para **pontos, rebotes, assistências e minutos**, além das respectivas taxas por minuto. Para uma linha de `2025-26`, por exemplo, as features de referência são calculadas exclusivamente a partir da temporada `2024-25` do mesmo jogador, com partidas de todos os times somadas quando houve uma troca no meio do ano. Isso dá ao modelo um ponto de partida estável sem assumir que a produção vai continuar igual automaticamente.
+
+A projeção final combina o modelo dinâmico com a taxa da temporada-base ajustada para os minutos previstos. O peso inicial da temporada-base é de até 60% no primeiro jogo de uma nova passagem pelo time; cai 4 pontos percentuais a cada jogo dessa passagem, até o mínimo de 20% após dez jogos. Esse peso é reduzido quando há menos de dez partidas históricas disponíveis para sustentar a média. Assim, o modelo pode acompanhar mudanças de papel, minutos, volume de arremessos e criação de jogadas, sem abandonar completamente o desempenho anterior.
+
+A página **Projeções** mostra a temporada usada como referência e compara a média por jogo de PTS/REB/AST com a estimativa para o próximo jogo. A página **Qualidade do Modelo** também registra o MAE da referência anual, para avaliar se o ajuste pelo modelo melhora ou piora a previsão em relação a simplesmente manter a taxa da temporada-base. Se um jogador mudar de equipe antes de disputar uma partida pelo novo time, o projeto ainda não consegue inferir sozinho a nova função: precisa que os dados da troca/novo time sejam atualizados ou de uma entrada explícita dessa informação.
 
 A aba também tem um seletor de **próximo adversário**: a força defensiva do
 time escolhido (`opponent_def_rating`, média expansiva de pontos sofridos
@@ -628,6 +683,10 @@ estatística) fica como próximo passo antes de revisitar o modo quantílico.
 > da página.
 
 ```powershell
+# Windows
+double-click RETREINAR_MODELOS.bat
+
+# Or in PowerShell
 python scripts/retrain_models.py
 ```
 
@@ -697,7 +756,7 @@ isso e mostra o comando equivalente. Rating oficial e titularidade real
 - [x] Índice próprio (NAPS) e estilo de jogo (primeira versão: sem segmentação por posição, sem impacto on/off, defesa por proxy simples);
 - [x] Previsão de minutos, pontos, rebotes e assistências (primeira versão: sem dados de lesões/escalação do adversário);
 - [x] Simulação de classificação, Play-In e playoffs (primeira versão: força congelada no corte, sem critérios oficiais de desempate);
-- [x] Registro permanente das previsões (times e jogadores, registro manual por botão, resolução sob demanda contra jogos reais já coletados — para jogadores, a resolução casa pelo próximo jogo real do jogador, não pelo adversário hipotético escolhido);
+- [x] Registro permanente das previsões (times e jogadores, registro manual por botão, resolução sob demanda contra jogos reais já coletados — previsões novas são resolvidas pela data-alvo e conferem adversário/mando quando disponíveis; registros legados sem esses campos usam fallback compatível);
 - [x] Retreinamento automático (script `scripts/retrain_models.py` + histórico de métricas; agendamento da execução periódica fica a cargo do usuário);
 - [x] Trajetória do jogador (segunda versão): passagem por time (`team_stint`), contexto do adversário (força defensiva), médias móveis exponenciais, decomposição de pontos em volume × eficiência e validação walk-forward para o log de métricas do modelo de jogadores;
 - [x] Probabilidade por faixa e Usage Rate por passagem no modelo de pontos;
@@ -710,3 +769,40 @@ isso e mostra o comando equivalente. Rating oficial e titularidade real
 - [ ] Layout responsivo para telas menores — não verificado ainda (sem acesso a navegador nas sessões em que foi construído);
 - [ ] Rating oficial e titularidade real ainda cobrem uma fração pequena da base coletada (a app usa a aproximação por pontos/minutos na maioria dos jogos).
 
+
+
+## Auditoria das previsões de jogadores (2026)
+
+A projeção de minutos agora combina a saída do modelo com médias de rotação
+recente e temporada anterior, ponderadas pela quantidade de jogos no stint atual.
+A confiança considera resíduos históricos de minutos, pontos, rebotes e
+assistências e o tamanho do histórico; ela é uma classe heurística de incerteza,
+não uma probabilidade de acerto.
+
+Para gerar um backtest progressivo por data e salvar previsões individuais, no
+Windows dê dois cliques em `RETREINAR_MODELOS.bat`. Ou, com o ambiente virtual
+ativado no PowerShell, execute:
+
+```powershell
+python scripts/retrain_models.py
+```
+
+O relatório `reports/player_backtest_predictions.csv` inclui data, fold, jogador,
+time, adversário, previsão, resultado e erro de minutos/PTS/REB/AST. A página
+**Qualidade do Modelo** exibe MAE por rodada e por jogador e permite exportar o CSV.
+
+Ao registrar uma previsão na página **Jogadores**, selecione a data exata da
+partida. A resolução na página **Desempenho** usa essa data e confere adversário
+e mando quando os dados permitem, evitando associar a previsão à partida errada.
+As previsões antigas são migradas automaticamente; quando não têm data-alvo, a
+resolução tenta verificar adversário/mando. Confira também
+`docs/AUDITORIA_PREVISOES_JOGADORES.md`.
+
+
+## Próximo confronto do jogador
+
+Na página **Jogadores → Projeções**, quando a fonte de dados real está selecionada, o app consulta o calendário público oficial da NBA e procura o próximo jogo agendado para a equipe escolhida. Se o calendário estiver indisponível, o confronto pode ser preenchido manualmente. Veja [a documentação](docs/PROXIMO_JOGO_JOGADOR.md).
+
+## Correções de compatibilidade e contexto defensivo — 21/10/2026
+
+A tela **Qualidade do Modelo** agora continua a funcionar com logs de treinamento antigos que ainda não têm as métricas comparativas da temporada-base. A previsão de pontos também aplica um ajuste pequeno e limitado para considerar o defensive rating do adversário; consulte [`docs/CORRECAO_FALHAS_TESTES_2026-10-21.md`](docs/CORRECAO_FALHAS_TESTES_2026-10-21.md) para detalhes e limitações.

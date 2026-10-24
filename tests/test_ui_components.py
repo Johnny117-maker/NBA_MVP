@@ -70,7 +70,8 @@ def test_persistent_selectbox_writes_default_choice_to_query_params():
     app.run(timeout=30)
     assert not app.exception
 
-    assert app.query_params["jogador_teste"] == ["Ana"]
+    # Streamlit st.query_params retorna uma string quando há um único valor.
+    assert app.query_params["jogador_teste"] == "Ana"
     assert any("Selecionado: Ana" in md.value for md in app.markdown)
 
 
@@ -104,5 +105,6 @@ def test_persistent_selectbox_updates_query_params_when_changed():
     select.set_value("Beto").run(timeout=30)
     assert not app.exception
 
-    assert app.query_params["jogador_teste"] == ["Beto"]
+    # Não usar lista: st.query_params usa o formato QueryParams atual do Streamlit.
+    assert app.query_params["jogador_teste"] == "Beto"
     assert any("Selecionado: Beto" in md.value for md in app.markdown)
