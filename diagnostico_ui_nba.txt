@@ -1,0 +1,2621 @@
+﻿DIAGNOSTICO NBA ANALYTICS LAB
+
+================================================================================
+ARQUIVO: app.py
+================================================================================
+from __future__ import annotations
+
+import streamlit as st
+
+from src.shot_storage import count_player_shots
+from src.store import (
+    DEFAULT_DB_PATH,
+    count_distinct_players,
+    count_distinct_teams,
+    count_games,
+    list_seasons,
+)
+from src.ui import components, theme
+from src.ui.formatters import format_int_br
+
+st.set_page_config(
+    page_title="NBA Analytics Lab",
+    page_icon="ðŸ€",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+theme.inject_base_style()
+
+st.markdown(
+    """
+    <div class="hero">
+        <h1>ðŸ€ NBA Analytics Lab</h1>
+        <p>AnÃ¡lise de times e jogadores, projeÃ§Ãµes experimentais e explicaÃ§Ã£o dos fatores do modelo.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+with st.sidebar:
+    st.caption(
+        "Este projeto produz estimativas esportivas educacionais. "
+        "NÃ£o utiliza odds e nÃ£o fornece orientaÃ§Ã£o de apostas."
+    )
+
+real_data_available = DEFAULT_DB_PATH.exists() and count_games(DEFAULT_DB_PATH) > 0
+last_updated = components.db_last_updated(DEFAULT_DB_PATH) if real_data_available else None
+seasons = list_seasons(DEFAULT_DB_PATH) if real_data_available else []
+seasons_label = (
+    f"{seasons[0]} a {seasons[-1]}" if len(seasons) > 1 else (seasons[0] if seasons else None)
+)
+
+components.source_badge(
+    "NBA API â€” dados reais" if real_data_available else "Nenhum dado real coletado ainda",
+    last_updated,
+    seasons=seasons_label,
+)
+
+components.metric_row(
+    [
+        {"label": "Jogos analisados", "value": format_int_br(count_games(DEFAULT_DB_PATH))},
+        {"label": "Times cadastrados", "value": format_int_br(count_distinct_teams(DEFAULT_DB_PATH))},
+        {"label": "Jogadores coletados", "value": format_int_br(count_distinct_players(DEFAULT_DB_PATH))},
+        {"label": "Temporadas", "value": format_int_br(len(seasons))},
+        {"label": "Arremessos coletados", "value": format_int_br(count_player_shots(DEFAULT_DB_PATH))},
+    ]
+)
+
+st.markdown("#### Comece por aqui")
+action_cols = st.columns(5)
+with action_cols[0]:
+    st.page_link("pages/0_Times.py", label="Analisar times", icon="ðŸ€")
+with action_cols[1]:
+    st.page_link("pages/1_Jogadores.py", label="Analisar jogadores", icon="ðŸ§®")
+with action_cols[2]:
+    st.page_link("pages/4_Mapa_Arremessos.py", label="Mapa de arremessos", icon="ðŸŽ¯")
+with action_cols[3]:
+    st.page_link("pages/5_Dados_Atualizacoes.py", label="Atualizar dados", icon="ðŸ”„")
+with action_cols[4]:
+    st.page_link("pages/7_Jogos_do_Dia.py", label="Jogos do dia", icon="ðŸ“…")
+
+if not real_data_available:
+    components.note(
+        "Nenhum dado real coletado ainda. VocÃª pode explorar as pÃ¡ginas de times e "
+        "jogadores com a base demonstrativa (sintÃ©tica) â€” o seletor de fonte fica na "
+        "barra lateral de cada pÃ¡gina â€” ou ir atÃ© 'Dados e AtualizaÃ§Ãµes' para coletar "
+        "dados reais.",
+        kind="warning",
+    )
+
+================================================================================
+ARQUIVO: src\ui\theme.py
+================================================================================
+from __future__ import annotations
+
+import streamlit as st
+
+# Paleta jÃ¡ em uso em `.streamlit/config.toml` e no CSS inline de `app.py`
+# (seÃ§Ã£o 16 do planejamento de UI/UX) â€” centralizada aqui em vez de
+# redeclarada em cada pÃ¡gina.
+COLORS = {
+    "background": "#0B1120",
+    "surface": "#151F32",
+    "border": "#263247",
+    "accent": "#F97316",
+    "info": "#38BDF8",
+    "success": "#34D399",
+    "warning": "#FBBF24",
+    "danger": "#F87171",
+    "text": "#F8FAFC",
+    "text_secondary": "#B8C2D6",
+}
+
+# Cor de destaque por tipo de nota/selo (seÃ§Ãµes 5 e 13) â€” mapeada para as
+# cores semÃ¢nticas da paleta em vez de cores literais espalhadas pelo cÃ³digo.
+_NOTE_BORDER_COLOR = {
+    "info": COLORS["accent"],
+    "warning": COLORS["warning"],
+    "danger": COLORS["danger"],
+    "success": COLORS["success"],
+}
+
+_BASE_STYLE = f"""
+<style>
+.block-container {{padding-top: 1.4rem; padding-bottom: 3rem;}}
+[data-testid="stMetric"] {{
+    background: linear-gradient(145deg, {COLORS["surface"]}, #111827);
+    border: 1px solid {COLORS["border"]};
+    border-radius: 14px;
+    padding: 16px;
+}}
+.hero {{
+    padding: 22px 26px;
+    border: 1px solid {COLORS["border"]};
+    border-radius: 18px;
+    background: linear-gradient(120deg, #111827 0%, #172033 60%, #2a180d 100%);
+    margin-bottom: 18px;
+}}
+.hero h1 {{margin: 0; font-size: 2.15rem;}}
+.hero p {{color: {COLORS["text_secondary"]}; margin: 8px 0 0 0;}}
+.app-note {{
+    padding: 12px 15px;
+    border-radius: 8px;
+    background: {COLORS["surface"]};
+    color: {COLORS["text"]};
+    margin-bottom: 12px;
+}}
+.app-note--info {{border-left: 4px solid {_NOTE_BORDER_COLOR["info"]};}}
+.app-note--warning {{border-left: 4px solid {_NOTE_BORDER_COLOR["warning"]};}}
+.app-note--danger {{border-left: 4px solid {_NOTE_BORDER_COLOR["danger"]};}}
+.app-note--success {{border-left: 4px solid {_NOTE_BORDER_COLOR["success"]};}}
+.source-badge {{
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    border: 1px solid {COLORS["border"]};
+    color: {COLORS["text_secondary"]};
+    background: {COLORS["surface"]};
+    margin-bottom: 10px;
+}}
+</style>
+"""
+
+
+def inject_base_style() -> None:
+    """CSS compartilhado por todas as pÃ¡ginas â€” cartÃµes, hero, notas, selo de fonte.
+
+    Chame uma vez perto do topo de cada pÃ¡gina (`app.py` e cada `pages/*.py`),
+    depois de `st.set_page_config`. Substitui o bloco de CSS que antes era
+    copiado e colado em cada arquivo.
+    """
+    st.markdown(_BASE_STYLE, unsafe_allow_html=True)
+
+
+================================================================================
+ARQUIVO: src\ui\components.py
+================================================================================
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
+from .formatters import format_datetime_br, format_int_br
+
+_VALID_NOTE_KINDS = {"info", "warning", "danger", "success"}
+
+# "no mÃ¡ximo seis indicadores por linha" (seÃ§Ã£o 16.1) â€” itens extras quebram
+# para a linha seguinte automaticamente.
+MAX_METRICS_PER_ROW = 6
+
+SMALL_SAMPLE_THRESHOLD = 15
+MODERATE_SAMPLE_THRESHOLD = 40
+
+
+def note(text: str, kind: str = "info") -> None:
+    """Caixa de aviso com borda colorida por tipo (seÃ§Ã£o 5/13 do planejamento de UI/UX).
+
+    Substitui os `<div class="note">...` inline que antes eram copiados e
+    colados em `app.py`/`pages/1_Jogadores.py` â€” mesma aparÃªncia, uma
+    definiÃ§Ã£o sÃ³ (`src/ui/theme.py`).
+    """
+    if kind not in _VALID_NOTE_KINDS:
+        raise ValueError(f"kind invÃ¡lido: {kind!r}. Use um de {sorted(_VALID_NOTE_KINDS)}.")
+    st.markdown(f'<div class="app-note app-note--{kind}">{text}</div>', unsafe_allow_html=True)
+
+
+def db_last_updated(path: Path) -> datetime | None:
+    """Data da Ãºltima escrita bem-sucedida no banco (proxy de "quando os dados
+    foram atualizados"): a data de modificaÃ§Ã£o do arquivo SQLite. NÃ£o Ã© um
+    timestamp exato de coleta guardado explicitamente â€” Ã© uma aproximaÃ§Ã£o
+    simples, no mesmo espÃ­rito das outras aproximaÃ§Ãµes jÃ¡ documentadas no
+    projeto (ex.: Rating oficial por pontos antes da coleta chegar).
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+    return datetime.fromtimestamp(path.stat().st_mtime)
+
+
+def source_badge(
+    source_label: str,
+    updated_at: datetime | pd.Timestamp | None,
+    seasons: str | None = None,
+) -> None:
+    """Selo de fonte e atualizaÃ§Ã£o (seÃ§Ã£o 5): "Fonte: X Â· Atualizado em ... Â· Temporadas: Y".
+
+    `updated_at=None` omite o trecho de data â€” a base demonstrativa nÃ£o tem
+    uma data de coleta real para mostrar.
+    """
+    parts = [f"Fonte: {source_label}"]
+    if updated_at is not None:
+        parts.append(f"Atualizado em {format_datetime_br(updated_at)}")
+    if seasons:
+        parts.append(f"Temporadas: {seasons}")
+    st.markdown(f'<div class="source-badge">{" Â· ".join(parts)}</div>', unsafe_allow_html=True)
+
+
+def metric_row(items: list[dict]) -> None:
+    """CartÃµes de indicadores padronizados (seÃ§Ã£o 16.1 do planejamento de UI/UX).
+
+    Cada item: `{"label": str, "value": str, "delta": str opcional, "help": str opcional}`.
+    Mais de `MAX_METRICS_PER_ROW` itens quebram em vÃ¡rias linhas de `st.columns`
+    em vez de espremer tudo numa linha sÃ³.
+    """
+    for start in range(0, len(items), MAX_METRICS_PER_ROW):
+        chunk = items[start : start + MAX_METRICS_PER_ROW]
+        columns = st.columns(len(chunk))
+        for column, item in zip(columns, chunk, strict=True):
+            column.metric(item["label"], item["value"], item.get("delta"), help=item.get("help"))
+
+
+def sample_size_caption(shown: int, total: int, unit: str = "partidas") -> None:
+    """"Exibindo X de Y partidas Â· Amostra {pequena/moderada/grande}" (seÃ§Ã£o 7.1)."""
+    if shown <= SMALL_SAMPLE_THRESHOLD:
+        label = "pequena"
+    elif shown <= MODERATE_SAMPLE_THRESHOLD:
+        label = "moderada"
+    else:
+        label = "grande"
+    st.caption(
+        f"Exibindo {format_int_br(shown)} de {format_int_br(total)} {unit} Â· Amostra {label}"
+    )
+
+
+def clear_filters_button(keys: list[str], label: str = "Limpar filtros") -> None:
+    """BotÃ£o que remove os widgets de filtro informados (por `key`) do
+    `st.session_state` e recarrega a pÃ¡gina â€” cada widget volta ao seu valor
+    padrÃ£o declarado (seÃ§Ã£o 7.2: "oferecer um botÃ£o Limpar filtros").
+    """
+    if st.button(label):
+        for key in keys:
+            st.session_state.pop(key, None)
+        st.rerun()
+
+
+def persistent_selectbox(
+    label: str, options: list[str], query_key: str, default_index: int = 0, **kwargs
+) -> str:
+    """`st.selectbox` cujo valor escolhido fica salvo num parÃ¢metro da URL
+    (seÃ§Ã£o "salvar preferÃªncias de filtros" do planejamento de UI/UX):
+    recarregar a pÃ¡gina ou compartilhar o link mantÃ©m a mesma seleÃ§Ã£o, em vez
+    de voltar sempre para a primeira opÃ§Ã£o.
+
+    Se o valor salvo na URL nÃ£o existir mais em `options` (base mudou, opÃ§Ã£o
+    saiu de cena), cai de volta em `default_index` silenciosamente â€” nunca
+    quebra por causa de uma URL desatualizada.
+    """
+    if not options:
+        raise ValueError("options nÃ£o pode ser vazio.")
+    saved_value = st.query_params.get(query_key)
+    index = options.index(saved_value) if saved_value in options else default_index
+    selected = st.selectbox(label, options, index=index, **kwargs)
+    st.query_params[query_key] = selected
+    return selected
+
+
+================================================================================
+ARQUIVO: src\ui\formatters.py
+================================================================================
+from __future__ import annotations
+
+from datetime import datetime
+
+import pandas as pd
+
+# PadrÃ£o brasileiro (seÃ§Ã£o 14 do planejamento de UI/UX): separador de milhar
+# com ponto, decimal com vÃ­rgula, data dd/mm/aaaa. O resto do app hoje usa o
+# padrÃ£o americano nas tabelas/grÃ¡ficos jÃ¡ existentes (nÃ£o mexido aqui) â€”
+# estes formatadores valem para os componentes novos de `src/ui`.
+
+
+def format_int_br(value: int | float) -> str:
+    """Milhar com ponto: 12345 -> "12.345"."""
+    return f"{int(round(value)):,}".replace(",", ".")
+
+
+def format_decimal_br(value: float, decimals: int = 1) -> str:
+    """Decimal com vÃ­rgula: 23.8 -> "23,8"."""
+    text = f"{value:,.{decimals}f}"
+    return text.replace(",", "âŸ").replace(".", ",").replace("âŸ", ".")
+
+
+def format_pct_br(value: float, decimals: int = 1) -> str:
+    """Percentual com vÃ­rgula: 0.475 -> "47,5%" (`value` Ã© fraÃ§Ã£o, nÃ£o jÃ¡ Ã—100)."""
+    return f"{format_decimal_br(value * 100, decimals)}%"
+
+
+def format_date_br(value: datetime | pd.Timestamp | str) -> str:
+    """Data no formato brasileiro: dd/mm/aaaa."""
+    timestamp = pd.Timestamp(value)
+    return timestamp.strftime("%d/%m/%Y")
+
+
+def format_datetime_br(value: datetime | pd.Timestamp | str) -> str:
+    """Data e hora no formato brasileiro: dd/mm/aaaa Ã s HH:MM."""
+    timestamp = pd.Timestamp(value)
+    return timestamp.strftime("%d/%m/%Y Ã s %H:%M")
+
+
+================================================================================
+ARQUIVO: src\ui\states.py
+================================================================================
+from __future__ import annotations
+
+from datetime import datetime
+
+import pandas as pd
+import streamlit as st
+
+from .formatters import format_datetime_br
+
+
+def empty_state(title: str, description: str, actions: list[tuple[str, str]] | None = None) -> None:
+    """Banco vazio (seÃ§Ã£o 13.1 do planejamento de UI/UX): tÃ­tulo curto + explicaÃ§Ã£o
+    + sugestÃµes de aÃ§Ã£o em texto.
+
+    Os botÃµes de aÃ§Ã£o em si continuam sendo responsabilidade de quem chama
+    (cada pÃ¡gina sabe qual comando/link oferecer) â€” isto sÃ³ padroniza a
+    moldura visual. Sempre termina com `st.stop()`: nada depois desta chamada
+    deveria rodar numa pÃ¡gina sem dados.
+    """
+    st.info(f"**{title}**\n\n{description}")
+    for label, detail in actions or []:
+        st.caption(f"â€¢ **{label}** â€” {detail}")
+    st.stop()
+
+
+def error_state(message: str, detail: str | None = None) -> None:
+    """Erro na fonte de dados (seÃ§Ã£o 13.3): o que falhou, com detalhe tÃ©cnico opcional."""
+    st.error(message if detail is None else f"{message}\n\n`{detail}`")
+
+
+def small_sample_warning(count: int, threshold: int = 15, unit: str = "jogos") -> None:
+    """Amostra pequena (seÃ§Ã£o 13.4): "Apenas N jogos correspondem aos filtros...".
+
+    SÃ³ emite o aviso quando `count <= threshold` â€” chamada segura mesmo
+    quando a amostra jÃ¡ Ã© grande.
+    """
+    if count <= threshold:
+        st.warning(
+            f"Apenas {count} {unit} correspondem aos filtros. "
+            "A projeÃ§Ã£o pode variar mais do que o normal."
+        )
+
+
+def stale_data_notice(last_updated: datetime | pd.Timestamp | None, days_threshold: int = 7) -> None:
+    """Dados desatualizados (seÃ§Ã£o 13.5): avisa quando a Ãºltima atualizaÃ§Ã£o passou
+    de `days_threshold` dias.
+
+    Silencioso quando `last_updated` Ã© `None` (base sem data de coleta
+    conhecida, ex.: demonstrativa).
+    """
+    if last_updated is None:
+        return
+    age_days = (pd.Timestamp.now() - pd.Timestamp(last_updated)).days
+    if age_days > days_threshold:
+        st.warning(
+            f"Os dados foram atualizados hÃ¡ {age_days} dias "
+            f"({format_datetime_br(last_updated)}). Alguns jogos recentes podem nÃ£o estar incluÃ­dos."
+        )
+
+
+================================================================================
+ARQUIVO: pages\7_Jogos_do_dia.py
+================================================================================
+from __future__ import annotations
+
+from datetime import timedelta
+
+import pandas as pd
+import streamlit as st
+
+from src.current_roster import fetch_current_roster
+from src.daily_games import (
+    build_form_table,
+    format_tipoff,
+    game_headliner,
+    games_for_date,
+    status_label,
+    team_highlights,
+    today_et,
+)
+from src.data import load_real_games, team_snapshot
+from src.nba_schedule import fetch_nba_schedule
+from src.player_data import load_player_games
+from src.player_features import add_opponent_context, add_rolling_features
+from src.player_metrics import player_snapshot
+from src.player_model import predict_player_game, train_player_models
+from src.store import DEFAULT_DB_PATH, count_player_games
+from src.ui import components, states, theme
+from src.ui.formatters import format_date_br
+
+st.set_page_config(
+    page_title="Jogos do Dia â€” NBA Analytics Lab",
+    page_icon="ðŸ“…",
+    layout="wide",
+)
+
+theme.inject_base_style()
+
+st.markdown("## ðŸ“… Jogos do Dia")
+st.caption(
+    "Todos os confrontos do dia e os jogadores em destaque de cada partida, pela forma "
+    "recente. Estimativas educacionais, nÃ£o orientaÃ§Ã£o de apostas."
+)
+
+with st.sidebar:
+    st.header("ConfiguraÃ§Ã£o")
+    top_n = st.slider("Destaques por time", 1, 6, 3)
+    show_projection = st.checkbox(
+        "Incluir projeÃ§Ã£o do modelo",
+        value=False,
+        help="Treina o modelo de jogadores na primeira vez (pode demorar) e projeta "
+        "minutos, pontos, rebotes e assistÃªncias de cada destaque.",
+    )
+    if st.button("Atualizar calendÃ¡rio"):
+        st.session_state["daily_schedule_retry"] = int(st.session_state.get("daily_schedule_retry", 0)) + 1
+    st.divider()
+    st.caption(
+        "Este projeto produz estimativas esportivas educacionais. "
+        "NÃ£o utiliza odds e nÃ£o fornece orientaÃ§Ã£o de apostas."
+    )
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_schedule(retry_token: int) -> tuple[pd.DataFrame, str | None]:
+    _ = retry_token  # entra na chave do cache para o botÃ£o "Atualizar" forÃ§ar nova consulta
+    try:
+        return fetch_nba_schedule(lookahead_days=7), None
+    except RuntimeError as error:
+        return pd.DataFrame(), str(error)
+
+
+@st.cache_resource(show_spinner=False)
+def _load_player_games(db_path: str, updated_at: float) -> pd.DataFrame:
+    _ = updated_at  # invalida o cache quando o banco Ã© atualizado
+    return load_player_games(source="real", db_path=db_path)
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def _load_current_roster() -> pd.DataFrame:
+    return fetch_current_roster()
+
+
+@st.cache_data(show_spinner=False)
+def _form_table(
+    db_path: str,
+    updated_at: float,
+    roster_version: str,
+    roster_records: tuple[tuple[int, str], ...],
+) -> pd.DataFrame:
+    # A vers?o do elenco participa da chave do cache.
+    _ = roster_version
+
+    player_games = _load_player_games(db_path, updated_at)
+    current_roster = pd.DataFrame(
+        roster_records,
+        columns=["player_id", "team"],
+    )
+
+    return build_form_table(
+        player_games,
+        current_roster=current_roster,
+    )
+
+
+@st.cache_resource(show_spinner="Treinando o modelo de jogadores...")
+def _model_context(db_path: str, updated_at: float):
+    player_games = _load_player_games(db_path, updated_at)
+    try:
+        team_games = load_real_games(db_path)
+    except (ValueError, FileNotFoundError):
+        team_games = None
+    features = add_rolling_features(player_games)
+    if team_games is not None:
+        features = add_opponent_context(features, team_games)
+    else:
+        features["opponent_def_rating"] = 113.0
+    return train_player_models(features), player_games, team_games
+
+
+@st.cache_data(show_spinner=False)
+def _project_player(
+    db_path: str,
+    updated_at: float,
+    player_id: int,
+    opponent_name: str,
+    is_home: bool,
+    rest_days: int,
+) -> dict | None:
+    bundle, player_games, team_games = _model_context(db_path, updated_at)
+    opponent_def_rating = None
+    if team_games is not None:
+        try:
+            opponent_def_rating = team_snapshot(team_games, opponent_name)["def_rating"]
+        except (ValueError, KeyError):
+            opponent_def_rating = None
+    try:
+        snapshot = player_snapshot(player_games, player_id)
+        prediction = predict_player_game(
+            bundle,
+            snapshot,
+            is_home=is_home,
+            rest_days=rest_days,
+            opponent_def_rating=opponent_def_rating,
+        )
+    except (ValueError, KeyError):
+        return None
+    return {
+        "minutes": prediction.minutes,
+        "pts": prediction.stats["pts"],
+        "reb": prediction.stats["reb"],
+        "ast": prediction.stats["ast"],
+        "confidence": prediction.confidence,
+    }
+
+
+db_path = str(DEFAULT_DB_PATH)
+player_data_available = DEFAULT_DB_PATH.exists() and count_player_games(DEFAULT_DB_PATH) > 0
+updated_at = DEFAULT_DB_PATH.stat().st_mtime if DEFAULT_DB_PATH.exists() else 0.0
+
+today = today_et()
+selected_day = st.date_input(
+    "Data dos jogos (data do calendÃ¡rio da NBA, fuso da costa leste dos EUA)",
+    value=today,
+    min_value=today - timedelta(days=7),
+    max_value=today + timedelta(days=30),
+)
+
+schedule, schedule_error = _load_schedule(int(st.session_state.get("daily_schedule_retry", 0)))
+games = games_for_date(schedule, selected_day)
+
+if schedule_error:
+    states.error_state(
+        "NÃ£o foi possÃ­vel consultar o calendÃ¡rio da NBA agora.",
+        detail="Confira a conexÃ£o e use 'Atualizar calendÃ¡rio' na barra lateral.",
+    )
+    st.stop()
+
+if games.empty:
+    st.info(
+        f"Nenhum jogo encontrado para {format_date_br(selected_day)}. "
+        "Tente outra data â€” o calendÃ¡rio alternativo (ESPN) cobre sÃ³ os prÃ³ximos dias."
+    )
+    st.stop()
+
+source_name = str(games["schedule_source"].iloc[0]) if "schedule_source" in games.columns else "NBA"
+components.source_badge(
+    f"CalendÃ¡rio â€” {source_name}",
+    components.db_last_updated(DEFAULT_DB_PATH) if player_data_available else None,
+)
+st.markdown(f"#### {len(games)} jogo(s) em {format_date_br(selected_day)}")
+
+if player_data_available:
+    current_roster = pd.DataFrame()
+    roster_records = ()
+    roster_version = "historical-fallback"
+
+    try:
+        current_roster = _load_current_roster()
+
+        if not current_roster.empty:
+            roster_records = tuple(
+                (int(row.player_id), str(row.team).strip().upper())
+                for row in current_roster.itertuples(index=False)
+                if str(row.team).strip()
+            )
+            roster_version = str(hash(roster_records))
+
+    except Exception as exc:
+        st.warning(
+            "N?o foi poss?vel consultar o elenco atual da NBA. "
+            "Os destaques usar?o os times registrados no hist?rico. "
+            f"Detalhe: {exc}"
+        )
+
+    form_table = _form_table(
+        db_path,
+        updated_at,
+        roster_version,
+        roster_records,
+    )
+    states.stale_data_notice(
+        components.db_last_updated(DEFAULT_DB_PATH),
+        days_threshold=3,
+    )
+else:
+    form_table = pd.DataFrame()
+    components.note(
+        "Sem estatÃ­sticas de jogadores coletadas: mostrando sÃ³ o calendÃ¡rio. Colete dados em "
+        "'Dados e AtualizaÃ§Ãµes' para ver os destaques.",
+        kind="warning",
+    )
+
+
+def _highlight_table(team_players: pd.DataFrame, opponent_name: str, is_home: bool) -> pd.DataFrame:
+    table = pd.DataFrame(
+        {
+            "Jogador": team_players["player_name"],
+            "Destaque": team_players["tag"],
+            "Min": team_players["minutes_recent"],
+            "PTS": team_players["pts_recent"],
+            "REB": team_players["reb_recent"],
+            "AST": team_players["ast_recent"],
+            "PTS vs. temporada": team_players["pts_delta"],
+        }
+    )
+    if show_projection:
+        projections = []
+        for row in team_players.itertuples():
+            rest_days = min(7, max(0, (selected_day - row.last_game_date.date()).days - 1))
+            projections.append(
+                _project_player(
+                    db_path, updated_at, int(row.player_id), opponent_name, is_home, rest_days
+                )
+            )
+        for key, label in (("pts", "Proj. PTS"), ("reb", "Proj. REB"), ("ast", "Proj. AST")):
+            table[label] = [p[key] if p else float("nan") for p in projections]
+        table["ConfianÃ§a"] = [p["confidence"] if p else "â€”" for p in projections]
+    return table
+
+
+for _, game in games.iterrows():
+    away_name, home_name = str(game["away_team_name"]), str(game["home_team_name"])
+    with st.container(border=True):
+        st.markdown(f"### {away_name} @ {home_name}")
+        details = [format_tipoff(game.get("game_datetime_utc")), status_label(game.get("game_status"))]
+        if str(game.get("arena_name") or "").strip():
+            details.append(str(game["arena_name"]))
+        st.caption(" Â· ".join(details))
+
+        # Probabilidade experimental baseada no saldo de eficiÃªncia dos Ãºltimos jogos.
+        # SÃ³ aparece quando hÃ¡ histÃ³rico real para os dois times.
+        try:
+            team_games = load_real_games(db_path) if player_data_available else None
+        except (ValueError, FileNotFoundError, KeyError):
+            team_games = None
+        if team_games is not None and not team_games.empty:
+            try:
+                away_snapshot = team_snapshot(team_games, away_name)
+                home_snapshot = team_snapshot(team_games, home_name)
+                away_strength = away_snapshot["net_rating"]
+                home_strength = home_snapshot["net_rating"] + 2.0  # vantagem de mando aproximada
+                import math
+                home_probability = 1.0 / (1.0 + math.exp(-max(-8.0, min(8.0, (home_strength-away_strength)/6.0))))
+                home_probability = max(0.05, min(0.95, home_probability))
+                away_probability = 1.0 - home_probability
+                prob_cols = st.columns(2)
+                prob_cols[0].metric(f"Prob. {away_name}", f"{away_probability:.0%}")
+                prob_cols[1].metric(f"Prob. {home_name}", f"{home_probability:.0%}")
+                st.caption("Estimativa experimental pelo net rating recente e mando de quadra; nÃ£o sÃ£o odds nem garantias.")
+            except (ValueError, KeyError, TypeError, OverflowError):
+                st.info("Probabilidade indisponÃ­vel: histÃ³rico recente insuficiente para um dos times.")
+
+        if form_table.empty:
+            continue
+
+        away_players = team_highlights(form_table, str(game["away_team_tricode"]), top_n=top_n)
+        home_players = team_highlights(form_table, str(game["home_team_tricode"]), top_n=top_n)
+
+        headliner = game_headliner(home_players, away_players)
+        if headliner is not None:
+            st.markdown(
+                f"â­ **Destaque da partida:** {headliner['player_name']} â€” "
+                f"{headliner['pts_recent']:.1f} pts, {headliner['reb_recent']:.1f} reb, "
+                f"{headliner['ast_recent']:.1f} ast nos Ãºltimos jogos"
+            )
+
+        for column, team_name, team_players, opponent, is_home in (
+            *zip(
+                st.columns(2),
+                (away_name, home_name),
+                (away_players, home_players),
+                (home_name, away_name),
+                (False, True),
+                strict=True,
+            ),
+        ):
+            with column:
+                st.markdown(f"**{team_name}**")
+                if team_players.empty:
+                    st.caption("Sem jogadores elegÃ­veis na base (histÃ³rico ou minutos insuficientes).")
+                    continue
+                table = _highlight_table(team_players, opponent, is_home)
+                formats = {
+                    "Min": "{:.1f}",
+                    "PTS": "{:.1f}",
+                    "REB": "{:.1f}",
+                    "AST": "{:.1f}",
+                    "PTS vs. temporada": "{:+.1f}",
+                    "Proj. PTS": "{:.1f}",
+                    "Proj. REB": "{:.1f}",
+                    "Proj. AST": "{:.1f}",
+                }
+                st.dataframe(
+                    table.style.format(
+                        {key: value for key, value in formats.items() if key in table.columns},
+                        na_rep="â€”",
+                    ),
+                    hide_index=True,
+                    use_container_width=True,
+                )
+
+if not form_table.empty:
+    st.caption(
+        "Destaques: ranking pelo Ã­ndice de impacto recente (pontos + 0,7 Ã— rebotes + assistÃªncias, "
+        "mÃ©dia dos Ãºltimos 5 jogos com minutos). 'PTS vs. temporada' compara a forma recente com a "
+        "mÃ©dia da temporada mais recente do jogador. A base nÃ£o tem dados de lesÃ£o ou escalaÃ§Ã£o "
+        "confirmada: um destaque pode estar fora da partida â€” confira o status oficial antes de "
+        "interpretar. HorÃ¡rios em BrasÃ­lia e na costa leste (ET)."
+    )
+
+================================================================================
+ARQUIVO: pages\0_Times.py
+================================================================================
+from __future__ import annotations
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+
+from src.data import (
+    available_teams,
+    load_games,
+    load_real_games,
+    team_game_history,
+    team_snapshot,
+)
+from src.model import predict_game, train_models
+from src.simulation import simulate_score_distribution
+from src.store import DEFAULT_DB_PATH, count_games, log_team_prediction
+from src.ui import components, states, theme
+
+st.set_page_config(
+    page_title="Times â€” NBA Analytics Lab",
+    page_icon="ðŸ€",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+theme.inject_base_style()
+
+
+@st.cache_data(show_spinner=False)
+def demo_games() -> pd.DataFrame:
+    return load_games()
+
+
+@st.cache_resource(show_spinner=False)
+def cached_train(games: pd.DataFrame):
+    return train_models(games)
+
+
+def probability_chart(home_team: str, away_team: str, home_probability: float):
+    chart_data = pd.DataFrame(
+        {
+            "Time": [home_team, away_team],
+            "Probabilidade": [home_probability, 1 - home_probability],
+        }
+    )
+    figure = px.bar(
+        chart_data,
+        x="Probabilidade",
+        y="Time",
+        orientation="h",
+        text=chart_data["Probabilidade"].map(lambda value: f"{value:.1%}"),
+        color="Time",
+        color_discrete_sequence=["#F97316", "#38BDF8"],
+    )
+    figure.update_traces(textposition="inside", textfont_size=16)
+    figure.update_layout(
+        showlegend=False,
+        height=250,
+        xaxis_tickformat=".0%",
+        xaxis_range=[0, 1],
+        margin=dict(l=10, r=10, t=20, b=10),
+        xaxis_title=None,
+        yaxis_title=None,
+    )
+    return figure
+
+
+def recent_form_chart(games: pd.DataFrame, home_team: str, away_team: str):
+    frames = []
+    for team in (home_team, away_team):
+        history = team_game_history(games, team).tail(15).copy()
+        history["Time"] = team
+        history["MÃ©dia mÃ³vel de vitÃ³rias"] = history["win"].rolling(5, min_periods=1).mean()
+        frames.append(history)
+    data = pd.concat(frames, ignore_index=True)
+    figure = px.line(
+        data,
+        x="game_date",
+        y="MÃ©dia mÃ³vel de vitÃ³rias",
+        color="Time",
+        markers=True,
+        color_discrete_sequence=["#F97316", "#38BDF8"],
+    )
+    figure.update_layout(
+        height=330,
+        yaxis_tickformat=".0%",
+        yaxis_range=[0, 1],
+        xaxis_title=None,
+        yaxis_title="Forma (Ãºltimos 5)",
+        legend_title=None,
+        margin=dict(l=10, r=10, t=25, b=10),
+    )
+    return figure
+
+
+def main() -> None:
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>ðŸ€ Times</h1>
+            <p>ComparaÃ§Ã£o de times, previsÃ£o experimental e explicaÃ§Ã£o dos fatores do modelo.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    real_data_available = DEFAULT_DB_PATH.exists() and count_games(DEFAULT_DB_PATH) > 0
+
+    with st.sidebar:
+        st.header("ConfiguraÃ§Ã£o")
+        source_options = ["Base demonstrativa", "Dados reais (coletados)", "Enviar CSV"]
+        source = st.radio(
+            "Fonte dos dados",
+            source_options,
+            index=1 if real_data_available else 0,
+            help=(
+                "A base demonstrativa Ã© sintÃ©tica. Dados reais exigem rodar "
+                "'python scripts/update_data.py' antes."
+            ),
+        )
+        uploaded_file = None
+        if source == "Enviar CSV":
+            uploaded_file = st.file_uploader("Arquivo de partidas", type=["csv"])
+
+        st.divider()
+        st.caption(
+            "Este projeto produz estimativas esportivas educacionais. "
+            "NÃ£o utiliza odds e nÃ£o fornece orientaÃ§Ã£o de apostas."
+        )
+
+    try:
+        if source == "Base demonstrativa":
+            games = demo_games()
+            is_demo = True
+            last_updated = None
+        elif source == "Dados reais (coletados)":
+            if not DEFAULT_DB_PATH.exists():
+                states.empty_state(
+                    "Nenhum dado real encontrado ainda",
+                    "Colete jogos reais antes de usar esta fonte.",
+                    actions=[
+                        ("Coletar dados", "vÃ¡ atÃ© a pÃ¡gina 'Dados e AtualizaÃ§Ãµes' na barra lateral")
+                    ],
+                )
+            games = load_real_games()
+            is_demo = False
+            last_updated = components.db_last_updated(DEFAULT_DB_PATH)
+        elif uploaded_file is not None:
+            games = load_games(uploaded_file)
+            is_demo = False
+            last_updated = None
+        else:
+            states.empty_state(
+                "Nenhum arquivo enviado",
+                "Envie um CSV de partidas ou selecione a base demonstrativa na barra lateral.",
+            )
+
+        with st.spinner("Treinando os modelos..."):
+            bundle = cached_train(games)
+    except (ValueError, TypeError, pd.errors.ParserError, FileNotFoundError) as error:
+        states.error_state("NÃ£o foi possÃ­vel treinar os modelos com esses dados.", detail=str(error))
+        st.stop()
+
+    components.source_badge(source, last_updated)
+    if is_demo:
+        components.note(
+            "Os nÃºmeros desta tela sÃ£o sintÃ©ticos e nÃ£o representam a temporada atual da NBA."
+        )
+
+    teams = available_teams(games)
+    selection_a, selection_b, rest_a, rest_b = st.columns([2, 2, 1, 1])
+    with selection_a:
+        home_team = st.selectbox("Time da casa", teams, index=0)
+    with selection_b:
+        away_options = [team for team in teams if team != home_team]
+        away_team = st.selectbox("Time visitante", away_options, index=0)
+    with rest_a:
+        home_rest = st.number_input("Descanso casa", 1, 7, 2)
+    with rest_b:
+        away_rest = st.number_input("Descanso visitante", 1, 7, 2)
+
+    home = team_snapshot(games, home_team)
+    away = team_snapshot(games, away_team)
+    prediction = predict_game(bundle, home, away, home_rest, away_rest)
+
+    st.subheader("CenÃ¡rio projetado")
+    components.metric_row(
+        [
+            {"label": home_team, "value": f"{prediction.home_win_probability:.1%}", "delta": "mandante"},
+            {"label": away_team, "value": f"{prediction.away_win_probability:.1%}", "delta": "visitante"},
+            {
+                "label": "Placar central",
+                "value": f"{prediction.home_score:.0f} Ã— {prediction.away_score:.0f}",
+            },
+            {"label": "ConfianÃ§a", "value": prediction.confidence},
+            {"label": "Jogos na base", "value": f"{len(games):,}".replace(",", ".")},
+        ]
+    )
+
+    if st.button("Registrar esta previsÃ£o"):
+        log_team_prediction(
+            home_team,
+            away_team,
+            prediction.home_win_probability,
+            prediction.home_score,
+            prediction.away_score,
+            prediction.confidence,
+        )
+        st.success(
+            "PrevisÃ£o registrada. Acompanhe em 'Desempenho' na barra lateral â€” "
+            "lÃ¡ dÃ¡ para comparar com o resultado real depois que o jogo acontecer."
+        )
+
+    chart_column, score_column = st.columns([1.25, 1])
+    with chart_column:
+        st.plotly_chart(
+            probability_chart(
+                home_team, away_team, prediction.home_win_probability
+            ),
+            use_container_width=True,
+        )
+    with score_column:
+        st.markdown("#### Intervalo provÃ¡vel de pontuaÃ§Ã£o")
+        interval_data = pd.DataFrame(
+            {
+                "Time": [home_team, away_team],
+                "MÃ­nimo": [prediction.home_score_low, prediction.away_score_low],
+                "Central": [prediction.home_score, prediction.away_score],
+                "MÃ¡ximo": [prediction.home_score_high, prediction.away_score_high],
+            }
+        )
+        st.dataframe(
+            interval_data.style.format(
+                {"MÃ­nimo": "{:.0f}", "Central": "{:.0f}", "MÃ¡ximo": "{:.0f}"}
+            ),
+            hide_index=True,
+            use_container_width=True,
+        )
+        st.caption("Intervalo experimental de aproximadamente 80%, baseado no erro histÃ³rico.")
+
+    tab_analysis, tab_factors, tab_simulation, tab_model = st.tabs(
+        ["Comparativo", "Fatores", "SimulaÃ§Ã£o", "Qualidade do modelo"]
+    )
+
+    with tab_analysis:
+        comparison = pd.DataFrame(
+            {
+                "Indicador": [
+                    "EficiÃªncia ofensiva",
+                    "EficiÃªncia defensiva",
+                    "Net Rating",
+                    "VitÃ³rias nos Ãºltimos 10",
+                    "Pontos feitos",
+                    "Pontos sofridos",
+                ],
+                home_team: [
+                    home["off_rating"],
+                    home["def_rating"],
+                    home["net_rating"],
+                    home["win_pct"],
+                    home["points_for"],
+                    home["points_against"],
+                ],
+                away_team: [
+                    away["off_rating"],
+                    away["def_rating"],
+                    away["net_rating"],
+                    away["win_pct"],
+                    away["points_for"],
+                    away["points_against"],
+                ],
+            }
+        )
+        left, right = st.columns([1, 1.4])
+        with left:
+            st.dataframe(
+                comparison.style.format(
+                    {home_team: "{:.2f}", away_team: "{:.2f}"}
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+        with right:
+            st.plotly_chart(
+                recent_form_chart(games, home_team, away_team),
+                use_container_width=True,
+            )
+
+    with tab_factors:
+        st.markdown(
+            "Valores positivos favorecem o mandante; valores negativos favorecem o visitante."
+        )
+        factors = pd.DataFrame(prediction.factors, columns=["Fator", "Impacto"])
+        factors["DireÃ§Ã£o"] = factors["Impacto"].map(
+            lambda value: home_team if value >= 0 else away_team
+        )
+        factor_figure = px.bar(
+            factors.sort_values("Impacto"),
+            x="Impacto",
+            y="Fator",
+            orientation="h",
+            color="DireÃ§Ã£o",
+            color_discrete_map={home_team: "#F97316", away_team: "#38BDF8"},
+        )
+        factor_figure.update_layout(
+            height=350,
+            legend_title=None,
+            xaxis_title="ContribuiÃ§Ã£o para o modelo",
+            yaxis_title=None,
+            margin=dict(l=10, r=10, t=20, b=10),
+        )
+        st.plotly_chart(factor_figure, use_container_width=True)
+
+    with tab_simulation:
+        simulated = simulate_score_distribution(
+            prediction,
+            bundle.residual_std_home,
+            bundle.residual_std_away,
+        )
+        simulation_win_rate = float(simulated["home_win"].mean())
+        st.metric(
+            f"{home_team} venceu nas simulaÃ§Ãµes",
+            f"{simulation_win_rate:.1%}",
+            "5.000 cenÃ¡rios",
+        )
+        histogram = go.Figure()
+        histogram.add_trace(
+            go.Histogram(
+                x=simulated["margin"],
+                nbinsx=35,
+                marker_color="#F97316",
+                opacity=0.85,
+            )
+        )
+        histogram.add_vline(x=0, line_dash="dash", line_color="#F8FAFC")
+        histogram.update_layout(
+            height=340,
+            xaxis_title=f"Margem: {home_team} âˆ’ {away_team}",
+            yaxis_title="Quantidade de simulaÃ§Ãµes",
+            margin=dict(l=10, r=10, t=25, b=10),
+        )
+        st.plotly_chart(histogram, use_container_width=True)
+
+    with tab_model:
+        model_metrics = bundle.metrics
+        columns = st.columns(5)
+        columns[0].metric("Accuracy", f"{model_metrics['accuracy']:.1%}")
+        columns[1].metric("Log Loss", f"{model_metrics['log_loss']:.3f}")
+        columns[2].metric("Brier Score", f"{model_metrics['brier_score']:.3f}")
+        columns[3].metric("MAE casa", f"{model_metrics['home_points_mae']:.1f} pts")
+        columns[4].metric("MAE visitante", f"{model_metrics['away_points_mae']:.1f} pts")
+        st.caption(
+            "AvaliaÃ§Ã£o feita nos 20% finais da base em ordem cronolÃ³gica. "
+            "Depois da avaliaÃ§Ã£o, o modelo Ã© novamente treinado com todos os jogos."
+        )
+
+    with st.expander("Ver Ãºltimas partidas da base"):
+        st.dataframe(
+            games.sort_values("game_date", ascending=False).head(20),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+
+if __name__ == "__main__":
+    main()
+
+
+================================================================================
+ARQUIVO: pages\1_Jogadores.py
+================================================================================
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+
+from src.data import available_teams, generate_demo_games, load_real_games, team_snapshot
+from src.player_data import load_player_games
+from src.nba_schedule import fetch_nba_schedule, get_next_game_for_team
+from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
+from src.player_features import (
+    add_opponent_context,
+    add_rolling_features,
+    assign_team_stints,
+    season_start_year,
+)
+from src.player_index import DIMENSION_LABELS, build_player_index
+from src.player_metrics import compare_players, list_players, player_season_summary, player_snapshot
+from src.player_model import (
+    over_probability,
+    predict_player_game,
+    range_probabilities,
+    train_player_models,
+)
+from src.store import DEFAULT_DB_PATH, count_player_games, log_player_prediction
+from src.ui import components, states, theme
+
+st.set_page_config(
+    page_title="Jogadores â€” NBA Analytics Lab",
+    page_icon="ðŸ§®",
+    layout="wide",
+)
+
+theme.inject_base_style()
+
+st.markdown("## ðŸ§® Jogadores")
+st.caption(
+    "ProduÃ§Ã£o, eficiÃªncia (TS%, eFG%, USG%, AST/TO), estatÃ­sticas por 36 minutos "
+    "e consistÃªncia por jogador. Estimativas educacionais, nÃ£o orientaÃ§Ã£o de apostas."
+)
+
+real_data_available = DEFAULT_DB_PATH.exists() and count_player_games(DEFAULT_DB_PATH) > 0
+
+with st.sidebar:
+    st.header("ConfiguraÃ§Ã£o")
+    source_label = st.radio(
+        "Fonte dos dados",
+        ["Base demonstrativa", "Dados reais (coletados)"],
+        index=1 if real_data_available else 0,
+        help=(
+            "A base demonstrativa Ã© sintÃ©tica. Dados reais exigem rodar "
+            "'python scripts/update_data.py' antes."
+        ),
+    )
+    st.divider()
+    st.caption(
+        "Este projeto produz estimativas esportivas educacionais. "
+        "NÃ£o utiliza odds e nÃ£o fornece orientaÃ§Ã£o de apostas."
+    )
+
+source = "demo" if source_label == "Base demonstrativa" else "real"
+
+
+@st.cache_data(show_spinner=False)
+def _load(source: str) -> pd.DataFrame:
+    return load_player_games(source=source)
+
+
+try:
+    if source == "real" and not DEFAULT_DB_PATH.exists():
+        states.empty_state(
+            "Nenhum dado real encontrado ainda",
+            "Colete jogos reais antes de usar esta fonte.",
+            actions=[
+                ("Coletar dados", "rode 'python scripts/update_data.py' no terminal do projeto")
+            ],
+        )
+    player_games = _load(source)
+except (ValueError, FileNotFoundError) as error:
+    states.error_state("NÃ£o foi possÃ­vel carregar os dados de jogadores.", detail=str(error))
+    st.stop()
+
+components.source_badge(
+    "Base demonstrativa" if source == "demo" else "Dados reais (coletados)",
+    None if source == "demo" else components.db_last_updated(DEFAULT_DB_PATH),
+)
+if source == "demo":
+    components.note(
+        "Os jogadores e estatÃ­sticas desta tela sÃ£o sintÃ©ticos e nÃ£o representam atletas reais."
+    )
+
+players = list_players(player_games)
+summary = player_season_summary(player_games)
+player_index = build_player_index(player_games)
+player_options = (players["player_name"] + " (" + players["team"] + ")").tolist()
+player_id_by_label = dict(zip(player_options, players["player_id"], strict=True))
+
+
+@st.cache_data(show_spinner=False)
+def _load_team_games(source: str) -> pd.DataFrame:
+    return load_real_games() if source == "real" else generate_demo_games()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_nba_schedule(
+    retry_token: int = 0, team_tricode: str | None = None
+) -> tuple[pd.DataFrame, str | None]:
+    """Cache schedule for one hour by team; a changed token forces a fresh lookup."""
+    _ = retry_token  # Included in the cache key so the refresh button bypasses a stale result.
+    try:
+        return fetch_nba_schedule(team_tricode=team_tricode), None
+    except RuntimeError as error:
+        return pd.DataFrame(), str(error)
+
+
+try:
+    team_games = _load_team_games(source)
+except (ValueError, FileNotFoundError):
+    team_games = None
+
+
+@st.cache_resource(show_spinner=False)
+def _train_projection_bundle(player_games: pd.DataFrame, team_games: pd.DataFrame):
+    features = add_rolling_features(player_games)
+    if team_games is not None:
+        features = add_opponent_context(features, team_games)
+    else:
+        features["opponent_def_rating"] = 113.0  # neutro, sem base de times disponÃ­vel
+    return train_player_models(features)
+
+
+tab_overview, tab_profile, tab_compare, tab_projection = st.tabs(
+    ["VisÃ£o geral", "Perfil individual", "ComparaÃ§Ã£o", "ProjeÃ§Ãµes"]
+)
+
+with tab_overview:
+    st.caption(
+        "NAPS Ã© um Ã­ndice experimental do projeto (0-100, por percentil entre jogadores "
+        "qualificados) â€” nÃ£o Ã© uma medida oficial nem absoluta de qualidade. "
+        "Veja a seÃ§Ã£o 'PÃ¡gina de jogadores' do README para os pesos e limitaÃ§Ãµes."
+    )
+    teams = ["Todos"] + sorted(players["team"].unique())
+    team_filter = st.selectbox(
+        "Filtrar por time", teams, index=0, key=f"team_filter_{source}"
+    )
+
+    ranking = summary.merge(
+        player_index[["player_id", "naps", "style"]], on="player_id", how="left"
+    )
+    ranking = ranking if team_filter == "Todos" else ranking[ranking["team"] == team_filter]
+    ranking = ranking.sort_values("naps", ascending=False, na_position="last")
+
+    display_columns = {
+        "player_name": "Jogador",
+        "team": "Time",
+        "games": "Jogos",
+        "minutes_mean": "Minutos",
+        "pts_mean": "Pontos",
+        "reb_mean": "Rebotes",
+        "ast_mean": "AssistÃªncias",
+        "true_shooting_pct_mean": "TS%",
+        "effective_fg_pct_mean": "eFG%",
+        "usage_pct_mean": "USG%",
+        "naps": "NAPS",
+        "style": "Estilo",
+    }
+    table = ranking[list(display_columns)].rename(columns=display_columns)
+    st.dataframe(
+        table.style.format(
+            {
+                "Minutos": "{:.1f}",
+                "Pontos": "{:.1f}",
+                "Rebotes": "{:.1f}",
+                "AssistÃªncias": "{:.1f}",
+                "TS%": "{:.1%}",
+                "eFG%": "{:.1%}",
+                "USG%": "{:.1f}%",
+                "NAPS": "{:.0f}",
+            },
+            na_rep="â€”",
+        ),
+        hide_index=True,
+        use_container_width=True,
+    )
+
+with tab_profile:
+    selection = components.persistent_selectbox(
+        "Selecione um jogador",
+        player_options,
+        query_key="player",
+        key=f"profile_player_select_{source}",
+    )
+    selected_id = player_id_by_label[selection]
+
+    full_player_history = (
+        player_games[player_games["player_id"] == selected_id].sort_values("game_date")
+    )
+
+    st.markdown("#### Filtros do histÃ³rico")
+    history_min_date = full_player_history["game_date"].min().date()
+    history_max_date = full_player_history["game_date"].max().date()
+    filter_cols = st.columns(5)
+    with filter_cols[0]:
+        start_date = st.date_input(
+            "De",
+            value=history_min_date,
+            min_value=history_min_date,
+            max_value=history_max_date,
+            key=f"profile_start_date_{source}_{selected_id}",
+        )
+    with filter_cols[1]:
+        end_date = st.date_input(
+            "AtÃ©",
+            value=history_max_date,
+            min_value=history_min_date,
+            max_value=history_max_date,
+            key=f"profile_end_date_{source}_{selected_id}",
+        )
+    with filter_cols[2]:
+        home_away_filter = st.selectbox(
+            "Casa/Fora", ["Todos", "Casa", "Fora"], key=f"profile_home_away_{source}_{selected_id}"
+        )
+    with filter_cols[3]:
+        opponent_options = ["Todos"] + sorted(full_player_history["opponent"].dropna().unique())
+        opponent_filter = st.selectbox(
+            "AdversÃ¡rio", opponent_options, key=f"profile_opponent_{source}_{selected_id}"
+        )
+    with filter_cols[4]:
+        min_minutes = st.number_input(
+            "Minutos mÃ­nimos", 0, 48, 0, key=f"profile_min_minutes_{source}_{selected_id}"
+        )
+    st.caption(
+        "Os filtros afetam sÃ³ esta visualizaÃ§Ã£o (mÃ©tricas, consistÃªncia e grÃ¡ficos "
+        "abaixo) â€” os modelos de projeÃ§Ã£o continuam usando o histÃ³rico completo do "
+        "jogador para calcular as mÃ©dias mÃ³veis."
+    )
+    components.clear_filters_button(
+        [
+            f"profile_start_date_{source}_{selected_id}",
+            f"profile_end_date_{source}_{selected_id}",
+            f"profile_home_away_{source}_{selected_id}",
+            f"profile_opponent_{source}_{selected_id}",
+            f"profile_min_minutes_{source}_{selected_id}",
+        ]
+    )
+
+    filtered = full_player_history[
+        (full_player_history["game_date"] >= pd.Timestamp(start_date))
+        & (full_player_history["game_date"] <= pd.Timestamp(end_date))
+        & (full_player_history["minutes"] >= min_minutes)
+    ]
+    if home_away_filter == "Casa":
+        filtered = filtered[filtered["is_home"]]
+    elif home_away_filter == "Fora":
+        filtered = filtered[~filtered["is_home"]]
+    if opponent_filter != "Todos":
+        filtered = filtered[filtered["opponent"] == opponent_filter]
+
+    if filtered.empty:
+        st.warning("Nenhum jogo encontrado com esses filtros.")
+    else:
+        components.sample_size_caption(len(filtered), len(full_player_history), unit="jogos")
+        metrics = st.columns(5)
+        metrics[0].metric("Jogos", len(filtered))
+        metrics[1].metric("Minutos", f"{filtered['minutes'].mean():.1f}")
+        metrics[2].metric("Pontos", f"{filtered['pts'].mean():.1f}")
+        metrics[3].metric("Rebotes", f"{filtered['reb'].mean():.1f}")
+        metrics[4].metric("AssistÃªncias", f"{filtered['ast'].mean():.1f}")
+
+        efficiency = st.columns(4)
+        efficiency[0].metric("TS%", f"{filtered['true_shooting_pct'].mean():.1%}")
+        efficiency[1].metric("eFG%", f"{filtered['effective_fg_pct'].mean():.1%}")
+        efficiency[2].metric("USG%", f"{filtered['usage_pct'].mean():.1f}%")
+        efficiency[3].metric("AST/TO", f"{filtered['ast_to_ratio'].mean():.2f}")
+
+        st.markdown("#### ConsistÃªncia (pontos por jogo)")
+        pts_mean = filtered["pts"].mean()
+        pts_std = filtered["pts"].std()
+        consistency = pd.DataFrame(
+            {
+                "Indicador": ["MÃ©dia", "Mediana", "Desvio-padrÃ£o", "Coef. de variaÃ§Ã£o", "P25", "P75"],
+                "Valor": [
+                    pts_mean,
+                    filtered["pts"].median(),
+                    pts_std,
+                    pts_std / pts_mean if pts_mean else float("nan"),
+                    filtered["pts"].quantile(0.25),
+                    filtered["pts"].quantile(0.75),
+                ],
+            }
+        )
+        st.dataframe(
+            consistency.style.format({"Valor": "{:.2f}"}),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+        # Data da(s) troca(s) de time na carreira inteira (nÃ£o sÃ³ no recorte
+        # filtrado), para marcar nos grÃ¡ficos abaixo â€” a primeira "passagem"
+        # nÃ£o conta como troca, Ã© sÃ³ o comeÃ§o do histÃ³rico do jogador.
+        stints = assign_team_stints(full_player_history)
+        trade_dates = stints.loc[stints["games_since_trade"] == 0, "game_date"].iloc[1:]
+
+        st.markdown("#### EvoluÃ§Ã£o recente (pontos por jogo)")
+        figure = px.line(
+            filtered,
+            x="game_date",
+            y="pts",
+            markers=True,
+            color_discrete_sequence=["#F97316"],
+        )
+        for trade_date in trade_dates:
+            figure.add_vline(x=trade_date.timestamp() * 1000, line_dash="dash", line_color="#93a1ac")
+        figure.update_layout(
+            height=320,
+            xaxis_title=None,
+            yaxis_title="Pontos",
+            margin=dict(l=10, r=10, t=20, b=10),
+        )
+        st.plotly_chart(figure, use_container_width=True)
+
+        st.markdown("#### EvoluÃ§Ã£o recente (minutos por jogo)")
+        minutes_figure = px.line(
+            filtered,
+            x="game_date",
+            y="minutes",
+            markers=True,
+            color_discrete_sequence=["#4c9be8"],
+        )
+        for trade_date in trade_dates:
+            minutes_figure.add_vline(
+                x=trade_date.timestamp() * 1000, line_dash="dash", line_color="#93a1ac"
+            )
+        minutes_figure.update_layout(
+            height=320,
+            xaxis_title=None,
+            yaxis_title="Minutos",
+            margin=dict(l=10, r=10, t=20, b=10),
+        )
+        st.plotly_chart(minutes_figure, use_container_width=True)
+        if len(trade_dates) > 0:
+            st.caption("Linhas tracejadas marcam datas de troca de time.")
+
+    st.markdown("#### NAPS e estilo de jogo")
+    index_row = player_index[player_index["player_id"] == selected_id]
+    if index_row.empty:
+        st.info(
+            "Este jogador ainda nÃ£o tem jogos/minutos suficientes para entrar no "
+            "grupo de comparaÃ§Ã£o do NAPS."
+        )
+    else:
+        index_row = index_row.iloc[0]
+        naps_col, style_col = st.columns(2)
+        naps_col.metric("NAPS", f"{index_row['naps']:.0f}")
+        style_col.metric("Estilo", index_row["style"])
+
+        dimensions = list(DIMENSION_LABELS)
+        radar = go.Figure()
+        radar.add_trace(
+            go.Scatterpolar(
+                r=[index_row[dimension] for dimension in dimensions],
+                theta=[DIMENSION_LABELS[dimension] for dimension in dimensions],
+                fill="toself",
+                line_color="#F97316",
+            )
+        )
+        radar.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+            showlegend=False,
+            height=380,
+            margin=dict(l=40, r=40, t=20, b=20),
+        )
+        st.plotly_chart(radar, use_container_width=True)
+        st.caption(
+            "Percentil (0-100) entre os jogadores qualificados (mÃ­nimo de jogos e "
+            "minutos). NAPS Ã© uma mÃ©dia ponderada dessas dimensÃµes."
+        )
+
+with tab_compare:
+    selected_labels = st.multiselect(
+        "Selecione de 2 a 4 jogadores",
+        player_options,
+        max_selections=4,
+        key=f"compare_players_select_{source}",
+    )
+
+    if len(selected_labels) < 2:
+        st.info("Selecione pelo menos 2 jogadores para comparar.")
+    else:
+        selected_ids = [player_id_by_label[label] for label in selected_labels]
+        comparison = compare_players(player_games, selected_ids)
+        st.dataframe(comparison, use_container_width=True)
+
+with tab_projection:
+    st.caption(
+        "A mÃ©dia da temporada mais recente disponÃ­vel Ã© a referÃªncia inicial para "
+        "pontos, rebotes e assistÃªncias. A projeÃ§Ã£o ajusta essa base conforme minutos, "
+        "forma recente, contexto do adversÃ¡rio e jogos jÃ¡ disputados na passagem pelo "
+        "time atual. A referÃªncia perde peso gradualmente quando hÃ¡ evidÃªncias de uma "
+        "nova funÃ§Ã£o. NÃ£o usa informaÃ§Ã£o confirmada de lesÃµes ou disponibilidade dos companheiros."
+    )
+
+    try:
+        bundle = _train_projection_bundle(player_games, team_games)
+    except ValueError as error:
+        st.warning(str(error))
+        st.stop()
+
+    projection_selection = st.selectbox(
+        "Selecione um jogador",
+        player_options,
+        index=0,
+        key=f"projection_player_select_{source}",
+    )
+    projection_id = player_id_by_label[projection_selection]
+
+    known_seasons = (
+        player_games["season"].dropna().astype(str).unique().tolist()
+        if "season" in player_games.columns
+        else []
+    )
+    known_years = [season_start_year(value) for value in known_seasons]
+    known_years = [int(year) for year in known_years if pd.notna(year)]
+    now = pd.Timestamp.now()
+    current_season_start = now.year if now.month >= 7 else now.year - 1
+    default_target_start = max([current_season_start, *known_years])
+    default_target_season = f"{default_target_start}-{str(default_target_start + 1)[-2:]}"
+    next_target_start = default_target_start + 1
+    target_season_options = [
+        default_target_season,
+        f"{next_target_start}-{str(next_target_start + 1)[-2:]}",
+    ]
+    target_season = st.selectbox(
+        "Temporada-alvo da previsÃ£o",
+        target_season_options,
+        index=0,
+        help=(
+            "A referÃªncia estatÃ­stica serÃ¡ a temporada imediatamente anterior Ã  escolhida. "
+            "Se essa temporada nÃ£o existir na base, o sistema usa a temporada histÃ³rica mais recente."
+        ),
+    )
+
+    # Identifica automaticamente o prÃ³ximo jogo pelo calendÃ¡rio oficial da NBA.
+    # A Ãºltima equipe vista no histÃ³rico serve apenas como sugestÃ£o: apÃ³s uma
+    # troca na offseason, o usuÃ¡rio pode selecionar manualmente a equipe atual.
+    projection_history = player_games[
+        player_games["player_id"] == projection_id
+    ].sort_values("game_date")
+    historical_team = (
+        str(projection_history.iloc[-1]["team"]).strip().upper()
+        if not projection_history.empty
+        else ""
+    )
+    schedule_team_code: str | None = None
+    next_game: dict | None = None
+    scheduled_opponent_name: str | None = None
+    schedule_error: str | None = None
+
+    if source == "real":
+        team_codes = sorted(TEAM_ABBREVIATION_TO_NAME)
+        team_default_index = (
+            team_codes.index(historical_team) if historical_team in team_codes else 0
+        )
+        schedule_team_code = st.selectbox(
+            "Equipe atual para localizar o prÃ³ximo jogo",
+            team_codes,
+            index=team_default_index,
+            format_func=lambda code: f"{code} â€” {TEAM_ABBREVIATION_TO_NAME[code]}",
+            key=f"next_game_team_{source}_{projection_id}",
+            help=(
+                "A equipe histÃ³rica Ã© selecionada por padrÃ£o. Se o jogador mudou de time "
+                "nesta offseason e ainda nÃ£o hÃ¡ jogos dele pela nova equipe na base, "
+                "escolha aqui a equipe atual para procurar o confronto correto."
+            ),
+        )
+        retry_state_key = f"nba_schedule_retry_token_{source}"
+        if st.button("Atualizar calendÃ¡rio oficial", key=f"refresh_nba_schedule_{source}_{projection_id}"):
+            st.session_state[retry_state_key] = int(st.session_state.get(retry_state_key, 0)) + 1
+        retry_token = int(st.session_state.get(retry_state_key, 0))
+        with st.spinner("Consultando o calendÃ¡rio oficial da NBAâ€¦"):
+            official_schedule, schedule_error = _load_nba_schedule(retry_token, schedule_team_code)
+        if schedule_error is None:
+            next_game = get_next_game_for_team(official_schedule, schedule_team_code)
+
+        if next_game is not None:
+            scheduled_opponent_name = str(next_game["opponent_name"])
+            schedule_day = next_game["game_date"]
+            home_away_text = "em casa" if next_game["is_home_for_team"] else "fora de casa"
+            kickoff = pd.to_datetime(
+                next_game.get("game_datetime_utc"), errors="coerce", utc=True
+            )
+            kickoff_text = (
+                f" Ã s {kickoff.tz_convert('America/New_York').strftime('%H:%M')} ET"
+                if pd.notna(kickoff)
+                else ""
+            )
+            source_label = str(next_game.get("schedule_source", "NBA oficial"))
+            st.success(
+                f"PrÃ³ximo confronto encontrado ({source_label}): **{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
+                f"x {scheduled_opponent_name}**, {schedule_day.strftime('%d/%m/%Y')} "
+                f"({home_away_text}){kickoff_text}. A previsÃ£o serÃ¡ calculada para esse jogo."
+            )
+        elif schedule_error:
+            st.warning(
+                "NÃ£o foi possÃ­vel consultar automaticamente o calendÃ¡rio da NBA nem a fonte alternativa ESPN. "
+                "Preencha o adversÃ¡rio e a data manualmente ou tente novamente em outra conexÃ£o."
+            )
+            st.caption(
+                "Se a mensagem persistir, verifique se o firewall, antivÃ­rus, proxy ou a rede da empresa "
+                "permite conexÃµes HTTPS com os serviÃ§os de calendÃ¡rio esportivo."
+            )
+            st.info(
+                "A data sugerida abaixo Ã© apenas uma data manual inicial â€” nÃ£o Ã© um jogo confirmado. "
+                "Antes de interpretar a projeÃ§Ã£o como previsÃ£o do prÃ³ximo confronto, confirme a partida "
+                "em um calendÃ¡rio atualizado e selecione o adversÃ¡rio correto."
+            )
+        else:
+            st.info(
+                "NÃ£o encontrei um jogo futuro para essa equipe no perÃ­odo consultado. "
+                "Confira a equipe selecionada ou informe o cenÃ¡rio manualmente."
+            )
+            st.caption(
+                "A data sugerida abaixo nÃ£o deve ser interpretada como confronto confirmado. "
+                "Verifique o calendÃ¡rio antes de usar a projeÃ§Ã£o como previsÃ£o do prÃ³ximo jogo."
+            )
+    else:
+        st.info(
+            "A base demonstrativa contÃ©m jogadores sintÃ©ticos; por isso, nÃ£o Ã© possÃ­vel "
+            "associÃ¡-los automaticamente Ã  agenda real da NBA. Use os campos manuais abaixo."
+        )
+
+    schedule_target_date = next_game["game_date"] if next_game else date.today() + timedelta(days=1)
+    is_home_default = bool(next_game["is_home_for_team"]) if next_game else True
+    last_history_date = (
+        pd.Timestamp(projection_history.iloc[-1]["game_date"]).date()
+        if not projection_history.empty
+        else date.today()
+    )
+    calendar_gap = max(0, (schedule_target_date - last_history_date).days - 1)
+    rest_days_default = min(7, calendar_gap)
+    if calendar_gap > 14:
+        st.warning(
+            "A base nÃ£o contÃ©m jogos recentes suficientes deste jogador para o confronto selecionado. "
+            "A projeÃ§Ã£o se apoia em histÃ³rico antigo e pode nÃ£o refletir a rotaÃ§Ã£o, os minutos ou a funÃ§Ã£o atual. "
+            "Execute a atualizaÃ§Ã£o dos dados antes de confiar nesta estimativa."
+        )
+
+    col_home, col_rest, col_opponent, col_target_date = st.columns(4)
+    with col_home:
+        is_home = st.radio(
+            "Mando de quadra",
+            ["Casa", "Fora"],
+            index=0 if is_home_default else 1,
+            horizontal=True,
+            key=f"projection_home_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+        ) == "Casa"
+    with col_rest:
+        rest_days = st.number_input(
+            "Dias de descanso",
+            0,
+            7,
+            rest_days_default,
+            key=f"projection_rest_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+            help="Estimado pela diferenÃ§a entre a data do Ãºltimo jogo disponÃ­vel e a data-alvo.",
+        )
+    with col_opponent:
+        opponent_def_rating: float | None = None
+        available_opponent_names = available_teams(team_games) if team_games is not None and not team_games.empty else []
+        opponent_options = list(available_opponent_names)
+        if scheduled_opponent_name and scheduled_opponent_name not in opponent_options:
+            opponent_options.append(scheduled_opponent_name)
+        opponent_options = sorted(set(opponent_options))
+        if opponent_options:
+            opponent_choices = list(opponent_options)
+            if source == "real" and next_game is None:
+                opponent_choices = ["Selecione manualmente"] + opponent_choices
+            default_opponent_index = (
+                opponent_choices.index(scheduled_opponent_name)
+                if scheduled_opponent_name in opponent_choices
+                else 0
+            )
+            selected_opponent_value = st.selectbox(
+                "PrÃ³ximo adversÃ¡rio",
+                opponent_choices,
+                index=default_opponent_index,
+                key=f"projection_opponent_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+            )
+            selected_opponent = (
+                None if selected_opponent_value == "Selecione manualmente" else selected_opponent_value
+            )
+            if (
+                selected_opponent is not None
+                and team_games is not None
+                and selected_opponent in available_opponent_names
+            ):
+                try:
+                    opponent_def_rating = team_snapshot(team_games, selected_opponent)["def_rating"]
+                except ValueError:
+                    opponent_def_rating = None
+            if selected_opponent is not None and opponent_def_rating is None:
+                st.caption(
+                    "Rating defensivo especÃ­fico nÃ£o encontrado na base; a previsÃ£o usarÃ¡ "
+                    "a referÃªncia mÃ©dia da liga para este fator."
+                )
+        else:
+            selected_opponent = st.text_input(
+                "PrÃ³ximo adversÃ¡rio",
+                value=scheduled_opponent_name or "",
+                key=f"projection_opponent_text_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+                placeholder="Ex.: Boston Celtics",
+            ).strip() or None
+    with col_target_date:
+        target_game_date = st.date_input(
+            "Data do jogo previsto",
+            value=schedule_target_date,
+            help=(
+                "Quando o calendÃ¡rio oficial estÃ¡ disponÃ­vel, este campo comeÃ§a na data do prÃ³ximo jogo. "
+                "VocÃª pode alterÃ¡-la manualmente para simular outro confronto."
+            ),
+            key=f"target_game_date_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+        )
+
+    if next_game and target_game_date != next_game["game_date"]:
+        st.warning(
+            "A data escolhida Ã© diferente da data do prÃ³ximo jogo encontrado. "
+            "A projeÃ§Ã£o serÃ¡ registrada para a data escolhida; confirme o adversÃ¡rio e o mando."
+        )
+
+    snapshot = player_snapshot(player_games, projection_id, target_season=target_season)
+    prediction = predict_player_game(
+        bundle,
+        snapshot,
+        is_home=is_home,
+        rest_days=rest_days,
+        opponent_def_rating=opponent_def_rating,
+    )
+
+    projection_games_played = int((player_games["player_id"] == projection_id).sum())
+    states.small_sample_warning(projection_games_played, threshold=15)
+
+    st.markdown("#### ProjeÃ§Ã£o do prÃ³ximo jogo")
+    projection_metrics = st.columns(4)
+    projection_metrics[0].metric("Minutos", f"{prediction.minutes:.1f}")
+    projection_metrics[1].metric("Pontos", f"{prediction.stats['pts']:.1f}")
+    projection_metrics[2].metric("Rebotes", f"{prediction.stats['reb']:.1f}")
+    projection_metrics[3].metric("AssistÃªncias", f"{prediction.stats['ast']:.1f}")
+
+    baseline_label = snapshot.get("prev_season_label", "histÃ³rico disponÃ­vel")
+    st.markdown(f"#### ComparaÃ§Ã£o com a temporada-base ({baseline_label})")
+    baseline_columns = st.columns(3)
+    baseline_descriptions = (
+        ("pts", "Pontos", "prev_season_pts_avg"),
+        ("reb", "Rebotes", "prev_season_reb_avg"),
+        ("ast", "AssistÃªncias", "prev_season_ast_avg"),
+    )
+    for column, (stat, label, baseline_key) in zip(
+        baseline_columns, baseline_descriptions, strict=True
+    ):
+        baseline_value = float(snapshot.get(baseline_key, 0.0))
+        projected_value = float(prediction.stats[stat])
+        column.metric(
+            f"MÃ©dia-base â€” {label}",
+            f"{baseline_value:.1f}",
+            delta=f"{projected_value - baseline_value:+.1f} na projeÃ§Ã£o",
+            delta_color="normal",
+        )
+    st.caption(
+        "O baseline Ã© a mÃ©dia por jogo da temporada mais recente disponÃ­vel nos dados. "
+        "A estimativa usa tambÃ©m a taxa por minuto dessa temporada para ajustar os "
+        "resultados aos minutos previstos. ApÃ³s uma troca de time, a referÃªncia anual "
+        "tem maior peso no inÃ­cio e diminui conforme chegam partidas do novo stint."
+    )
+
+    if st.button("Registrar esta previsÃ£o"):
+        projection_player_name = players.loc[
+            players["player_id"] == projection_id, "player_name"
+        ].iloc[0]
+        log_player_prediction(
+            projection_id,
+            projection_player_name,
+            selected_opponent,
+            is_home,
+            prediction.minutes,
+            prediction.stats["pts"],
+            prediction.stats["reb"],
+            prediction.stats["ast"],
+            prediction.confidence,
+            target_game_date=target_game_date.isoformat(),
+        )
+        st.success(
+            f"PrevisÃ£o registrada para {target_game_date.strftime('%d/%m/%Y')}. "
+            "Acompanhe em 'Desempenho': ela sÃ³ serÃ¡ resolvida quando houver dados "
+            "do jogador para a data-alvo e o contexto de adversÃ¡rio/mando coincidir."
+        )
+
+    st.markdown("###### Como a projeÃ§Ã£o de pontos foi montada")
+    chain_columns = st.columns(4)
+    chain_columns[0].metric("Pontos â€” modelo direto", f"{prediction.stats['pts']:.1f}")
+    chain_columns[1].metric("ReferÃªncia FGA Ã— TS%", f"{prediction.chain_pts:.1f}")
+    chain_columns[2].metric("Arremessos previstos (FGA)", f"{prediction.projected_fga:.1f}")
+    chain_columns[3].metric("Aproveitamento previsto (TS%)", f"{prediction.projected_ts_pct:.1%}")
+    st.caption(
+        "A projeÃ§Ã£o principal usa um regressor direto de pontos por minuto Ã— minutos esperados, "
+        "com histÃ³rico recente, volume ofensivo, eficiÃªncia, rotaÃ§Ã£o e contexto. A conta FGA Ã— TS% "
+        "Ã© exibida como referÃªncia interpretÃ¡vel independente; lances livres nessa referÃªncia usam "
+        "a proporÃ§Ã£o histÃ³rica do prÃ³prio jogador (FTA/FGA)."
+    )
+
+    interval_data = pd.DataFrame(
+        {
+            "EstatÃ­stica": ["Pontos", "Rebotes", "AssistÃªncias"],
+            "MÃ­nimo": [
+                prediction.stats_low["pts"],
+                prediction.stats_low["reb"],
+                prediction.stats_low["ast"],
+            ],
+            "Central": [
+                prediction.stats["pts"],
+                prediction.stats["reb"],
+                prediction.stats["ast"],
+            ],
+            "MÃ¡ximo": [
+                prediction.stats_high["pts"],
+                prediction.stats_high["reb"],
+                prediction.stats_high["ast"],
+            ],
+        }
+    )
+    st.dataframe(
+        interval_data.style.format(
+            {"MÃ­nimo": "{:.1f}", "Central": "{:.1f}", "MÃ¡ximo": "{:.1f}"}
+        ),
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.caption(
+        f"ConfianÃ§a do modelo: {prediction.confidence}. "
+        "Ã‰ uma classe de incerteza relativa baseada no erro histÃ³rico, quantidade de histÃ³rico "
+        "e estabilidade do stint â€” nÃ£o uma probabilidade de acerto. O intervalo Ã© experimental "
+        "e sua cobertura deve ser acompanhada na auditoria das previsÃµes resolvidas."
+    )
+
+    st.markdown("#### Probabilidade de over/under")
+    stat_labels = {"pts": "Pontos", "reb": "Rebotes", "ast": "AssistÃªncias"}
+    col_stat, col_line = st.columns(2)
+    with col_stat:
+        over_under_stat = st.selectbox(
+            "EstatÃ­stica", list(stat_labels.keys()), format_func=lambda key: stat_labels[key]
+        )
+    with col_line:
+        default_line = round(prediction.stats[over_under_stat] * 2) / 2
+        line = st.number_input("Line", value=default_line, step=0.5)
+
+    over_pct = over_probability(
+        prediction.stats[over_under_stat], bundle.residual_std[over_under_stat], line
+    )
+    over_under_columns = st.columns(2)
+    over_under_columns[0].metric(f"Over {line:g}", f"{over_pct:.0%}")
+    over_under_columns[1].metric(f"Under {line:g}", f"{1 - over_pct:.0%}")
+    st.caption(
+        "Probabilidade estatÃ­stica calculada a partir da previsÃ£o do modelo e do seu erro "
+        "histÃ³rico (assumindo distribuiÃ§Ã£o normal em torno da previsÃ£o) â€” nÃ£o Ã© uma odds de "
+        "mercado nem orientaÃ§Ã£o de aposta; o projeto nÃ£o usa odds."
+    )
+
+    st.markdown("#### DistribuiÃ§Ã£o de resultados")
+    buckets = range_probabilities(
+        prediction.stats[over_under_stat], bundle.residual_std[over_under_stat]
+    )
+    distribution_figure = go.Figure(
+        go.Bar(
+            x=[bucket["label"] for bucket in buckets],
+            y=[bucket["probability"] for bucket in buckets],
+            text=[f"{bucket['probability']:.0%}" for bucket in buckets],
+            textposition="outside",
+            marker_color="#d9560f",
+        )
+    )
+    distribution_figure.update_layout(
+        yaxis_tickformat=".0%",
+        yaxis_title="Probabilidade",
+        xaxis_title=stat_labels[over_under_stat],
+        height=320,
+        margin=dict(t=10, b=10),
+    )
+    st.plotly_chart(distribution_figure, use_container_width=True)
+    st.caption(
+        "Faixas geradas a partir da prÃ³pria previsÃ£o: largura = erro histÃ³rico do modelo "
+        "arredondado (mÃ­nimo 1), 5 faixas centradas na projeÃ§Ã£o. Mesma aproximaÃ§Ã£o normal do "
+        "over/under acima, fatiada em vÃ¡rios pontos de corte."
+    )
+
+    st.markdown("#### Qualidade do modelo (erro mÃ©dio absoluto)")
+    quality_metrics = st.columns(4)
+    quality_metrics[0].metric("Minutos", f"{bundle.metrics['minutes_mae']:.1f}")
+    quality_metrics[1].metric("Pontos", f"{bundle.metrics['pts_mae']:.1f}")
+    quality_metrics[2].metric("Rebotes", f"{bundle.metrics['reb_mae']:.1f}")
+    quality_metrics[3].metric("AssistÃªncias", f"{bundle.metrics['ast_mae']:.1f}")
+
+
+================================================================================
+ARQUIVO: pages\2_Temporada.py
+================================================================================
+from __future__ import annotations
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+from src.data import load_real_games
+from src.model import train_models
+from src.season_simulator import actual_final_standings, simulate_season
+from src.store import DEFAULT_DB_PATH, list_seasons
+from src.ui import components, states, theme
+
+st.set_page_config(
+    page_title="Temporada â€” NBA Analytics Lab",
+    page_icon="ðŸ†",
+    layout="wide",
+)
+
+theme.inject_base_style()
+
+st.markdown("## ðŸ† SimulaÃ§Ã£o de temporada")
+st.caption(
+    "SimulaÃ§Ã£o de Monte Carlo do restante de uma temporada jÃ¡ coletada: "
+    "probabilidade de classificaÃ§Ã£o direta, Play-In e playoffs por time. "
+    "Estimativas educacionais, nÃ£o orientaÃ§Ã£o de apostas."
+)
+
+if not DEFAULT_DB_PATH.exists() or not list_seasons(DEFAULT_DB_PATH):
+    states.empty_state(
+        "Nenhuma temporada coletada ainda",
+        "Colete jogos reais antes de simular uma temporada.",
+        actions=[
+            ("Coletar dados", "rode 'python scripts/update_data.py' no terminal do projeto")
+        ],
+    )
+
+components.source_badge("NBA API â€” dados reais", components.db_last_updated(DEFAULT_DB_PATH))
+
+
+@st.cache_data(show_spinner=False)
+def _load_games() -> pd.DataFrame:
+    return load_real_games()
+
+
+@st.cache_resource(show_spinner=False)
+def _train(games: pd.DataFrame):
+    return train_models(games)
+
+
+games = _load_games()
+bundle = _train(games)
+
+st.markdown(
+    '<div style="padding:12px 15px;border-left:4px solid #f97316;'
+    'background:#151f32;border-radius:8px;color:#dbe4f3;">'
+    "\"Restante da temporada\" aqui Ã© um recorte de uma temporada jÃ¡ encerrada: "
+    "os jogos depois da data de corte sÃ£o reais, mas o placar deles Ã© ignorado "
+    "de propÃ³sito para simular o que aconteceria a partir daquele ponto. Isso "
+    "permite comparar a previsÃ£o com o que realmente aconteceu.</div>",
+    unsafe_allow_html=True,
+)
+
+with st.sidebar:
+    st.header("ConfiguraÃ§Ã£o")
+    season = st.selectbox("Temporada", list_seasons(DEFAULT_DB_PATH))
+
+    season_dates = games.loc[games["season"] == season, "game_date"]
+    min_date, max_date = season_dates.min().date(), season_dates.max().date()
+    default_cutoff = min_date + (max_date - min_date) * 0.7 if season_dates.size else min_date
+
+    cutoff_date = st.date_input(
+        "Simular a partir de",
+        value=default_cutoff,
+        min_value=min_date,
+        max_value=max_date,
+    )
+    n_simulations = st.slider("NÃºmero de cenÃ¡rios simulados", 1_000, 20_000, 5_000, step=1_000)
+    run_simulation = st.button("Rodar simulaÃ§Ã£o", type="primary")
+
+    st.divider()
+    st.caption(
+        "Este projeto produz estimativas esportivas educacionais. "
+        "NÃ£o utiliza odds e nÃ£o fornece orientaÃ§Ã£o de apostas."
+    )
+
+if not run_simulation:
+    st.info("Escolha a temporada e a data de corte na barra lateral e clique em 'Rodar simulaÃ§Ã£o'.")
+    st.stop()
+
+with st.spinner(f"Simulando {n_simulations:,} cenÃ¡rios...".replace(",", ".")):
+    try:
+        summary = simulate_season(
+            games, bundle, season, cutoff_date, n_simulations=n_simulations, seed=42
+        )
+    except ValueError as error:
+        st.error(str(error))
+        st.stop()
+
+season_games = games["season"] == season
+known_games_count = season_games.sum() - (
+    games.loc[season_games, "game_date"] >= pd.Timestamp(cutoff_date)
+).sum()
+st.caption(
+    f"{known_games_count} jogos conhecidos antes do corte, "
+    f"{len(games[(games['season'] == season) & (games['game_date'] >= pd.Timestamp(cutoff_date))])} "
+    "jogos restantes simulados por cenÃ¡rio."
+)
+
+tab_probabilities, tab_reveal = st.tabs(["Probabilidades", "O que realmente aconteceu"])
+
+with tab_probabilities:
+    for conference in sorted(summary["conference"].unique()):
+        st.markdown(f"#### ConferÃªncia {conference}")
+        conf_summary = summary[summary["conference"] == conference].sort_values(
+            "prob_playoffs", ascending=False
+        )
+
+        figure = px.bar(
+            conf_summary,
+            x="prob_playoffs",
+            y="team",
+            orientation="h",
+            text=conf_summary["prob_playoffs"].map(lambda value: f"{value:.0%}"),
+            color_discrete_sequence=["#38BDF8"],
+        )
+        figure.update_traces(textposition="outside")
+        figure.update_layout(
+            height=380,
+            xaxis_tickformat=".0%",
+            xaxis_range=[0, 1],
+            xaxis_title="Probabilidade de playoffs",
+            yaxis_title=None,
+            yaxis=dict(autorange="reversed"),
+            margin=dict(l=10, r=10, t=20, b=10),
+        )
+        st.plotly_chart(figure, use_container_width=True)
+
+        display = conf_summary[
+            [
+                "team",
+                "current_wins",
+                "projected_wins_mean",
+                "projected_wins_p10",
+                "projected_wins_p90",
+                "prob_direct_playoffs",
+                "prob_play_in",
+                "prob_playoffs",
+            ]
+        ].rename(
+            columns={
+                "team": "Time",
+                "current_wins": "VitÃ³rias atÃ© o corte",
+                "projected_wins_mean": "VitÃ³rias finais (mÃ©dia)",
+                "projected_wins_p10": "P10",
+                "projected_wins_p90": "P90",
+                "prob_direct_playoffs": "Prob. classif. direta",
+                "prob_play_in": "Prob. Play-In",
+                "prob_playoffs": "Prob. playoffs",
+            }
+        )
+        st.dataframe(
+            display.style.format(
+                {
+                    "VitÃ³rias finais (mÃ©dia)": "{:.1f}",
+                    "P10": "{:.0f}",
+                    "P90": "{:.0f}",
+                    "Prob. classif. direta": "{:.1%}",
+                    "Prob. Play-In": "{:.1%}",
+                    "Prob. playoffs": "{:.1%}",
+                }
+            ),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+with tab_reveal:
+    st.caption(
+        "ClassificaÃ§Ã£o real da temporada regular (jogos que realmente aconteceram). "
+        "O status 'Play-In' aqui Ã© apenas a faixa de posiÃ§Ã£o (7Âªâ€“10Âª) pelo saldo de "
+        "vitÃ³rias â€” os jogos oficiais do mata-mata do Play-In nÃ£o sÃ£o coletados por "
+        "este projeto, entÃ£o o resultado exato dessas partidas nÃ£o estÃ¡ disponÃ­vel."
+    )
+    actual = actual_final_standings(games, season).drop(columns=["games"])
+    comparison = actual.merge(
+        summary[["team", "prob_playoffs"]], on="team", how="left"
+    ).rename(
+        columns={
+            "team": "Time",
+            "conference": "ConferÃªncia",
+            "wins": "VitÃ³rias reais",
+            "losses": "Derrotas reais",
+            "seed": "PosiÃ§Ã£o real",
+            "status": "Status real",
+            "prob_playoffs": "Prob. playoffs simulada",
+        }
+    )
+    st.dataframe(
+        comparison.style.format({"Prob. playoffs simulada": "{:.1%}"}),
+        hide_index=True,
+        use_container_width=True,
+    )
+
+
+================================================================================
+ARQUIVO: pages\3_Desempenho.py
+================================================================================
+from __future__ import annotations
+
+import streamlit as st
+
+from src.store import (
+    DEFAULT_DB_PATH,
+    count_games,
+    count_player_games,
+    read_player_games,
+    read_player_predictions,
+    read_raw_games,
+    read_team_predictions,
+    resolve_player_predictions,
+    resolve_team_predictions,
+)
+from src.ui import theme
+
+st.set_page_config(
+    page_title="Desempenho â€” NBA Analytics Lab",
+    page_icon="ðŸ“ˆ",
+    layout="wide",
+)
+
+theme.inject_base_style()
+
+st.markdown("## ðŸ“ˆ Desempenho do modelo")
+st.caption(
+    "PrevisÃµes de times e de jogadores registradas manualmente (botÃ£o 'Registrar esta "
+    "previsÃ£o' na pÃ¡gina inicial e na aba ProjeÃ§Ãµes de Jogadores), comparadas com o "
+    "resultado real quando ele acontece."
+)
+st.caption(
+    "ðŸ“Š Erros, calibraÃ§Ã£o e histÃ³rico de retreinamento ficam em 'Qualidade do Modelo', na barra lateral."
+)
+
+tab_team_predictions, tab_player_predictions = st.tabs(["PrevisÃµes de times", "PrevisÃµes de jogadores"])
+
+with tab_team_predictions:
+    predictions = read_team_predictions(DEFAULT_DB_PATH)
+
+    if predictions.empty:
+        st.info(
+            "Nenhuma previsÃ£o registrada ainda. VÃ¡ atÃ© a pÃ¡gina inicial, gere uma "
+            "previsÃ£o de times e clique em 'Registrar esta previsÃ£o'."
+        )
+    else:
+        real_data_available = count_games(DEFAULT_DB_PATH) > 0
+        if st.button("Resolver previsÃµes com jogos reais", disabled=not real_data_available):
+            games = read_raw_games(DEFAULT_DB_PATH)
+            resolved_now = resolve_team_predictions(games, DEFAULT_DB_PATH)
+            st.success(f"{resolved_now} previsÃ£o(Ãµes) resolvida(s) com jogos reais.")
+            predictions = read_team_predictions(DEFAULT_DB_PATH)
+        if not real_data_available:
+            st.caption(
+                "Resolver exige dados reais coletados ('python scripts/update_data.py')."
+            )
+
+        resolved = predictions[predictions["resolved_at"].notna()].copy()
+        pending = predictions[predictions["resolved_at"].isna()]
+
+        summary_columns = st.columns(3)
+        summary_columns[0].metric("PrevisÃµes registradas", len(predictions))
+        summary_columns[1].metric("Resolvidas", len(resolved))
+        summary_columns[2].metric("Pendentes", len(pending))
+
+        if not resolved.empty:
+            resolved["predicted_home_win"] = resolved["home_win_probability"] >= 0.5
+            resolved["actual_home_win"] = resolved["actual_home_score"] > resolved["actual_away_score"]
+            resolved["correct_winner"] = resolved["predicted_home_win"] == resolved["actual_home_win"]
+            resolved["home_score_error"] = (
+                resolved["predicted_home_score"] - resolved["actual_home_score"]
+            ).abs()
+            resolved["away_score_error"] = (
+                resolved["predicted_away_score"] - resolved["actual_away_score"]
+            ).abs()
+
+            accuracy_columns = st.columns(3)
+            accuracy_columns[0].metric(
+                "Accuracy (vencedor)", f"{resolved['correct_winner'].mean():.1%}"
+            )
+            accuracy_columns[1].metric(
+                "MAE placar mandante", f"{resolved['home_score_error'].mean():.1f}"
+            )
+            accuracy_columns[2].metric(
+                "MAE placar visitante", f"{resolved['away_score_error'].mean():.1f}"
+            )
+
+            st.markdown("#### CalibraÃ§Ã£o (probabilidade prevista vs. taxa real de vitÃ³ria)")
+            resolved["probability_bucket"] = (resolved["home_win_probability"] * 10).astype(int) * 10
+            calibration = resolved.groupby("probability_bucket").agg(
+                previsoes=("correct_winner", "count"),
+                taxa_real_vitoria_mandante=("actual_home_win", "mean"),
+            )
+            st.dataframe(
+                calibration.style.format({"taxa_real_vitoria_mandante": "{:.1%}"}),
+                use_container_width=True,
+            )
+            st.caption(
+                "Em uma previsÃ£o bem calibrada, o time favorecido a 70% deve vencer "
+                "aproximadamente 7 em cada 10 vezes em situaÃ§Ãµes parecidas."
+            )
+
+        st.markdown("#### Todas as previsÃµes")
+        display = predictions.rename(
+            columns={
+                "created_at": "Registrada em",
+                "home_team": "Mandante",
+                "away_team": "Visitante",
+                "home_win_probability": "Prob. mandante",
+                "predicted_home_score": "Placar previsto (M)",
+                "predicted_away_score": "Placar previsto (V)",
+                "confidence": "ConfianÃ§a",
+                "actual_home_score": "Placar real (M)",
+                "actual_away_score": "Placar real (V)",
+                "resolved_at": "Resolvida em",
+            }
+        )
+        st.dataframe(
+            display.style.format(
+                {
+                    "Prob. mandante": "{:.1%}",
+                    "Placar previsto (M)": "{:.0f}",
+                    "Placar previsto (V)": "{:.0f}",
+                },
+                na_rep="â€”",
+            ),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+with tab_player_predictions:
+    player_predictions = read_player_predictions(DEFAULT_DB_PATH)
+
+    if player_predictions.empty:
+        st.info(
+            "Nenhuma previsÃ£o de jogador registrada ainda. VÃ¡ atÃ© a pÃ¡gina 'Jogadores', "
+            "aba 'ProjeÃ§Ãµes', gere uma previsÃ£o e clique em 'Registrar esta previsÃ£o'."
+        )
+    else:
+        real_player_data_available = count_player_games(DEFAULT_DB_PATH) > 0
+        if st.button(
+            "Resolver previsÃµes com jogos reais",
+            disabled=not real_player_data_available,
+            key="resolve_player_predictions",
+        ):
+            player_games = read_player_games(DEFAULT_DB_PATH)
+            resolved_now = resolve_player_predictions(player_games, DEFAULT_DB_PATH)
+            st.success(f"{resolved_now} previsÃ£o(Ãµes) resolvida(s) com jogos reais.")
+            player_predictions = read_player_predictions(DEFAULT_DB_PATH)
+        if not real_player_data_available:
+            st.caption(
+                "Resolver exige dados reais de jogadores coletados "
+                "('python scripts/update_data.py')."
+            )
+        st.caption(
+            "PrevisÃµes novas sÃ£o resolvidas apenas contra uma partida da data-alvo selecionada; "
+            "adversÃ¡rio e mando tambÃ©m sÃ£o conferidos quando esses dados estÃ£o disponÃ­veis. "
+            "PrevisÃµes antigas sem data-alvo tentam casar adversÃ¡rio e mando; somente registros "
+            "legados sem esses campos usam a prÃ³xima partida disponÃ­vel."
+        )
+
+        resolved = player_predictions[player_predictions["resolved_at"].notna()].copy()
+        pending = player_predictions[player_predictions["resolved_at"].isna()]
+
+        summary_columns = st.columns(3)
+        summary_columns[0].metric("PrevisÃµes registradas", len(player_predictions))
+        summary_columns[1].metric("Resolvidas", len(resolved))
+        summary_columns[2].metric("Pendentes", len(pending))
+
+        if not resolved.empty:
+            resolved["minutes_error"] = (resolved["predicted_minutes"] - resolved["actual_minutes"]).abs()
+            resolved["pts_error"] = (resolved["predicted_pts"] - resolved["actual_pts"]).abs()
+            resolved["reb_error"] = (resolved["predicted_reb"] - resolved["actual_reb"]).abs()
+            resolved["ast_error"] = (resolved["predicted_ast"] - resolved["actual_ast"]).abs()
+
+            error_columns = st.columns(4)
+            error_columns[0].metric("MAE minutos", f"{resolved['minutes_error'].mean():.1f}")
+            error_columns[1].metric("MAE pontos", f"{resolved['pts_error'].mean():.1f}")
+            error_columns[2].metric("MAE rebotes", f"{resolved['reb_error'].mean():.1f}")
+            error_columns[3].metric("MAE assistÃªncias", f"{resolved['ast_error'].mean():.1f}")
+
+            # ComparaÃ§Ã£o empÃ­rica das classes de confianÃ§a com resultados resolvidos.
+            st.markdown("#### Auditoria da confianÃ§a")
+            confidence_audit = (
+                resolved.groupby("confidence", dropna=False)
+                .agg(
+                    previsoes=("id", "count"),
+                    MAE_minutos=("minutes_error", "mean"),
+                    MAE_pontos=("pts_error", "mean"),
+                    MAE_rebotes=("reb_error", "mean"),
+                    MAE_assistencias=("ast_error", "mean"),
+                )
+                .reindex(["Alta", "MÃ©dia", "Baixa"])
+                .dropna(how="all")
+                .reset_index()
+            )
+            st.dataframe(
+                confidence_audit.style.format(
+                    {
+                        "MAE_minutos": "{:.1f}",
+                        "MAE_pontos": "{:.1f}",
+                        "MAE_rebotes": "{:.1f}",
+                        "MAE_assistencias": "{:.1f}",
+                    },
+                    na_rep="â€”",
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+            st.caption(
+                "A confianÃ§a Ã© uma classe heurÃ­stica de incerteza. Com poucos registros por "
+                "classe, os erros mÃ©dios sÃ£o instÃ¡veis; a tabela acumula evidÃªncias ao longo "
+                "das rodadas e ajuda a detectar quando previsÃµes marcadas como 'Alta' erram mais."
+            )
+
+            st.markdown("#### Backtest por rodada/data do jogo")
+            for column in ("target_game_date", "actual_game_date"):
+                if column not in resolved.columns:
+                    resolved[column] = pd.NaT
+            resolved["audit_game_date"] = resolved["target_game_date"].combine_first(
+                resolved["actual_game_date"]
+            )
+            resolved["audit_game_date"] = pd.to_datetime(
+                resolved["audit_game_date"], errors="coerce"
+            )
+            missing_date = resolved["audit_game_date"].isna()
+            if missing_date.any():
+                resolved.loc[missing_date, "audit_game_date"] = pd.to_datetime(
+                    resolved.loc[missing_date, "resolved_at"], errors="coerce"
+                ).dt.normalize()
+            resolved["Data da rodada"] = resolved["audit_game_date"].dt.strftime("%Y-%m-%d")
+            round_audit = (
+                resolved.groupby("Data da rodada", dropna=False)
+                .agg(
+                    Jogadores=("player_id", "nunique"),
+                    Previsoes=("id", "count"),
+                    MAE_minutos=("minutes_error", "mean"),
+                    MAE_pontos=("pts_error", "mean"),
+                    MAE_rebotes=("reb_error", "mean"),
+                    MAE_assistencias=("ast_error", "mean"),
+                )
+                .reset_index()
+                .sort_values("Data da rodada", ascending=False)
+            )
+            st.dataframe(
+                round_audit.style.format(
+                    {
+                        "MAE_minutos": "{:.1f}",
+                        "MAE_pontos": "{:.1f}",
+                        "MAE_rebotes": "{:.1f}",
+                        "MAE_assistencias": "{:.1f}",
+                    },
+                    na_rep="â€”",
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+            st.download_button(
+                "Baixar auditoria das previsÃµes (CSV)",
+                data=resolved.sort_values("audit_game_date").to_csv(index=False).encode("utf-8-sig"),
+                file_name="nba_player_prediction_audit.csv",
+                mime="text/csv",
+            )
+
+        st.markdown("#### Todas as previsÃµes")
+        display_source = player_predictions.copy()
+        if not resolved.empty:
+            errors_for_display = resolved[
+                ["id", "minutes_error", "pts_error", "reb_error", "ast_error"]
+            ].drop_duplicates("id")
+            display_source = display_source.merge(errors_for_display, on="id", how="left")
+        display = display_source.rename(
+            columns={
+                "created_at": "Registrada em",
+                "player_name": "Jogador",
+                "opponent": "AdversÃ¡rio previsto",
+                "target_game_date": "Data do jogo previsto",
+                "actual_game_date": "Data do jogo real",
+                "actual_opponent": "AdversÃ¡rio real",
+                "actual_is_home": "Mando real",
+                "is_home": "Casa",
+                "predicted_minutes": "Minutos previstos",
+                "predicted_pts": "Pontos previstos",
+                "predicted_reb": "Rebotes previstos",
+                "predicted_ast": "AssistÃªncias previstas",
+                "confidence": "ConfianÃ§a",
+                "actual_minutes": "Minutos reais",
+                "actual_pts": "Pontos reais",
+                "actual_reb": "Rebotes reais",
+                "actual_ast": "AssistÃªncias reais",
+                "minutes_error": "Erro abs. minutos",
+                "pts_error": "Erro abs. pontos",
+                "reb_error": "Erro abs. rebotes",
+                "ast_error": "Erro abs. assistÃªncias",
+                "resolved_at": "Resolvida em",
+            }
+        ).drop(columns=["id", "player_id"])
+        st.dataframe(
+            display.style.format(
+                {
+                    "Minutos previstos": "{:.1f}",
+                    "Pontos previstos": "{:.1f}",
+                    "Rebotes previstos": "{:.1f}",
+                    "AssistÃªncias previstas": "{:.1f}",
+                    "Erro abs. minutos": "{:.1f}",
+                    "Erro abs. pontos": "{:.1f}",
+                    "Erro abs. rebotes": "{:.1f}",
+                    "Erro abs. assistÃªncias": "{:.1f}",
+                },
+                na_rep="â€”",
+            ),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+
+================================================================================
+ARQUIVO: pages\5_Dados_Atualizacoes.py
+================================================================================
+from __future__ import annotations
+
+import time
+
+import streamlit as st
+
+from src.nba_client import fetch_player_season_logs, fetch_season_games, pair_home_away
+from src.shot_connector import fetch_player_shots
+from src.shot_storage import count_player_shots, players_missing_shots, upsert_player_shots
+from src.store import (
+    DEFAULT_DB_PATH,
+    count_distinct_players,
+    count_distinct_teams,
+    count_games,
+    count_player_games,
+    init_db,
+    upsert_games,
+    upsert_player_games,
+)
+from src.ui import components, states, theme
+from src.ui.formatters import format_int_br
+
+MAX_SHOT_BATCH = 30
+SHOT_COLLECTION_DELAY_SECONDS = 0.6
+
+st.set_page_config(
+    page_title="Dados e AtualizaÃ§Ãµes â€” NBA Analytics Lab",
+    page_icon="ðŸ”„",
+    layout="wide",
+)
+
+theme.inject_base_style()
+
+st.markdown("## ðŸ”„ Dados e AtualizaÃ§Ãµes")
+st.caption(
+    "Coleta de dados reais via nba_api, separada das pÃ¡ginas de anÃ¡lise (seÃ§Ã£o 3 do "
+    "planejamento de UI/UX: atualizaÃ§Ã£o nÃ£o deve se misturar com exploraÃ§Ã£o). Coletas "
+    "grandes ainda sÃ£o melhor feitas pelo terminal, em segundo plano â€” esta pÃ¡gina "
+    "cobre lotes pequenos direto na interface."
+)
+
+init_db(DEFAULT_DB_PATH)
+
+components.source_badge("NBA API", components.db_last_updated(DEFAULT_DB_PATH))
+
+components.metric_row(
+    [
+        {"label": "Jogos", "value": format_int_br(count_games(DEFAULT_DB_PATH))},
+        {"label": "Times", "value": format_int_br(count_distinct_teams(DEFAULT_DB_PATH))},
+        {"label": "Linhas de jogador", "value": format_int_br(count_player_games(DEFAULT_DB_PATH))},
+        {"label": "Jogadores distintos", "value": format_int_br(count_distinct_players(DEFAULT_DB_PATH))},
+        {"label": "Arremessos", "value": format_int_br(count_player_shots(DEFAULT_DB_PATH))},
+    ]
+)
+
+tab_games, tab_shots = st.tabs(["Jogos e jogadores (por temporada)", "Arremessos (incremental)"])
+
+with tab_games:
+    st.markdown(
+        "Baixa o log de jogos e de jogadores de uma temporada inteira em poucas "
+        "chamadas (uma para os jogos da liga toda, uma para os jogadores da liga "
+        "toda) â€” rÃ¡pido, roda direto aqui, sem precisar do terminal."
+    )
+    season_input = st.text_input(
+        "Temporada (formato AAAA-AA, ex.: 2025-26)", value="2025-26", key="season_to_collect"
+    )
+    if st.button("Coletar esta temporada"):
+        progress = st.progress(0.0, text="Baixando jogos...")
+        try:
+            raw_games = fetch_season_games(season_input)
+            games = pair_home_away(raw_games)
+            added_games = upsert_games(games, DEFAULT_DB_PATH)
+            progress.progress(0.5, text="Baixando jogadores...")
+
+            player_raw = fetch_player_season_logs(season_input)
+            added_players = upsert_player_games(player_raw, DEFAULT_DB_PATH)
+            progress.progress(1.0, text="ConcluÃ­do.")
+
+            st.success(
+                f"{added_games} jogos novos e {added_players} linhas de jogador novas "
+                f"gravadas para a temporada {season_input}."
+            )
+            st.rerun()
+        except Exception as error:  # nba_api costuma falhar por timeout/bloqueio de rede
+            progress.empty()
+            states.error_state(
+                f"Falha ao coletar a temporada {season_input}.", detail=str(error)
+            )
+
+with tab_shots:
+    pending = players_missing_shots(DEFAULT_DB_PATH)
+    if not pending:
+        st.success(
+            "Nenhum jogador pendente â€” todo mundo que jÃ¡ tem jogos coletados tambÃ©m "
+            "jÃ¡ tem arremessos coletados."
+        )
+    else:
+        st.markdown(
+            f"**{format_int_br(len(pending))} pares jogador-temporada** ainda sem "
+            "arremessos coletados. Uma chamada por jogador por temporada â€” mais lento "
+            "que a aba de jogos; para coletar centenas de uma vez, prefira o terminal:"
+        )
+        st.code("python scripts/update_shots.py", language="powershell")
+
+        batch_size = st.slider(
+            "Quantos jogadores coletar agora?", 1, min(MAX_SHOT_BATCH, len(pending)), min(10, len(pending))
+        )
+        if st.button("Coletar arremessos"):
+            batch = pending[:batch_size]
+            progress = st.progress(0.0)
+            status = st.empty()
+            collected, failed = 0, 0
+
+            for index, (player_id, player_name, season) in enumerate(batch, start=1):
+                status.caption(f"[{index}/{len(batch)}] {player_name} ({season})...")
+                try:
+                    shots = fetch_player_shots(player_id, season)
+                    upsert_player_shots(shots, DEFAULT_DB_PATH)
+                    collected += 1
+                except Exception:  # nba_api costuma falhar por timeout/bloqueio de rede
+                    failed += 1
+                progress.progress(index / len(batch))
+                time.sleep(SHOT_COLLECTION_DELAY_SECONDS)
+
+            status.empty()
+            progress.empty()
+            st.success(f"{collected} jogadores coletados, {failed} falharam nesta execuÃ§Ã£o.")
+            st.rerun()
+
+st.divider()
+st.markdown("#### Coletas avanÃ§adas (sÃ³ pelo terminal, por enquanto)")
+st.caption(
+    "Rating oficial (Offensive/Defensive Rating) e titularidade real exigem uma "
+    "chamada por jogo â€” muito mais lento que as coletas acima, ainda nÃ£o trazido "
+    "para dentro da interface:"
+)
+st.code(
+    "python scripts/update_advanced_stats.py --seasons 2024-25\n"
+    "python scripts/update_starter_status.py --seasons 2024-25",
+    language="powershell",
+)
+
+
+================================================================================
+ARQUIVO: requirements.txt
+================================================================================
+streamlit>=1.40,<2
+pandas>=2.2,<3
+numpy>=2.0,<3
+scikit-learn>=1.5,<2
+plotly>=5.24,<7
+pytest>=8,<9
+nba_api>=1.4,<2
+ruff>=0.16,<1
+mypy>=2.0,<3
+
+
+requests>=2.32,<3
+
