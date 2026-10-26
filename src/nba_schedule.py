@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
 import logging
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -285,7 +285,7 @@ def _fetch_espn_schedule(
     A compact date-range request is attempted first. Since date-range behavior can
     vary by scoreboard deployment, the code falls back to one request per day.
     """
-    headers = {
+    headers: dict[str, str] = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
         "Accept": "application/json,text/plain,*/*",
         "Origin": "https://www.espn.com",
@@ -302,7 +302,7 @@ def _fetch_espn_schedule(
             ESPN_SCOREBOARD_URL,
             params={
                 "dates": f"{start_date:%Y%m%d}-{range_end:%Y%m%d}",
-                "limit": 100,
+                "limit": "100",
             },
             headers=headers,
             timeout=min(timeout, 3.0),
@@ -332,7 +332,7 @@ def _fetch_espn_schedule(
         try:
             response = requests.get(
                 ESPN_SCOREBOARD_URL,
-                params={"dates": game_day.strftime("%Y%m%d"), "limit": 100},
+                params={"dates": game_day.strftime("%Y%m%d"), "limit": "100"},
                 headers=headers,
                 timeout=min(timeout, 2.5),
             )
@@ -372,7 +372,7 @@ def fetch_nba_schedule(
     The source column marks whether rows came from NBA CDN or the ESPN fallback.
     Raises a concise RuntimeError if neither source is available.
     """
-    headers = {
+    headers: dict[str, str] = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
         "Referer": "https://www.nba.com/",
         "Accept": "application/json,text/plain,*/*",
@@ -437,7 +437,7 @@ def get_next_game_for_team(
         now_utc = timestamp.tz_convert("UTC")
         today = now_utc.tz_convert(ZoneInfo("America/New_York")).date()
     else:
-        current = datetime.now(timezone.utc)
+        current = datetime.now(UTC)
         now_utc = pd.Timestamp(current)
         today = current.astimezone(ZoneInfo("America/New_York")).date()
 

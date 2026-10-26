@@ -188,7 +188,7 @@ st.markdown(f"#### {len(games)} jogo(s) em {format_date_br(selected_day)}")
 
 if player_data_available:
     current_roster = pd.DataFrame()
-    roster_records = ()
+    roster_records: tuple[tuple[int, str], ...] = ()
     roster_version = "historical-fallback"
 
     try:
@@ -277,13 +277,17 @@ for _, game in games.iterrows():
                 away_strength = away_snapshot["net_rating"]
                 home_strength = home_snapshot["net_rating"] + 2.0  # vantagem de mando aproximada
                 import math
-                home_probability = 1.0 / (1.0 + math.exp(-max(-8.0, min(8.0, (home_strength-away_strength)/6.0))))
+                strength_gap = (home_strength - away_strength) / 6.0
+                home_probability = 1.0 / (1.0 + math.exp(-max(-8.0, min(8.0, strength_gap))))
                 home_probability = max(0.05, min(0.95, home_probability))
                 away_probability = 1.0 - home_probability
                 prob_cols = st.columns(2)
                 prob_cols[0].metric(f"Prob. {away_name}", f"{away_probability:.0%}")
                 prob_cols[1].metric(f"Prob. {home_name}", f"{home_probability:.0%}")
-                st.caption("Estimativa experimental pelo net rating recente e mando de quadra; não são odds nem garantias.")
+                st.caption(
+                    "Estimativa experimental pelo net rating recente e mando de quadra; "
+                    "não são odds nem garantias."
+                )
             except (ValueError, KeyError, TypeError, OverflowError):
                 st.info("Probabilidade indisponível: histórico recente insuficiente para um dos times.")
 

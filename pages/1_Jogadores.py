@@ -8,9 +8,9 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.data import available_teams, generate_demo_games, load_real_games, team_snapshot
-from src.player_data import load_player_games
 from src.nba_schedule import fetch_nba_schedule, get_next_game_for_team
 from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
+from src.player_data import load_player_games
 from src.player_features import (
     add_opponent_context,
     add_rolling_features,
@@ -499,13 +499,15 @@ with tab_projection:
             )
             source_label = str(next_game.get("schedule_source", "NBA oficial"))
             st.success(
-                f"Próximo confronto encontrado ({source_label}): **{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
+                f"Próximo confronto encontrado ({source_label}): "
+                f"**{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
                 f"x {scheduled_opponent_name}**, {schedule_day.strftime('%d/%m/%Y')} "
                 f"({home_away_text}){kickoff_text}. A previsão será calculada para esse jogo."
             )
         elif schedule_error:
             st.warning(
-                "Não foi possível consultar automaticamente o calendário da NBA nem a fonte alternativa ESPN. "
+                "Não foi possível consultar automaticamente o calendário da NBA nem a fonte "
+                "alternativa ESPN. "
                 "Preencha o adversário e a data manualmente ou tente novamente em outra conexão."
             )
             st.caption(
@@ -544,7 +546,8 @@ with tab_projection:
     if calendar_gap > 14:
         st.warning(
             "A base não contém jogos recentes suficientes deste jogador para o confronto selecionado. "
-            "A projeção se apoia em histórico antigo e pode não refletir a rotação, os minutos ou a função atual. "
+            "A projeção se apoia em histórico antigo e pode não refletir a rotação, os minutos "
+            "ou a função atual. "
             "Execute a atualização dos dados antes de confiar nesta estimativa."
         )
 
@@ -568,7 +571,8 @@ with tab_projection:
         )
     with col_opponent:
         opponent_def_rating: float | None = None
-        available_opponent_names = available_teams(team_games) if team_games is not None and not team_games.empty else []
+        has_team_games = team_games is not None and not team_games.empty
+        available_opponent_names = available_teams(team_games) if has_team_games else []
         opponent_options = list(available_opponent_names)
         if scheduled_opponent_name and scheduled_opponent_name not in opponent_options:
             opponent_options.append(scheduled_opponent_name)

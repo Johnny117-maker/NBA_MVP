@@ -1,6 +1,6 @@
 # Jogos do Dia e jogadores em destaque
 
-A página `pages/7_Jogos_do_dia.py` lista os confrontos do calendário NBA selecionado, exibe horários em Brasília e ET, status e arena quando disponíveis. A camada `src/daily_games.py` calcula a forma dos jogadores com médias dos últimos cinco jogos, compara a pontuação recente com a média da temporada mais recente e identifica perfis como cestinha, reboteiro, criador e atleta em alta.
+A página `pages/7_Jogos_do_Dia.py` lista os confrontos do calendário NBA selecionado, exibe horários em Brasília e ET, status e arena quando disponíveis. A camada `src/daily_games.py` calcula a forma dos jogadores com médias dos últimos cinco jogos, compara a pontuação recente com a média da temporada mais recente e identifica perfis como cestinha, reboteiro, criador e atleta em alta.
 
 ## Probabilidade experimental de vitória
 

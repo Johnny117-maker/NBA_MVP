@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pandas as pd
 
@@ -74,7 +74,7 @@ def test_get_next_game_chooses_first_future_scheduled_game_for_team():
         ]
     )
     result = get_next_game_for_team(
-        schedule, "nyk", now=datetime(2026, 10, 21, 12, 0, tzinfo=timezone.utc)
+        schedule, "nyk", now=datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
     )
     assert result is not None
     assert result["game_id"] == "next"
@@ -109,7 +109,7 @@ def test_get_next_game_skips_same_day_games_that_already_started():
         ]
     )
     result = get_next_game_for_team(
-        schedule, "NYK", now=datetime(2026, 10, 21, 16, 0, tzinfo=timezone.utc)
+        schedule, "NYK", now=datetime(2026, 10, 21, 16, 0, tzinfo=UTC)
     )
     assert result is not None
     assert result["game_id"] == "tomorrow"
@@ -182,6 +182,7 @@ def test_parse_espn_scoreboard_payload_normalizes_names_dates_and_source():
 
 def test_fetch_nba_schedule_falls_back_to_espn_when_nba_cdn_fails(monkeypatch):
     import requests
+
     import src.nba_schedule as schedule_module
 
     payload = {
@@ -194,8 +195,14 @@ def test_fetch_nba_schedule_falls_back_to_espn_when_nba_cdn_fails(monkeypatch):
                     {
                         "date": "2026-10-22T23:30:00Z",
                         "competitors": [
-                            {"homeAway": "home", "team": {"abbreviation": "BOS", "displayName": "Boston Celtics"}},
-                            {"homeAway": "away", "team": {"abbreviation": "TOR", "displayName": "Toronto Raptors"}},
+                            {
+                                "homeAway": "home",
+                                "team": {"abbreviation": "BOS", "displayName": "Boston Celtics"},
+                            },
+                            {
+                                "homeAway": "away",
+                                "team": {"abbreviation": "TOR", "displayName": "Toronto Raptors"},
+                            },
                         ],
                         "status": {"type": {"state": "pre", "detail": "Scheduled"}},
                     }
@@ -234,6 +241,7 @@ def test_fetch_nba_schedule_falls_back_to_espn_when_nba_cdn_fails(monkeypatch):
 
 def test_fetch_nba_schedule_error_is_readable_when_all_sources_fail(monkeypatch):
     import requests
+
     import src.nba_schedule as schedule_module
 
     def fake_get(url, **kwargs):
