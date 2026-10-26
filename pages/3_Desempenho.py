@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import streamlit as st
+import pandas as pd
 
 from src.store import (
     DEFAULT_DB_PATH,
