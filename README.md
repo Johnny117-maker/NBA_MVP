@@ -199,6 +199,19 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 pytest -q
 ```
 
+## Auditar o treinamento
+
+A [auditoria de 27/10/2026](docs/AUDITORIA_MODELOS_2026-10-27.md) compara modelos e
+referências simples, verifica dependências temporais e descreve as prioridades de melhoria.
+Para gerar uma nova avaliação local, com até 40 mil registros de jogadores:
+
+```powershell
+python scripts/audit_models.py --players
+```
+
+O resultado fica em `reports/model_audit.json`. A auditoria consulta o banco em modo
+somente leitura e mantém os modelos e o histórico de treinamentos existentes.
+
 ## Publicar no GitHub
 
 O arquivo `PUBLICAR_GITHUB.bat` cria um commit e publica a **branch atual** no remoto `origin`. Em uma pasta sem Git, inicializa a branch `main`; em um repositório existente, preserva a branch selecionada. Antes de executá-lo:
