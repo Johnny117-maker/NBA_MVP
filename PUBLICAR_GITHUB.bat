@@ -18,21 +18,43 @@ if errorlevel 1 (
 
 if not exist ".git" (
     echo Inicializando repositorio Git local...
-    git init
+    git init -b main
     if errorlevel 1 goto :git_error
 )
 
-git branch -M main
-if errorlevel 1 goto :git_error
+set "CURRENT_BRANCH="
+for /f "delims=" %%B in ('git symbolic-ref --quiet --short HEAD 2^>nul') do set "CURRENT_BRANCH=%%B"
+if not defined CURRENT_BRANCH goto :detached_head
+
+set "HAS_CONFLICTS="
+for /f "delims=" %%F in ('git ls-files --unmerged') do set "HAS_CONFLICTS=1"
+if defined HAS_CONFLICTS goto :unresolved_conflicts
 
 echo.
-echo Adicionando arquivos respeitando o .gitignore...
+echo Branch atual: "%CURRENT_BRANCH%"
+echo Alteracoes encontradas:
+git status --short
+if errorlevel 1 goto :git_error
+
+git diff --cached --quiet
+if errorlevel 2 goto :git_error
+if errorlevel 1 goto :review_staged
+
+echo.
+echo Preparando alteracoes respeitando o .gitignore...
 git add -A
 if errorlevel 1 goto :git_error
 
 git diff --cached --quiet
+if errorlevel 2 goto :git_error
 if not errorlevel 1 goto :no_changes
 
+:review_staged
+echo.
+echo Arquivos preparados para este commit:
+git diff --cached --stat
+if errorlevel 1 goto :git_error
+echo Se voce ja preparou arquivos com git add, somente eles entram neste commit.
 echo.
 echo Digite a mensagem que deseja registrar neste commit.
 echo Exemplo: Adiciona auditoria das previsoes de jogadores
@@ -82,8 +104,22 @@ if errorlevel 1 goto :git_error
 :push
 echo.
 echo Repositorio remoto: %REMOTE_URL%
-echo Enviando a branch main para o GitHub...
-git push -u origin main
+echo Conferindo atualizacoes no remoto...
+git fetch origin
+if errorlevel 1 goto :fetch_error
+
+git show-ref --verify --quiet "refs/remotes/origin/%CURRENT_BRANCH%"
+if errorlevel 2 goto :git_error
+if errorlevel 1 goto :push_branch
+
+set "REMOTE_AHEAD="
+for /f "delims=" %%C in ('git rev-list --count "HEAD..refs/remotes/origin/%CURRENT_BRANCH%"') do set "REMOTE_AHEAD=%%C"
+if not defined REMOTE_AHEAD goto :git_error
+if not "%REMOTE_AHEAD%"=="0" goto :remote_ahead
+
+:push_branch
+echo Enviando a branch "%CURRENT_BRANCH%" para o GitHub...
+git push -u origin "%CURRENT_BRANCH%"
 if errorlevel 1 (
     echo.
     echo [ERRO] O envio falhou.
@@ -94,6 +130,7 @@ if errorlevel 1 (
 
 echo.
 echo [OK] Codigo enviado para o GitHub.
+git log -1 --oneline
 echo Confira a pagina do repositorio no navegador.
 pause
 exit /b 0
@@ -101,6 +138,28 @@ exit /b 0
 :missing_remote
 echo [ERRO] Nenhuma URL de repositorio foi informada.
 echo Execute novamente depois de criar um repositorio vazio no GitHub.
+goto :fail
+
+:detached_head
+echo [ERRO] O repositorio esta em detached HEAD.
+echo Selecione uma branch antes de publicar. Nenhuma branch foi renomeada.
+goto :fail
+
+:unresolved_conflicts
+echo [ERRO] Existem conflitos de merge pendentes.
+echo Resolva os conflitos e conclua a integracao antes de publicar.
+goto :fail
+
+:fetch_error
+echo [ERRO] Nao foi possivel consultar o repositorio remoto.
+echo Confira a conexao e a autenticacao do Git. Seus commits locais permanecem salvos.
+goto :fail
+
+:remote_ahead
+echo [AVISO] O GitHub possui commits que ainda nao foram integrados nesta branch.
+echo O envio foi interrompido. Seus commits locais permanecem salvos.
+echo Integre as alteracoes remotas por merge ou rebase e execute este arquivo novamente.
+echo Este script nao faz push forcado nem resolve conflitos automaticamente.
 goto :fail
 
 :git_error

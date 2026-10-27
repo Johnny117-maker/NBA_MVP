@@ -191,15 +191,25 @@ pytest -q
 
 ## Publicar no GitHub
 
-O repositório está preparado para usar Git e GitHub. O arquivo `PUBLICAR_GITHUB.bat` inicializa o repositório local quando necessário, cria um commit e envia a branch `main` ao remoto configurado. Antes de executá-lo:
+O arquivo `PUBLICAR_GITHUB.bat` cria um commit e publica a **branch atual** no remoto `origin`. Em uma pasta sem Git, inicializa a branch `main`; em um repositório existente, preserva a branch selecionada. Antes de executá-lo:
 
 1. Instale o [Git para Windows](https://git-scm.com/download/win).
 2. Crie no GitHub um repositório **vazio**, sem gerar README, `.gitignore` ou licença automaticamente.
-3. Execute `PUBLICAR_GITHUB.bat`; quando houver alterações, o script pedirá a mensagem do commit e depois solicitará a URL do repositório se ainda não houver um remoto `origin` configurado.
+3. Execute `PUBLICAR_GITHUB.bat`: confira a branch, o status e o resumo dos arquivos exibidos. Se já houver arquivos preparados com `git add`, somente esses arquivos serão incluídos; caso contrário, o script prepara as alterações respeitando o `.gitignore`. Quando houver alterações preparadas, pede a mensagem do commit. A URL só é solicitada se `origin` ainda não estiver configurado.
 4. Escreva uma mensagem curta que descreva a mudança, por exemplo `Melhora previsao de pontos e minutos`, e pressione Enter. A mensagem é usada no commit do Git; se não houver alterações staged, nenhum commit novo será criado.
 5. Conclua a autenticação do GitHub pelo Git Credential Manager ou pelo método de autenticação configurado no Git. Não coloque tokens ou senhas no código nem nos arquivos `.bat`.
 
-O projeto inclui `.github/workflows/tests.yml`: o GitHub Actions executa `pytest` automaticamente em novos pushes e pull requests.
+O projeto inclui `.github/workflows/tests.yml`: o GitHub Actions executa Ruff,
+mypy e pytest automaticamente em novos pushes e pull requests.
+
+Para mudanças incrementais, prefira mensagens que descrevam uma entrega concreta:
+`feat: adiciona calendario gratuito`, `fix: corrige filtro de jogadores` ou
+`docs: atualiza instrucoes de execucao`. Registre cada etapa concluída e validada.
+
+Antes do envio, o BAT consulta o remoto. Se houver commits novos no GitHub, para
+e orienta a integrá-los por merge ou rebase. O commit local permanece salvo;
+o script não renomeia branches existentes, não resolve conflitos automaticamente
+e não usa push forçado. Conflitos já pendentes e detached HEAD impedem a execução.
 
 ### Por que o banco de dados não vai para o GitHub?
 
