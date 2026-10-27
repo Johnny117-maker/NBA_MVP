@@ -32,16 +32,19 @@ if not exist "%VENV_PY%" (
 
 :run_app
 echo Iniciando o Streamlit...
-echo Quando o endereco local aparecer, abra-o no navegador.
+echo Endereco do projeto: http://localhost:8501
+echo Se o projeto ja estiver aberto em outra janela, encerre-o com Ctrl+C antes de iniciar novamente.
 echo Para encerrar a aplicacao, pressione Ctrl+C nesta janela.
 echo.
-"%VENV_PY%" -m streamlit run app.py
+"%VENV_PY%" -m streamlit run app.py --server.port 8501
 set "APP_EXIT_CODE=%ERRORLEVEL%"
 
 if not "%APP_EXIT_CODE%"=="0" (
     echo.
     echo [AVISO] O Streamlit encerrou com codigo %APP_EXIT_CODE%.
     echo Se houve erro de dependencia, execute INSTALAR_DEPENDENCIAS.bat.
+    echo Se a porta 8501 estiver em uso, encerre o servidor anterior antes de tentar novamente.
+    echo Depois de atualizar arquivos Python, reinicie o servidor para recarregar os modulos.
     pause
 )
 exit /b %APP_EXIT_CODE%

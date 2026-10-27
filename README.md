@@ -163,6 +163,11 @@ Na pasta raiz do projeto ha tres atalhos para facilitar o uso:
 
 Para uso normal, basta dar duplo clique em `INICIAR_PROJETO.bat`. Mantenha a janela aberta enquanto estiver usando a aplicacao. Para parar o servidor, volte a essa janela e pressione `Ctrl+C`.
 
+O BAT usa explicitamente a porta **8501**. Se ela estiver ocupada, encerre a instância
+anterior antes de iniciar outra; o atalho não tenta abrir uma cópia em outra porta.
+Após atualizar arquivos Python, encerre e inicie o servidor novamente para recarregar
+os módulos importados. Limpar o cache de dados não substitui esse reinício.
+
 ## Como executar no Windows
 
 Abra o terminal do VS Code dentro da pasta do projeto:
