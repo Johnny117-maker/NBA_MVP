@@ -10,10 +10,40 @@ from .nba_teams import TEAM_ABBREVIATION_TO_NAME
 EASTERN = ZoneInfo("America/New_York")
 BRASILIA = ZoneInfo("America/Sao_Paulo")
 
+MAX_DAILY_TRAINING_ROWS = 40_000
+
+
+def recent_training_sample(
+    player_games: pd.DataFrame,
+    max_rows: int = MAX_DAILY_TRAINING_ROWS,
+) -> pd.DataFrame:
+    """Janela recente limitada em memória, preservando os boxscores de cada data.
+
+    Não corta atletas de um mesmo jogo para cumprir o limite: os totais da
+    equipe e a aproximação de titularidade precisam de boxscores completos.
+    """
+    dates = pd.to_datetime(player_games["game_date"]).dt.normalize()
+    counts = dates.value_counts().sort_index(ascending=False)
+    selected_dates = counts[counts.cumsum().le(max_rows)].index
+    if selected_dates.empty:
+        raise ValueError("Nenhuma data completa cabe na janela de treinamento.")
+    return player_games.loc[dates.isin(selected_dates)].sort_values("game_date").copy()
+
+
+def player_snapshot_context(player_games: pd.DataFrame, player_id: int) -> pd.DataFrame:
+    """Carreira do atleta com todos os colegas/adversários dos mesmos jogos.
+
+    Preserva a mediana de minutos por equipe usada no snapshot, evitando copiar
+    o histórico inteiro da liga para prever apenas um jogador.
+    """
+    game_ids = player_games.loc[player_games["player_id"].eq(player_id), "game_id"]
+    return player_games.loc[player_games["game_id"].isin(game_ids)]
+
 
 def today_et() -> date:
     """Data atual do calendário NBA, usando o fuso da costa leste dos EUA."""
     from datetime import datetime
+
     return datetime.now(EASTERN).date()
 
 
@@ -34,10 +64,9 @@ def team_aliases(team: str) -> set[str]:
 def team_rest_days(games: pd.DataFrame, team: str, selected_day: date) -> int:
     """Diferença de datas usada no treino (back-to-back = 1), limitada a 7."""
     aliases = {alias.casefold() for alias in team_aliases(team)}
-    played = (
-        games["home_team"].astype(str).str.casefold().isin(aliases)
-        | games["away_team"].astype(str).str.casefold().isin(aliases)
-    )
+    played = games["home_team"].astype(str).str.casefold().isin(aliases) | games["away_team"].astype(
+        str
+    ).str.casefold().isin(aliases)
     dates = pd.to_datetime(games.loc[played, "game_date"], errors="coerce").dt.date
     dates = dates[dates < selected_day]
     if dates.empty:
@@ -50,8 +79,23 @@ def build_form_table(
     current_roster: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Resume forma recente e temporada mais recente para cada jogador."""
-    columns = ["player_id", "player_name", "team", "minutes_recent", "pts_recent", "reb_recent",
-               "ast_recent", "pts_season", "pts_delta", "last_game_date", "impact_recent"]
+    columns = [
+        "player_id",
+        "player_name",
+        "team",
+        "minutes_recent",
+        "pts_recent",
+        "reb_recent",
+        "ast_recent",
+        "pts_season",
+        "pts_delta",
+        "last_game_date",
+        "impact_recent",
+        "recent_games",
+        "season_games",
+        "recent_points",
+        "tag",
+    ]
     if player_games is None or player_games.empty:
         return pd.DataFrame(columns=columns)
     required = {"player_id", "player_name", "team", "game_date", "minutes", "pts", "reb", "ast"}
@@ -84,7 +128,7 @@ def build_form_table(
         if "season" in group and group["season"].notna().any():
             latest_season = group.loc[group["season"].notna(), "season"].iloc[-1]
             season_group = group[group["season"].eq(latest_season)]
-        recent = group.tail(5)
+        recent = season_group.tail(5)
         last_date = group["game_date"].max()
         pts_recent = float(recent["pts"].mean())
         reb_recent = float(recent["reb"].mean())
@@ -92,7 +136,7 @@ def build_form_table(
         pts_season = float(season_group["pts"].mean())
         impact = pts_recent + 0.7 * reb_recent + ast_recent
         tag_parts = []
-        if pts_recent >= float(group["pts"].mean()) + 3:
+        if pts_recent >= pts_season + 3:
             tag_parts.append("Em alta")
         if pts_recent >= 20:
             tag_parts.append("Cestinha")
@@ -104,16 +148,25 @@ def build_form_table(
         historical_team = str(group["team"].dropna().iloc[-1])
         display_team = current_team_by_player.get(player_key, historical_team)
 
-        result.append({
-            "player_id": player_key,
-            "player_name": str(group["player_name"].dropna().iloc[-1]),
-            "team": display_team,
-            "minutes_recent": float(recent["minutes"].mean()),
-            "pts_recent": pts_recent, "reb_recent": reb_recent, "ast_recent": ast_recent,
-            "pts_season": pts_season, "pts_delta": pts_recent - pts_season,
-            "last_game_date": last_date, "impact_recent": impact,
-            "tag": " · ".join(tag_parts) if tag_parts else "Consistente",
-        })
+        result.append(
+            {
+                "player_id": player_key,
+                "player_name": str(group["player_name"].dropna().iloc[-1]),
+                "team": display_team,
+                "minutes_recent": float(recent["minutes"].mean()),
+                "pts_recent": pts_recent,
+                "reb_recent": reb_recent,
+                "ast_recent": ast_recent,
+                "pts_season": pts_season,
+                "pts_delta": pts_recent - pts_season,
+                "last_game_date": last_date,
+                "impact_recent": impact,
+                "recent_games": len(recent),
+                "season_games": len(season_group),
+                "recent_points": recent["pts"].tolist(),
+                "tag": " · ".join(tag_parts) if tag_parts else "Consistente",
+            }
+        )
     return pd.DataFrame(result)
 
 

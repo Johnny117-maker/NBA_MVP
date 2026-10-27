@@ -126,6 +126,36 @@ a:focus-visible,button:focus-visible,input:focus-visible {outline:2px solid #38b
     border-bottom:1px solid #ffffff0c; padding:11px 0; font-size:12px;}
 .zone-row strong {color:#fbba75;}
 .zone-row small {color:#aebbd0;}
+.round-player {--team-color:#8ba5fa; padding:20px; border:1px solid #344156; border-radius:18px;
+    background:linear-gradient(145deg,color-mix(in srgb,var(--team-color) 8%,#111b2c),#101827 65%);
+    margin:0 0 16px; overflow:hidden;}
+.round-player-top {display:flex; justify-content:space-between; align-items:center; gap:8px;
+    font-size:11px; color:#aebbd0; margin-bottom:16px;}
+.round-team {font-weight:800; color:var(--team-color); padding:4px 8px; background:#ffffff08;
+    border-radius:6px; letter-spacing:.06em;}
+.round-player h3 {font-size:18px; line-height:1.25; margin:0; padding:0;}
+.round-player .player-card-heading p {font-size:11px; color:#aebbd0; margin:5px 0 0;}
+.round-player-stats {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px;
+    margin:20px 0 16px; border-bottom:1px solid #ffffff0d; padding-bottom:14px;}
+.round-player-stats span {display:block; font-size:10px; letter-spacing:.1em; color:#aebbd0;}
+.round-player-stats strong {display:block; font-size:29px; letter-spacing:-.035em; line-height:1.4;}
+.round-player-stats>div:first-child strong {color:var(--team-color);}
+.round-player-form {display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:34px;}
+.player-spark {display:flex; gap:5px; align-items:flex-end; height:32px;}
+.player-spark i {display:block; width:15px; background:var(--team-color); border-radius:3px 3px 0 0; opacity:.8;}
+.round-player-form>div:last-child {font-size:13px; font-weight:700; text-align:right;}
+.round-player-form small {display:block; font-size:10px; font-weight:400; color:#aebbd0; margin-top:2px;}
+.round-player .positive {color:#86efac;}
+.round-player .negative {color:#fda4af;}
+.round-player .round-player-meta {font-size:11px; line-height:1.7; color:#aebbd0; margin:12px 0;}
+.profile-link {display:flex; justify-content:space-between; color:#e2e8f0!important; font-size:12px;
+    text-decoration:none!important; border-top:1px solid #ffffff0d; padding-top:12px;}
+.profile-link:hover {color:var(--team-color)!important;}
+.matchup-strip {display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 16px;
+    align-items:center; border-bottom:1px solid #29354a; padding-bottom:12px; margin-bottom:10px;}
+.matchup-strip strong {font-size:17px; letter-spacing:.03em;}
+.matchup-strip strong span {color:#8b9bb4; font-weight:400;}
+.matchup-strip>span {font-size:11px; color:#aebbd0;}
 @media (max-width:900px) {
     .block-container {padding:3.8rem 1.2rem 3rem;}
     [data-testid="stMetric"] {padding:13px; min-height:95px;}
@@ -141,6 +171,14 @@ a:focus-visible,button:focus-visible,input:focus-visible {outline:2px solid #38b
     .st-key-daily_date_controls > [data-testid="stLayoutWrapper"] >
         [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
         flex-basis:100%!important;
+    }
+    .st-key-daily_date_controls > [data-testid="stLayoutWrapper"] >
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) {
+        flex-basis:60%!important;
+    }
+    .st-key-daily_date_controls > [data-testid="stLayoutWrapper"] >
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) {
+        flex-basis:25%!important; min-width:80px!important;
     }
     .st-key-daily_date_controls [data-testid="stColumn"] [data-testid="stHorizontalBlock"] >
         [data-testid="stColumn"] {min-width:0!important; flex:1 1 0!important;}
@@ -161,6 +199,11 @@ a:focus-visible,button:focus-visible,input:focus-visible {outline:2px solid #38b
     [data-testid="stHorizontalBlock"]:has(.team-intel) > [data-testid="stColumn"],
     [data-testid="stHorizontalBlock"]:has(.player-spotlight) > [data-testid="stColumn"],
     [data-testid="stHorizontalBlock"]:has(.ranking-row) > [data-testid="stColumn"],
+    [data-testid="stHorizontalBlock"]:has(.round-player) > [data-testid="stColumn"],
+    .st-key-today_team_picks > [data-testid="stLayoutWrapper"] >
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+    .st-key-today_player_picks > [data-testid="stLayoutWrapper"] >
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
     .st-key-shot_court_layout > [data-testid="stLayoutWrapper"] >
         [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {flex-basis:100%!important;}
     button[data-baseweb="tab"], [role="tab"] {padding:8px 10px; font-size:13px;}

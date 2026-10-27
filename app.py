@@ -102,13 +102,13 @@ if real_data_available:
         page_link("season", "Explorar a temporada")
 
 components.section_header("Central de análises", "Da rodada de hoje ao detalhe de cada jogador.")
-for page_ids in (("games", "teams", "players"), ("shots", "season", "performance")):
+for page_ids in (("games", "picks", "players"), ("teams", "shots", "season")):
     for column, page_id in zip(st.columns(3), page_ids, strict=True):
         with column:
             components.tool_card(page_id)
 
 components.section_header("Conheça a base por trás das projeções")
-for column, page_id in zip(st.columns(2), ("quality", "data"), strict=True):
+for column, page_id in zip(st.columns(3), ("performance", "quality", "data"), strict=True):
     with column:
         components.tool_card(page_id)
 

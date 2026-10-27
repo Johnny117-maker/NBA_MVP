@@ -57,6 +57,19 @@ def test_build_form_table_has_recent_and_season_averages():
     assert table.loc[1, "team"] == "BOS"
 
 
+def test_recent_form_does_not_mix_seasons_and_reports_effective_sample():
+    history = _league()
+    next_season = history[history["player_id"].eq(1)].tail(1).copy()
+    next_season["game_date"] = pd.Timestamp("2024-10-23")
+    next_season["season"] = "2024-25"
+    next_season["pts"] = 5
+    form = build_form_table(pd.concat([history, next_season])).set_index("player_id")
+    assert form.loc[1, "pts_recent"] == 5
+    assert form.loc[1, "recent_games"] == 1
+    assert form.loc[1, "recent_points"] == [5]
+    assert "Em alta" not in form.loc[1, "tag"]
+
+
 def test_team_highlights_ranks_by_impact_and_filters_ineligible_players():
     table = build_form_table(_league())
     highlights = team_highlights(table, "BOS", top_n=5)

@@ -32,19 +32,23 @@ MVP educacional para análise de jogos e comparação de times da NBA. O projeto
   temporadas/times/adversário com explicação automática em linguagem
   natural, e modelo de previsão de distribuição/eficiência por zona com
   validação walk-forward;
-- Jogos do Dia: calendário NBA com alternativas SportsDataverse/GitHub e ESPN, destaques por equipe e
+- Jogos do Dia: calendário NBA com alternativas SportsDataverse/GitHub e ESPN, cartões de jogadores
+  em destaque como primeira aba, filtros por produção/perfil e acesso ao histórico individual;
   probabilidades pelo mesmo modelo da página Times; calendário salvo e cadastro
   manual de confrontos para continuar a análise durante falhas de conexão;
-- Interface organizada em 9 telas (Visão Geral, Times, Jogadores, Mapa
+- Palpites de Hoje: jogos ainda não iniciados, preferência do modelo de Times, placar e fatores;
+  projeções de pontos/rebotes/assistências dos destaques sob demanda e exportação dos confrontos em CSV.
+  Consulte [critérios e limites](docs/PALPITES_E_DESTAQUES.md).
+- Interface organizada em 10 telas (Visão Geral, Times, Jogadores, Mapa
   de Arremessos, Temporada, Desempenho, Qualidade do Modelo e Dados e
-  Atualizações e Jogos do Dia), com sistema de design compartilhado (`src/ui/`): selos de
+  Atualizações, Jogos do Dia e Palpites de Hoje), com sistema de design compartilhado (`src/ui/`): selos de
   fonte/atualização, estados padronizados de vazio/erro/amostra pequena,
   seletores com preferência salva na URL e coleta incremental de dados
   reais direto pela interface, sem precisar do terminal.
 
 ## Tecnologias
 
-A revisão de interface das nove telas, com navegação agrupada, controles para
+A revisão de interface, com navegação agrupada, controles para
 celular e análises sob demanda, está descrita em
 [UI e UX — 27/10/2026](docs/UI_UX_2026-10-27.md).
 
@@ -69,7 +73,8 @@ nba-analytics/
 │   ├── 4_Mapa_Arremessos.py
 │   ├── 5_Dados_Atualizacoes.py
 │   ├── 6_Qualidade_Modelo.py
-│   └── 7_Jogos.py
+│   ├── 7_Jogos.py
+│   └── 8_Palpites.py
 ├── scripts/
 │   ├── retrain_models.py
 │   ├── update_advanced_stats.py

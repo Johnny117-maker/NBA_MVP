@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import logging
 from datetime import UTC, date, datetime, time, timedelta
 
 import pandas as pd
 import streamlit as st
 
-from src.current_roster import fetch_current_roster
 from src.daily_games import (
     EASTERN,
-    build_form_table,
     format_tipoff,
     game_headliner,
     games_for_date,
@@ -18,19 +15,25 @@ from src.daily_games import (
     team_rest_days,
     today_et,
 )
-from src.data import load_real_games, team_snapshot
-from src.model import predict_game, train_models
-from src.nba_schedule import SCHEDULE_COLUMNS, fetch_nba_schedule
+from src.data import team_snapshot
+from src.model import predict_game
+from src.nba_schedule import SCHEDULE_COLUMNS
 from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
-from src.player_data import load_player_games
-from src.player_features import add_opponent_context, add_rolling_features
-from src.player_metrics import player_snapshot
-from src.player_model import predict_player_game, train_player_models
-from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH, read_schedule_cache, save_schedule_cache
+from src.round_context import (
+    _form_table,
+    _load_current_roster,
+    _load_schedule,
+    _project_player,
+    _team_model_context,
+)
+from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH
 from src.store import DEFAULT_DB_PATH, count_player_games
-from src.ui import components, states, theme
+from src.today_picks import round_highlights
+from src.ui import components, theme
 from src.ui.formatters import format_date_br
 from src.ui.insights import matchup_intel
+from src.ui.navigation import page_link
+from src.ui.round_cards import highlights_grid, history_notice
 
 st.set_page_config(
     page_title="Jogos do Dia — NBA Analytics Lab",
@@ -42,45 +45,9 @@ theme.inject_base_style("games")
 
 components.page_header(
     "Sua visão da rodada.",
-    "Explore os confrontos do dia, veja os destaques de cada equipe e aprofunde a análise da partida.",
+    "Os protagonistas primeiro. Descubra quem acompanhar e explore cada confronto da rodada.",
     category="JOGOS DO DIA",
 )
-
-with st.expander("Opções da rodada", expanded=False):
-    st.subheader("Preferências da rodada")
-    top_n = st.slider("Destaques por time", 1, 6, 3)
-    show_projection = st.checkbox(
-        "Incluir projeção do modelo",
-        value=False,
-        help="Treina o modelo de jogadores na primeira vez (pode demorar) e projeta "
-        "minutos, pontos, rebotes e assistências de cada destaque.",
-    )
-    if st.button("Atualizar calendário"):
-        st.session_state["daily_schedule_retry"] = int(st.session_state.get("daily_schedule_retry", 0)) + 1
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def _fetch_schedule(retry_token: int, selected_day: date) -> pd.DataFrame:
-    _ = retry_token  # entra na chave do cache para o botão "Atualizar" forçar nova consulta
-    schedule = fetch_nba_schedule(lookahead_days=1, start_date=selected_day)
-    try:
-        save_schedule_cache(schedule, DEFAULT_SCHEDULE_CACHE_PATH)
-    except OSError:
-        logging.getLogger(__name__).warning("Não foi possível salvar uma cópia local do calendário.")
-    return schedule
-
-
-def _load_schedule(retry_token: int, selected_day: date) -> tuple[pd.DataFrame, str | None]:
-    try:
-        return _fetch_schedule(retry_token, selected_day), None
-    except RuntimeError as error:
-        # Falhas não ficam no cache de uma hora; a próxima tentativa consulta a rede novamente.
-        schedule = read_schedule_cache(DEFAULT_SCHEDULE_CACHE_PATH)
-        if not schedule.empty:
-            schedule["schedule_source"] = (
-                schedule["schedule_source"].fillna("NBA/ESPN") + " (salvo localmente)"
-            )
-        return schedule, str(error)
 
 
 def _manual_schedule(selected_day: date) -> pd.DataFrame:
@@ -126,106 +93,6 @@ def _manual_schedule(selected_day: date) -> pd.DataFrame:
     return pd.DataFrame(records, columns=SCHEDULE_COLUMNS)
 
 
-@st.cache_resource(show_spinner=False)
-def _load_player_games(db_path: str, updated_at: float, selected_day: date) -> pd.DataFrame:
-    _ = updated_at  # invalida o cache quando o banco é atualizado
-    games = load_player_games(source="real", db_path=db_path)
-    return games.loc[pd.to_datetime(games["game_date"]).dt.date < selected_day].copy()
-
-
-@st.cache_data(show_spinner=False)
-def _load_team_games(db_path: str, updated_at: float, selected_day: date) -> pd.DataFrame:
-    _ = updated_at
-    games = load_real_games(db_path)
-    return games.loc[pd.to_datetime(games["game_date"]).dt.date < selected_day].copy()
-
-
-@st.cache_resource(show_spinner="Treinando o modelo de times...")
-def _team_model_context(db_path: str, updated_at: float, selected_day: date):
-    games = _load_team_games(db_path, updated_at, selected_day)
-    return train_models(games), games
-
-
-@st.cache_data(ttl=21600, show_spinner=False)
-def _load_current_roster() -> pd.DataFrame:
-    return fetch_current_roster()
-
-
-@st.cache_data(show_spinner=False)
-def _form_table(
-    db_path: str,
-    updated_at: float,
-    roster_version: str,
-    roster_records: tuple[tuple[int, str], ...],
-    selected_day: date,
-) -> pd.DataFrame:
-    # A versão do elenco participa da chave do cache.
-    _ = roster_version
-
-    player_games = _load_player_games(db_path, updated_at, selected_day)
-    current_roster = pd.DataFrame(
-        roster_records,
-        columns=["player_id", "team"],
-    )
-
-    return build_form_table(
-        player_games,
-        current_roster=current_roster,
-    )
-
-
-@st.cache_resource(show_spinner="Treinando o modelo de jogadores...")
-def _model_context(db_path: str, updated_at: float, selected_day: date):
-    player_games = _load_player_games(db_path, updated_at, selected_day)
-    try:
-        team_games = _load_team_games(db_path, updated_at, selected_day)
-    except (ValueError, FileNotFoundError):
-        team_games = None
-    features = add_rolling_features(player_games)
-    if team_games is not None:
-        features = add_opponent_context(features, team_games)
-    else:
-        features["opponent_def_rating"] = 113.0
-    return train_player_models(features), player_games, team_games
-
-
-@st.cache_data(show_spinner=False)
-def _project_player(
-    db_path: str,
-    updated_at: float,
-    player_id: int,
-    opponent_name: str,
-    is_home: bool,
-    rest_days: int,
-    selected_day: date,
-) -> dict | None:
-    bundle, player_games, team_games = _model_context(db_path, updated_at, selected_day)
-    opponent_def_rating = None
-    if team_games is not None:
-        try:
-            opponent_def_rating = team_snapshot(team_games, opponent_name)["def_rating"]
-        except (ValueError, KeyError):
-            opponent_def_rating = None
-    try:
-        snapshot = player_snapshot(player_games, player_id)
-        prediction = predict_player_game(
-            bundle,
-            snapshot,
-            is_home=is_home,
-            rest_days=rest_days,
-            opponent_def_rating=opponent_def_rating,
-        )
-    except (ValueError, KeyError):
-        return None
-    return {
-        "minutes": prediction.minutes,
-        "pts": prediction.stats["pts"],
-        "reb": prediction.stats["reb"],
-        "ast": prediction.stats["ast"],
-        "confidence": prediction.confidence,
-    }
-
-
 db_path = str(DEFAULT_DB_PATH)
 player_data_available = DEFAULT_DB_PATH.exists() and count_player_games(DEFAULT_DB_PATH) > 0
 updated_at = DEFAULT_DB_PATH.stat().st_mtime if DEFAULT_DB_PATH.exists() else 0.0
@@ -237,16 +104,24 @@ def _choose_day(day: date) -> None:
     st.session_state["daily_selected_day"] = day
 
 
+def _refresh_schedule() -> None:
+    st.session_state["daily_schedule_retry"] = int(st.session_state.get("daily_schedule_retry", 0)) + 1
+
+
 with st.container(key="daily_date_controls"):
-    date_column, shortcuts = st.columns([2, 1])
+    date_column, team_search_column, shortcuts, settings_column = st.columns([1.5, 1.7, 1.5, 0.8])
     with date_column:
         selected_day = st.date_input(
-            "Data dos jogos · calendário da costa leste (ET)",
+            "Data da rodada (ET)",
             value=today,
             min_value=today - timedelta(days=7),
             max_value=today + timedelta(days=30),
             key="daily_selected_day",
             format="DD/MM/YYYY",
+        )
+    with team_search_column:
+        search = st.text_input(
+            "Buscar time na rodada", placeholder="Ex.: Celtics, Lakers ou Knicks", key="daily_team_search"
         )
     with shortcuts:
         st.caption("Navegação rápida")
@@ -254,6 +129,20 @@ with st.container(key="daily_date_controls"):
             column.button(
                 label, key=f"day_{offset}", on_click=_choose_day, args=(today + timedelta(days=offset),)
             )
+
+    with settings_column:
+        st.caption("Preferências")
+        settings_popup = st.popover("Ajustes")
+        with settings_popup:
+            st.subheader("Preferências da rodada")
+            top_n = st.slider("Destaques por time", 1, 6, 3)
+            show_projection = st.checkbox(
+                "Incluir projeção do modelo",
+                value=False,
+                help="Treina o modelo de jogadores na primeira vez (pode demorar) e projeta "
+                "minutos, pontos, rebotes e assistências de cada destaque.",
+            )
+            st.button("Atualizar calendário", on_click=_refresh_schedule)
 
 schedule, schedule_error = _load_schedule(int(st.session_state.get("daily_schedule_retry", 0)), selected_day)
 games = games_for_date(schedule, selected_day)
@@ -284,14 +173,13 @@ if schedule_error or games.empty:
 if games.empty:
     st.stop()
 
-search = st.text_input(
-    "Buscar time na rodada", placeholder="Ex.: Celtics, Lakers ou Knicks", key="daily_team_search"
-)
 if search.strip():
     query = search.strip()
     games = games[
         games["home_team_name"].str.contains(query, case=False, regex=False)
         | games["away_team_name"].str.contains(query, case=False, regex=False)
+        | games["home_team_tricode"].str.contains(query, case=False, regex=False)
+        | games["away_team_tricode"].str.contains(query, case=False, regex=False)
     ]
     if games.empty:
         st.info("Nenhum confronto corresponde à busca. Tente outro nome de time ou limpe o campo.")
@@ -299,17 +187,18 @@ if search.strip():
 
 source_name = ", ".join(games["schedule_source"].dropna().astype(str).unique())
 public_snapshot = games["schedule_source"].fillna("").str.startswith("SportsDataverse").any()
-components.source_badge(
-    f"Calendário — {source_name}",
-    components.db_last_updated(DEFAULT_SCHEDULE_CACHE_PATH),
-)
-components.section_header(
-    f"{len(games)} jogo(s) em {format_date_br(selected_day)}",
-    "Horários em Brasília e ET. Abra os destaques de cada confronto para consultar os jogadores.",
-)
+summary_column, picks_link = st.columns([3, 1])
+with summary_column:
+    components.section_header(f"{len(games)} jogo(s) em {format_date_br(selected_day)}")
+with picks_link:
+    page_link("picks", "Ver palpites de hoje")
 
-if public_snapshot:
-    with st.expander("Fonte e atualização do calendário", expanded=False):
+with settings_popup, st.expander("Fonte e atualização do calendário", expanded=False):
+    components.source_badge(
+        f"Calendário — {source_name}",
+        components.db_last_updated(DEFAULT_SCHEDULE_CACHE_PATH),
+    )
+    if public_snapshot:
         st.caption(
             "Calendário gratuito com atualização periódica; status e horários podem ter atraso. "
             "Elenco atual não confirmado: os destaques usam as equipes do histórico local."
@@ -351,10 +240,7 @@ if player_data_available:
         roster_records,
         selected_day,
     )
-    states.stale_data_notice(
-        components.db_last_updated(DEFAULT_DB_PATH),
-        days_threshold=3,
-    )
+    history_notice(form_table, selected_day)
 else:
     form_table = pd.DataFrame()
     components.note(
@@ -382,11 +268,24 @@ def _highlight_table(team_players: pd.DataFrame, opponent_name: str, is_home: bo
         for row in team_players.itertuples():
             # O treinamento usa a diferença entre datas: back-to-back = 1.
             rest_days = min(7, max(1, (selected_day - row.last_game_date.date()).days))
-            projections.append(
-                _project_player(
-                    db_path, updated_at, int(row.player_id), opponent_name, is_home, rest_days, selected_day
+            try:
+                projections.append(
+                    _project_player(
+                        db_path,
+                        updated_at,
+                        int(row.player_id),
+                        opponent_name,
+                        is_home,
+                        rest_days,
+                        selected_day,
+                    )
                 )
-            )
+            except MemoryError:
+                st.error(
+                    "Memória insuficiente para projetar jogadores nesta sessão. "
+                    "Desmarque a projeção em Ajustes para continuar consultando os destaques."
+                )
+                st.stop()
         for key, label in (("pts", "Proj. PTS"), ("reb", "Proj. REB"), ("ast", "Proj. AST")):
             table[label] = [p[key] if p else float("nan") for p in projections]
         table["Confiança"] = [p["confidence"] if p else "—" for p in projections]
@@ -399,14 +298,60 @@ except (ValueError, FileNotFoundError, KeyError):
     team_bundle, team_games = None, pd.DataFrame()
     st.info("Probabilidades indisponíveis: colete histórico suficiente de jogos dos times.")
 
-if team_bundle is not None:
-    st.caption(
-        "Probabilidades experimentais pelo modelo de Times, considerando histórico e descanso das equipes."
-    )
+tab_stars, tab_round, tab_matchup = st.tabs(["Jogadores de destaque", "Confrontos", "Central da partida"])
 
-tab_round, tab_matchup = st.tabs(["Rodada", "Central da partida"])
+with tab_stars:
+    candidates = round_highlights(form_table, games, top_n=top_n)
+    if candidates.empty:
+        st.info("Nenhum jogador elegível nestes confrontos. Colete estatísticas em Dados e atualizações.")
+    else:
+        search_column, order_column, role_column, limit_column = st.columns([2, 1, 1, 0.6])
+        with search_column:
+            athlete_search = st.text_input("Buscar jogador de destaque", placeholder="Nome do atleta…")
+        with order_column:
+            order_options = {
+                "Impacto recente": "impact_recent",
+                "Pontos": "pts_recent",
+                "Rebotes": "reb_recent",
+                "Assistências": "ast_recent",
+            }
+            order = st.selectbox("Ordenar destaques", list(order_options))
+        with role_column:
+            role = st.selectbox(
+                "Perfil em destaque", ["Todos", "Em alta", "Cestinha", "Reboteiro", "Criador"]
+            )
+        if athlete_search.strip():
+            candidates = candidates[
+                candidates["player_name"].str.contains(
+                    athlete_search.strip(),
+                    case=False,
+                    regex=False,
+                )
+            ]
+        if role != "Todos":
+            candidates = candidates[candidates["tag"].str.contains(role, regex=False)]
+        candidates = candidates.sort_values(order_options[order], ascending=False)
+        with limit_column:
+            visible = st.selectbox("Exibir", ["6", "12", "Todos"])
+        shown = candidates if visible == "Todos" else candidates.head(int(visible))
+        st.caption(
+            f"Exibindo {len(shown)} de {len(candidates)} atletas · histórico anterior à data da rodada."
+        )
+        if shown.empty:
+            st.info("Nenhum destaque corresponde aos filtros. Tente outro nome ou perfil.")
+        else:
+            highlights_grid(shown)
+        with st.expander("Como escolhemos os destaques"):
+            st.caption(
+                "Impacto = pontos + 0,7 × rebotes + assistências, nas últimas até cinco partidas da "
+                "temporada mais recente de cada atleta. São elegíveis jogadores com média de pelo menos "
+                "10 minutos e última atuação a até 45 dias da partida mais recente da base. "
+                "Em alta: pelo menos três pontos acima da média da temporada."
+            )
 
 with tab_round:
+    if team_bundle is not None:
+        st.caption("Probabilidades experimentais pelo modelo de Times, considerando histórico e descanso.")
     for _, game in games.iterrows():
         away_name, home_name = str(game["away_team_name"]), str(game["home_team_name"])
         with st.container(border=True):
@@ -501,7 +446,8 @@ with tab_matchup:
         )
         matchups = games.reset_index(drop=True)
         selected_matchup = st.selectbox(
-            "Detalhar confronto", list(range(len(matchups))),
+            "Detalhar confronto",
+            list(range(len(matchups))),
             format_func=lambda idx: (
                 f"{matchups.iloc[idx]['away_team_name']} @ {matchups.iloc[idx]['home_team_name']}"
             ),

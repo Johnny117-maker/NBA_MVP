@@ -91,6 +91,14 @@ player_index = build_player_index(player_games)
 player_options = (players["player_name"] + " (" + players["team"] + ")").tolist()
 player_id_by_label = dict(zip(player_options, players["player_id"], strict=True))
 
+requested_id = st.query_params.get("player_id")
+if requested_id:
+    requested = players[players["player_id"].astype(str).eq(requested_id)]
+    if not requested.empty:
+        athlete = requested.iloc[0]
+        st.query_params["player"] = f"{athlete['player_name']} ({athlete['team']})"
+    del st.query_params["player_id"]
+
 
 @st.cache_data(show_spinner=False)
 def _load_team_games(source: str, db_version: int) -> pd.DataFrame:
@@ -125,8 +133,12 @@ def _train_projection_bundle(player_games: pd.DataFrame, team_games: pd.DataFram
     return train_player_models(features)
 
 
-tab_overview, tab_profile, tab_compare, tab_projection = st.tabs(
-    ["Visão geral", "Perfil individual", "Comparação", "Projeções"]
+tab_labels = ["Visão geral", "Perfil individual", "Comparação", "Projeções"]
+if st.query_params.get("view") == "profile":
+    tab_labels[:2] = ["Perfil individual", "Visão geral"]
+tab_by_label = dict(zip(tab_labels, st.tabs(tab_labels), strict=True))
+tab_overview, tab_profile, tab_compare, tab_projection = (
+    tab_by_label[label] for label in ("Visão geral", "Perfil individual", "Comparação", "Projeções")
 )
 
 with tab_overview:

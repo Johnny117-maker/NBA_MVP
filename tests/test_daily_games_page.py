@@ -58,6 +58,25 @@ def test_daily_games_page_lists_the_days_games(app_db, monkeypatch):
     assert "Boston Celtics @ New York Knicks" in text
 
 
+def test_players_are_the_initial_tab_and_have_profile_links(app_db, monkeypatch):
+    monkeypatch.setattr("src.nba_schedule.fetch_nba_schedule", lambda **kwargs: _schedule_for_today())
+    app = AppTest.from_file("../pages/7_Jogos.py").run(timeout=30)
+    assert not app.exception
+    assert app.tabs[0].label == "Jogadores de destaque"
+    cards = [block.value for block in app.markdown if 'class="round-player"' in block.value]
+    assert cards
+    assert all("Último jogo:" in card and "player_id=" in card for card in cards)
+
+
+def test_highlight_search_treats_regex_characters_as_literal(app_db, monkeypatch):
+    monkeypatch.setattr("src.nba_schedule.fetch_nba_schedule", lambda **kwargs: _schedule_for_today())
+    app = AppTest.from_file("../pages/7_Jogos.py").run(timeout=30)
+    next(widget for widget in app.text_input if widget.label == "Buscar jogador de destaque").set_value("[")
+    app.run(timeout=30)
+    assert not app.exception
+    assert any("Nenhum destaque corresponde" in info.value for info in app.info)
+
+
 def test_daily_games_page_calls_the_production_schedule_client(app_db, monkeypatch):
     # Substitui apenas o HTTP: preserva a assinatura e a chamada reais do cliente.
     # Um mock permissivo de fetch_nba_schedule(**kwargs) esconderia incompatibilidades.

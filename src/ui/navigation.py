@@ -33,6 +33,15 @@ PAGES = (
         "/Jogos",
     ),
     Page(
+        "picks",
+        "pages/8_Palpites.py",
+        "Palpites de hoje",
+        "✨",
+        "EXPLORAR",
+        "Tendências dos confrontos e projeções dos destaques de hoje.",
+        "/Palpites",
+    ),
+    Page(
         "teams",
         "pages/0_Times.py",
         "Times",
