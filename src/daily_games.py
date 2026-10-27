@@ -31,6 +31,20 @@ def team_aliases(team: str) -> set[str]:
     return {raw}
 
 
+def team_rest_days(games: pd.DataFrame, team: str, selected_day: date) -> int:
+    """Diferença de datas usada no treino (back-to-back = 1), limitada a 7."""
+    aliases = {alias.casefold() for alias in team_aliases(team)}
+    played = (
+        games["home_team"].astype(str).str.casefold().isin(aliases)
+        | games["away_team"].astype(str).str.casefold().isin(aliases)
+    )
+    dates = pd.to_datetime(games.loc[played, "game_date"], errors="coerce").dt.date
+    dates = dates[dates < selected_day]
+    if dates.empty:
+        raise ValueError(f"Não há partidas anteriores para o time {team}.")
+    return min(7, max(1, (selected_day - dates.max()).days))
+
+
 def build_form_table(
     player_games: pd.DataFrame,
     current_roster: pd.DataFrame | None = None,
@@ -64,7 +78,6 @@ def build_form_table(
                     current_team_by_player[roster_player_id] = roster_team
 
     result = []
-    league_latest_date = data["game_date"].max().normalize()
     for player_id, group in data.groupby("player_id", sort=False):
         group = group.sort_values("game_date")
         season_group = group
@@ -121,10 +134,14 @@ def team_highlights(form_table: pd.DataFrame, team: str, top_n: int = 3) -> pd.D
     if selected.empty:
         return selected
     if "impact_recent" not in selected:
-        selected["impact_recent"] = selected["pts_recent"] + 0.7 * selected["reb_recent"] + selected["ast_recent"]
+        selected["impact_recent"] = (
+            selected["pts_recent"] + 0.7 * selected["reb_recent"] + selected["ast_recent"]
+        )
     if "tag" not in selected:
         selected["tag"] = "Consistente"
-    return selected.sort_values("impact_recent", ascending=False).head(max(1, int(top_n))).reset_index(drop=True)
+    return (
+        selected.sort_values("impact_recent", ascending=False).head(max(1, int(top_n))).reset_index(drop=True)
+    )
 
 
 def game_headliner(home_players: pd.DataFrame, away_players: pd.DataFrame) -> dict | None:
@@ -133,7 +150,9 @@ def game_headliner(home_players: pd.DataFrame, away_players: pd.DataFrame) -> di
         return None
     combined = pd.concat(frames, ignore_index=True)
     if "impact_recent" not in combined:
-        combined["impact_recent"] = combined["pts_recent"] + 0.7 * combined["reb_recent"] + combined["ast_recent"]
+        combined["impact_recent"] = (
+            combined["pts_recent"] + 0.7 * combined["reb_recent"] + combined["ast_recent"]
+        )
     return combined.sort_values("impact_recent", ascending=False).iloc[0].to_dict()
 
 
@@ -169,4 +188,4 @@ def status_label(value) -> str:
         status = int(value)
     except (TypeError, ValueError):
         return "—"
-    return {1: "Agendado", 2: "Em andamento", 3: "Encerrado"}.get(status, "—")
+    return {1: "Agendado", 2: "Em andamento", 3: "Encerrado", 4: "Adiado/cancelado"}.get(status, "—")

@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 import pandas as pd
+import pytest
 
 from src.daily_games import (
     build_form_table,
@@ -10,6 +11,7 @@ from src.daily_games import (
     status_label,
     team_aliases,
     team_highlights,
+    team_rest_days,
 )
 
 
@@ -126,3 +128,15 @@ def test_status_label_handles_unknown_values():
     assert status_label(1) == "Agendado"
     assert status_label(3) == "Encerrado"
     assert status_label(None) == "—"
+
+
+def test_team_rest_days_uses_training_convention_and_only_past_games():
+    games = pd.DataFrame([
+        {"home_team": "Boston Celtics", "away_team": "NYK", "game_date": "2026-10-23"},
+        {"home_team": "NYK", "away_team": "Boston Celtics", "game_date": "2026-10-24"},
+        {"home_team": "NYK", "away_team": "Boston Celtics", "game_date": "2026-10-25"},
+    ])
+    assert team_rest_days(games, "BOS", date(2026, 10, 24)) == 1
+    assert team_rest_days(games, "NYK", date(2026, 11, 15)) == 7
+    with pytest.raises(ValueError, match="partidas anteriores"):
+        team_rest_days(games, "LAL", date(2026, 10, 24))

@@ -16,30 +16,27 @@ st.set_page_config(
     layout="wide",
 )
 
-theme.inject_base_style()
+theme.inject_base_style("season")
 
-st.markdown("## 🏆 Simulação de temporada")
-st.caption(
-    "Simulação de Monte Carlo do restante de uma temporada já coletada: "
-    "probabilidade de classificação direta, Play-In e playoffs por time. "
-    "Estimativas educacionais, não orientação de apostas."
+components.page_header(
+    "Milhares de caminhos até os playoffs.",
+    "Escolha um ponto da temporada, simule os jogos restantes e compare com o que aconteceu.",
+    category="TEMPORADA",
 )
 
 if not DEFAULT_DB_PATH.exists() or not list_seasons(DEFAULT_DB_PATH):
     states.empty_state(
         "Nenhuma temporada coletada ainda",
         "Colete jogos reais antes de simular uma temporada.",
-        actions=[
-            ("Coletar dados", "rode 'python scripts/update_data.py' no terminal do projeto")
-        ],
+        actions=[("Coletar dados", "rode 'python scripts/update_data.py' no terminal do projeto")],
     )
 
 components.source_badge("NBA API — dados reais", components.db_last_updated(DEFAULT_DB_PATH))
 
 
 @st.cache_data(show_spinner=False)
-def _load_games() -> pd.DataFrame:
-    return load_real_games()
+def _load_games(db_version: int) -> pd.DataFrame:
+    return load_real_games(DEFAULT_DB_PATH)
 
 
 @st.cache_resource(show_spinner=False)
@@ -47,22 +44,18 @@ def _train(games: pd.DataFrame):
     return train_models(games)
 
 
-games = _load_games()
+games = _load_games(DEFAULT_DB_PATH.stat().st_mtime_ns)
 bundle = _train(games)
 
-st.markdown(
-    '<div style="padding:12px 15px;border-left:4px solid #f97316;'
-    'background:#151f32;border-radius:8px;color:#dbe4f3;">'
-    "\"Restante da temporada\" aqui é um recorte de uma temporada já encerrada: "
-    "os jogos depois da data de corte são reais, mas o placar deles é ignorado "
-    "de propósito para simular o que aconteceria a partir daquele ponto. Isso "
-    "permite comparar a previsão com o que realmente aconteceu.</div>",
-    unsafe_allow_html=True,
+components.note(
+    "Simulação histórica: as partidas após a data de corte são conhecidas, mas seus placares "
+    "são ignorados na simulação. Use os resultados para explorar cenários, "
+    "sem tratar estimativas como certezas."
 )
 
-with st.sidebar:
-    st.header("Configuração")
-    season = st.selectbox("Temporada", list_seasons(DEFAULT_DB_PATH))
+with st.container(border=True):
+    st.subheader("Seu cenário")
+    season = st.selectbox("Temporada", sorted(list_seasons(DEFAULT_DB_PATH), reverse=True))
 
     season_dates = games.loc[games["season"] == season, "game_date"]
     min_date, max_date = season_dates.min().date(), season_dates.max().date()
@@ -71,35 +64,44 @@ with st.sidebar:
     cutoff_date = st.date_input(
         "Simular a partir de",
         value=default_cutoff,
+        format="DD/MM/YYYY",
         min_value=min_date,
         max_value=max_date,
     )
     n_simulations = st.slider("Número de cenários simulados", 1_000, 20_000, 5_000, step=1_000)
     run_simulation = st.button("Rodar simulação", type="primary")
 
-    st.divider()
-    st.caption(
-        "Este projeto produz estimativas esportivas educacionais. "
-        "Não utiliza odds e não fornece orientação de apostas."
-    )
 
 if not run_simulation:
-    st.info("Escolha a temporada e a data de corte na barra lateral e clique em 'Rodar simulação'.")
+    components.section_header("Configure seu cenário em três passos")
+    for column, title, detail in zip(
+        st.columns(3),
+        ("01 · Temporada", "02 · Data de corte", "03 · Cenários"),
+        (
+            "Escolha uma temporada coletada.",
+            "Defina de onde a simulação começa.",
+            "Ajuste o volume e rode a simulação.",
+        ),
+        strict=True,
+    ):
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                st.caption(detail)
+    st.info("Escolha a temporada e a data de corte acima e clique em 'Rodar simulação'.")
     st.stop()
 
 with st.spinner(f"Simulando {n_simulations:,} cenários...".replace(",", ".")):
     try:
-        summary = simulate_season(
-            games, bundle, season, cutoff_date, n_simulations=n_simulations, seed=42
-        )
+        summary = simulate_season(games, bundle, season, cutoff_date, n_simulations=n_simulations, seed=42)
     except ValueError as error:
         st.error(str(error))
         st.stop()
 
 season_games = games["season"] == season
-known_games_count = season_games.sum() - (
-    games.loc[season_games, "game_date"] >= pd.Timestamp(cutoff_date)
-).sum()
+known_games_count = (
+    season_games.sum() - (games.loc[season_games, "game_date"] >= pd.Timestamp(cutoff_date)).sum()
+)
 st.caption(
     f"{known_games_count} jogos conhecidos antes do corte, "
     f"{len(games[(games['season'] == season) & (games['game_date'] >= pd.Timestamp(cutoff_date))])} "
@@ -181,9 +183,7 @@ with tab_reveal:
         "este projeto, então o resultado exato dessas partidas não está disponível."
     )
     actual = actual_final_standings(games, season).drop(columns=["games"])
-    comparison = actual.merge(
-        summary[["team", "prob_playoffs"]], on="team", how="left"
-    ).rename(
+    comparison = actual.merge(summary[["team", "prob_playoffs"]], on="team", how="left").rename(
         columns={
             "team": "Time",
             "conference": "Conferência",

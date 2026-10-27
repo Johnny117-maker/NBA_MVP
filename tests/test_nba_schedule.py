@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pandas as pd
 
@@ -74,7 +74,7 @@ def test_get_next_game_chooses_first_future_scheduled_game_for_team():
         ]
     )
     result = get_next_game_for_team(
-        schedule, "nyk", now=datetime(2026, 10, 21, 12, 0, tzinfo=timezone.utc)
+        schedule, "nyk", now=datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
     )
     assert result is not None
     assert result["game_id"] == "next"
@@ -109,7 +109,7 @@ def test_get_next_game_skips_same_day_games_that_already_started():
         ]
     )
     result = get_next_game_for_team(
-        schedule, "NYK", now=datetime(2026, 10, 21, 16, 0, tzinfo=timezone.utc)
+        schedule, "NYK", now=datetime(2026, 10, 21, 16, 0, tzinfo=UTC)
     )
     assert result is not None
     assert result["game_id"] == "tomorrow"
@@ -182,6 +182,7 @@ def test_parse_espn_scoreboard_payload_normalizes_names_dates_and_source():
 
 def test_fetch_nba_schedule_falls_back_to_espn_when_nba_cdn_fails(monkeypatch):
     import requests
+
     import src.nba_schedule as schedule_module
 
     payload = {
@@ -194,8 +195,14 @@ def test_fetch_nba_schedule_falls_back_to_espn_when_nba_cdn_fails(monkeypatch):
                     {
                         "date": "2026-10-22T23:30:00Z",
                         "competitors": [
-                            {"homeAway": "home", "team": {"abbreviation": "BOS", "displayName": "Boston Celtics"}},
-                            {"homeAway": "away", "team": {"abbreviation": "TOR", "displayName": "Toronto Raptors"}},
+                            {
+                                "homeAway": "home",
+                                "team": {"abbreviation": "BOS", "displayName": "Boston Celtics"},
+                            },
+                            {
+                                "homeAway": "away",
+                                "team": {"abbreviation": "TOR", "displayName": "Toronto Raptors"},
+                            },
                         ],
                         "status": {"type": {"state": "pre", "detail": "Scheduled"}},
                     }
@@ -218,7 +225,7 @@ def test_fetch_nba_schedule_falls_back_to_espn_when_nba_cdn_fails(monkeypatch):
 
     def fake_get(url, **kwargs):
         calls["n"] += 1
-        if "cdn.nba.com" in url:
+        if "cdn.nba.com" in url or "github.com" in url:
             raise requests.ConnectionError("connection reset")
         return Response(payload)
 
@@ -229,11 +236,12 @@ def test_fetch_nba_schedule_falls_back_to_espn_when_nba_cdn_fails(monkeypatch):
     assert not result.empty
     assert result.iloc[0]["schedule_source"] == "ESPN (alternativo)"
     assert result.iloc[0]["away_team_tricode"] == "TOR"
-    assert calls["n"] == 3
+    assert calls["n"] == 4
 
 
 def test_fetch_nba_schedule_error_is_readable_when_all_sources_fail(monkeypatch):
     import requests
+
     import src.nba_schedule as schedule_module
 
     def fake_get(url, **kwargs):
@@ -252,3 +260,25 @@ def test_fetch_nba_schedule_error_is_readable_when_all_sources_fail(monkeypatch)
     assert "NBA e ESPN" in message
     assert "preencha o adversário e a data manualmente" in message.casefold()
     assert "socket details" not in message
+
+
+def test_espn_fallback_uses_the_selected_calendar_date(monkeypatch):
+    import requests
+
+    import src.nba_schedule as schedule_module
+
+    calls = []
+
+    def unavailable(url, **kwargs):
+        raise requests.ConnectionError("connection reset")
+
+    def fallback(**kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame(columns=schedule_module.SCHEDULE_COLUMNS)
+
+    monkeypatch.setattr(schedule_module.requests, "get", unavailable)
+    monkeypatch.setattr(schedule_module, "_fetch_espn_schedule", fallback)
+    selected_day = date(2026, 10, 20)
+    schedule_module.fetch_nba_schedule(start_date=selected_day, lookahead_days=1)
+    assert calls[0]["start_date"] == selected_day
+    assert calls[0]["lookahead_days"] == 1

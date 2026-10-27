@@ -8,9 +8,9 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.data import available_teams, generate_demo_games, load_real_games, team_snapshot
-from src.player_data import load_player_games
 from src.nba_schedule import fetch_nba_schedule, get_next_game_for_team
 from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
+from src.player_data import load_player_games
 from src.player_features import (
     add_opponent_context,
     add_rolling_features,
@@ -34,18 +34,19 @@ st.set_page_config(
     layout="wide",
 )
 
-theme.inject_base_style()
+theme.inject_base_style("players")
 
-st.markdown("## 🧮 Jogadores")
-st.caption(
-    "Produção, eficiência (TS%, eFG%, USG%, AST/TO), estatísticas por 36 minutos "
-    "e consistência por jogador. Estimativas educacionais, não orientação de apostas."
+components.page_header(
+    "Cada jogador tem uma história.",
+    "Encontre atletas, acompanhe a evolução e compare produção, eficiência e projeções.",
+    category="JOGADORES",
 )
 
 real_data_available = DEFAULT_DB_PATH.exists() and count_player_games(DEFAULT_DB_PATH) > 0
+db_version = DEFAULT_DB_PATH.stat().st_mtime_ns if DEFAULT_DB_PATH.exists() else 0
 
-with st.sidebar:
-    st.header("Configuração")
+with st.expander("Fonte e opções da análise", expanded=False):
+    st.subheader("Fonte da análise")
     source_label = st.radio(
         "Fonte dos dados",
         ["Base demonstrativa", "Dados reais (coletados)"],
@@ -55,18 +56,13 @@ with st.sidebar:
             "'python scripts/update_data.py' antes."
         ),
     )
-    st.divider()
-    st.caption(
-        "Este projeto produz estimativas esportivas educacionais. "
-        "Não utiliza odds e não fornece orientação de apostas."
-    )
 
 source = "demo" if source_label == "Base demonstrativa" else "real"
 
 
 @st.cache_data(show_spinner=False)
-def _load(source: str) -> pd.DataFrame:
-    return load_player_games(source=source)
+def _load(source: str, db_version: int) -> pd.DataFrame:
+    return load_player_games(source=source, db_path=DEFAULT_DB_PATH)
 
 
 try:
@@ -74,11 +70,9 @@ try:
         states.empty_state(
             "Nenhum dado real encontrado ainda",
             "Colete jogos reais antes de usar esta fonte.",
-            actions=[
-                ("Coletar dados", "rode 'python scripts/update_data.py' no terminal do projeto")
-            ],
+            actions=[("Coletar dados", "rode 'python scripts/update_data.py' no terminal do projeto")],
         )
-    player_games = _load(source)
+    player_games = _load(source, db_version)
 except (ValueError, FileNotFoundError) as error:
     states.error_state("Não foi possível carregar os dados de jogadores.", detail=str(error))
     st.stop()
@@ -88,9 +82,7 @@ components.source_badge(
     None if source == "demo" else components.db_last_updated(DEFAULT_DB_PATH),
 )
 if source == "demo":
-    components.note(
-        "Os jogadores e estatísticas desta tela são sintéticos e não representam atletas reais."
-    )
+    components.note("Os jogadores e estatísticas desta tela são sintéticos e não representam atletas reais.")
 
 players = list_players(player_games)
 summary = player_season_summary(player_games)
@@ -100,8 +92,8 @@ player_id_by_label = dict(zip(player_options, players["player_id"], strict=True)
 
 
 @st.cache_data(show_spinner=False)
-def _load_team_games(source: str) -> pd.DataFrame:
-    return load_real_games() if source == "real" else generate_demo_games()
+def _load_team_games(source: str, db_version: int) -> pd.DataFrame:
+    return load_real_games(DEFAULT_DB_PATH) if source == "real" else generate_demo_games()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -117,7 +109,7 @@ def _load_nba_schedule(
 
 
 try:
-    team_games = _load_team_games(source)
+    team_games = _load_team_games(source, db_version)
 except (ValueError, FileNotFoundError):
     team_games = None
 
@@ -137,21 +129,24 @@ tab_overview, tab_profile, tab_compare, tab_projection = st.tabs(
 )
 
 with tab_overview:
+    components.section_header(
+        "Panorama de jogadores", "Busque um atleta ou filtre a equipe para explorar o ranking."
+    )
+    player_search = st.text_input(
+        "Buscar jogador", placeholder="Digite o nome do atleta…", key="ranking_search"
+    )
     st.caption(
-        "NAPS é um índice experimental do projeto (0-100, por percentil entre jogadores "
-        "qualificados) — não é uma medida oficial nem absoluta de qualidade. "
-        "Veja a seção 'Página de jogadores' do README para os pesos e limitações."
+        "NAPS (0–100) é um índice experimental relativo aos jogadores qualificados desta base."
     )
     teams = ["Todos"] + sorted(players["team"].unique())
-    team_filter = st.selectbox(
-        "Filtrar por time", teams, index=0, key=f"team_filter_{source}"
-    )
+    team_filter = st.selectbox("Filtrar por time", teams, index=0, key=f"team_filter_{source}")
 
-    ranking = summary.merge(
-        player_index[["player_id", "naps", "style"]], on="player_id", how="left"
-    )
+    ranking = summary.merge(player_index[["player_id", "naps", "style"]], on="player_id", how="left")
     ranking = ranking if team_filter == "Todos" else ranking[ranking["team"] == team_filter]
+    if player_search.strip():
+        ranking = ranking[ranking["player_name"].str.contains(player_search.strip(), case=False, regex=False)]
     ranking = ranking.sort_values("naps", ascending=False, na_position="last")
+    st.caption(f"{len(ranking)} jogadores encontrados.")
 
     display_columns = {
         "player_name": "Jogador",
@@ -195,18 +190,17 @@ with tab_profile:
     )
     selected_id = player_id_by_label[selection]
 
-    full_player_history = (
-        player_games[player_games["player_id"] == selected_id].sort_values("game_date")
-    )
+    full_player_history = player_games[player_games["player_id"] == selected_id].sort_values("game_date")
 
     st.markdown("#### Filtros do histórico")
     history_min_date = full_player_history["game_date"].min().date()
     history_max_date = full_player_history["game_date"].max().date()
-    filter_cols = st.columns(5)
+    filter_cols = [*st.columns(2), *st.columns(3)]
     with filter_cols[0]:
         start_date = st.date_input(
             "De",
             value=history_min_date,
+            format="DD/MM/YYYY",
             min_value=history_min_date,
             max_value=history_max_date,
             key=f"profile_start_date_{source}_{selected_id}",
@@ -215,6 +209,7 @@ with tab_profile:
         end_date = st.date_input(
             "Até",
             value=history_max_date,
+            format="DD/MM/YYYY",
             min_value=history_min_date,
             max_value=history_max_date,
             key=f"profile_end_date_{source}_{selected_id}",
@@ -331,9 +326,7 @@ with tab_profile:
             color_discrete_sequence=["#4c9be8"],
         )
         for trade_date in trade_dates:
-            minutes_figure.add_vline(
-                x=trade_date.timestamp() * 1000, line_dash="dash", line_color="#93a1ac"
-            )
+            minutes_figure.add_vline(x=trade_date.timestamp() * 1000, line_dash="dash", line_color="#93a1ac")
         minutes_figure.update_layout(
             height=320,
             xaxis_title=None,
@@ -348,8 +341,7 @@ with tab_profile:
     index_row = player_index[player_index["player_id"] == selected_id]
     if index_row.empty:
         st.info(
-            "Este jogador ainda não tem jogos/minutos suficientes para entrar no "
-            "grupo de comparação do NAPS."
+            "Este jogador ainda não tem jogos/minutos suficientes para entrar no grupo de comparação do NAPS."
         )
     else:
         index_row = index_row.iloc[0]
@@ -380,6 +372,9 @@ with tab_profile:
         )
 
 with tab_compare:
+    components.section_header(
+        "Lado a lado", "Selecione até quatro atletas para comparar os mesmos indicadores."
+    )
     selected_labels = st.multiselect(
         "Selecione de 2 a 4 jogadores",
         player_options,
@@ -395,6 +390,12 @@ with tab_compare:
         st.dataframe(comparison, use_container_width=True)
 
 with tab_projection:
+    if not components.load_on_demand(
+        "Carregar projeções",
+        key=f"player_projections_enabled_{source}",
+        description="As projeções são preparadas sob demanda. Carregue quando quiser estimar o próximo jogo.",
+    ):
+        st.stop()
     st.caption(
         "A média da temporada mais recente disponível é a referência inicial para "
         "pontos, rebotes e assistências. A projeção ajusta essa base conforme minutos, "
@@ -446,13 +447,9 @@ with tab_projection:
     # Identifica automaticamente o próximo jogo pelo calendário oficial da NBA.
     # A última equipe vista no histórico serve apenas como sugestão: após uma
     # troca na offseason, o usuário pode selecionar manualmente a equipe atual.
-    projection_history = player_games[
-        player_games["player_id"] == projection_id
-    ].sort_values("game_date")
+    projection_history = player_games[player_games["player_id"] == projection_id].sort_values("game_date")
     historical_team = (
-        str(projection_history.iloc[-1]["team"]).strip().upper()
-        if not projection_history.empty
-        else ""
+        str(projection_history.iloc[-1]["team"]).strip().upper() if not projection_history.empty else ""
     )
     schedule_team_code: str | None = None
     next_game: dict | None = None
@@ -461,9 +458,7 @@ with tab_projection:
 
     if source == "real":
         team_codes = sorted(TEAM_ABBREVIATION_TO_NAME)
-        team_default_index = (
-            team_codes.index(historical_team) if historical_team in team_codes else 0
-        )
+        team_default_index = team_codes.index(historical_team) if historical_team in team_codes else 0
         schedule_team_code = st.selectbox(
             "Equipe atual para localizar o próximo jogo",
             team_codes,
@@ -489,9 +484,7 @@ with tab_projection:
             scheduled_opponent_name = str(next_game["opponent_name"])
             schedule_day = next_game["game_date"]
             home_away_text = "em casa" if next_game["is_home_for_team"] else "fora de casa"
-            kickoff = pd.to_datetime(
-                next_game.get("game_datetime_utc"), errors="coerce", utc=True
-            )
+            kickoff = pd.to_datetime(next_game.get("game_datetime_utc"), errors="coerce", utc=True)
             kickoff_text = (
                 f" às {kickoff.tz_convert('America/New_York').strftime('%H:%M')} ET"
                 if pd.notna(kickoff)
@@ -499,13 +492,14 @@ with tab_projection:
             )
             source_label = str(next_game.get("schedule_source", "NBA oficial"))
             st.success(
-                f"Próximo confronto encontrado ({source_label}): **{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
+                f"Próximo confronto encontrado ({source_label}): "
+                f"**{TEAM_ABBREVIATION_TO_NAME[schedule_team_code]} "
                 f"x {scheduled_opponent_name}**, {schedule_day.strftime('%d/%m/%Y')} "
                 f"({home_away_text}){kickoff_text}. A previsão será calculada para esse jogo."
             )
         elif schedule_error:
             st.warning(
-                "Não foi possível consultar automaticamente o calendário da NBA nem a fonte alternativa ESPN. "
+                "Não foi possível consultar automaticamente o calendário nas fontes disponíveis. "
                 "Preencha o adversário e a data manualmente ou tente novamente em outra conexão."
             )
             st.caption(
@@ -544,19 +538,23 @@ with tab_projection:
     if calendar_gap > 14:
         st.warning(
             "A base não contém jogos recentes suficientes deste jogador para o confronto selecionado. "
-            "A projeção se apoia em histórico antigo e pode não refletir a rotação, os minutos ou a função atual. "
+            "A projeção se apoia em histórico antigo e pode não refletir a rotação, "
+            "os minutos ou a função atual. "
             "Execute a atualização dos dados antes de confiar nesta estimativa."
         )
 
     col_home, col_rest, col_opponent, col_target_date = st.columns(4)
     with col_home:
-        is_home = st.radio(
-            "Mando de quadra",
-            ["Casa", "Fora"],
-            index=0 if is_home_default else 1,
-            horizontal=True,
-            key=f"projection_home_{source}_{projection_id}_{schedule_team_code or 'manual'}",
-        ) == "Casa"
+        is_home = (
+            st.radio(
+                "Mando de quadra",
+                ["Casa", "Fora"],
+                index=0 if is_home_default else 1,
+                horizontal=True,
+                key=f"projection_home_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+            )
+            == "Casa"
+        )
     with col_rest:
         rest_days = st.number_input(
             "Dias de descanso",
@@ -568,7 +566,9 @@ with tab_projection:
         )
     with col_opponent:
         opponent_def_rating: float | None = None
-        available_opponent_names = available_teams(team_games) if team_games is not None and not team_games.empty else []
+        available_opponent_names = (
+            available_teams(team_games) if team_games is not None and not team_games.empty else []
+        )
         opponent_options = list(available_opponent_names)
         if scheduled_opponent_name and scheduled_opponent_name not in opponent_options:
             opponent_options.append(scheduled_opponent_name)
@@ -606,16 +606,20 @@ with tab_projection:
                     "a referência média da liga para este fator."
                 )
         else:
-            selected_opponent = st.text_input(
-                "Próximo adversário",
-                value=scheduled_opponent_name or "",
-                key=f"projection_opponent_text_{source}_{projection_id}_{schedule_team_code or 'manual'}",
-                placeholder="Ex.: Boston Celtics",
-            ).strip() or None
+            selected_opponent = (
+                st.text_input(
+                    "Próximo adversário",
+                    value=scheduled_opponent_name or "",
+                    key=f"projection_opponent_text_{source}_{projection_id}_{schedule_team_code or 'manual'}",
+                    placeholder="Ex.: Boston Celtics",
+                ).strip()
+                or None
+            )
     with col_target_date:
         target_game_date = st.date_input(
             "Data do jogo previsto",
             value=schedule_target_date,
+            format="DD/MM/YYYY",
             help=(
                 "Quando o calendário oficial está disponível, este campo começa na data do próximo jogo. "
                 "Você pode alterá-la manualmente para simular outro confronto."
@@ -656,9 +660,7 @@ with tab_projection:
         ("reb", "Rebotes", "prev_season_reb_avg"),
         ("ast", "Assistências", "prev_season_ast_avg"),
     )
-    for column, (stat, label, baseline_key) in zip(
-        baseline_columns, baseline_descriptions, strict=True
-    ):
+    for column, (stat, label, baseline_key) in zip(baseline_columns, baseline_descriptions, strict=True):
         baseline_value = float(snapshot.get(baseline_key, 0.0))
         projected_value = float(prediction.stats[stat])
         column.metric(
@@ -674,10 +676,8 @@ with tab_projection:
         "tem maior peso no início e diminui conforme chegam partidas do novo stint."
     )
 
-    if st.button("Registrar esta previsão"):
-        projection_player_name = players.loc[
-            players["player_id"] == projection_id, "player_name"
-        ].iloc[0]
+    if st.button("Registrar esta previsão", type="primary"):
+        projection_player_name = players.loc[players["player_id"] == projection_id, "player_name"].iloc[0]
         log_player_prediction(
             projection_id,
             projection_player_name,
@@ -730,9 +730,7 @@ with tab_projection:
         }
     )
     st.dataframe(
-        interval_data.style.format(
-            {"Mínimo": "{:.1f}", "Central": "{:.1f}", "Máximo": "{:.1f}"}
-        ),
+        interval_data.style.format({"Mínimo": "{:.1f}", "Central": "{:.1f}", "Máximo": "{:.1f}"}),
         hide_index=True,
         use_container_width=True,
     )
@@ -754,9 +752,7 @@ with tab_projection:
         default_line = round(prediction.stats[over_under_stat] * 2) / 2
         line = st.number_input("Line", value=default_line, step=0.5)
 
-    over_pct = over_probability(
-        prediction.stats[over_under_stat], bundle.residual_std[over_under_stat], line
-    )
+    over_pct = over_probability(prediction.stats[over_under_stat], bundle.residual_std[over_under_stat], line)
     over_under_columns = st.columns(2)
     over_under_columns[0].metric(f"Over {line:g}", f"{over_pct:.0%}")
     over_under_columns[1].metric(f"Under {line:g}", f"{1 - over_pct:.0%}")
@@ -767,9 +763,7 @@ with tab_projection:
     )
 
     st.markdown("#### Distribuição de resultados")
-    buckets = range_probabilities(
-        prediction.stats[over_under_stat], bundle.residual_std[over_under_stat]
-    )
+    buckets = range_probabilities(prediction.stats[over_under_stat], bundle.residual_std[over_under_stat])
     distribution_figure = go.Figure(
         go.Bar(
             x=[bucket["label"] for bucket in buckets],

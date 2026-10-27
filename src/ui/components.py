@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -27,7 +28,47 @@ def note(text: str, kind: str = "info") -> None:
     """
     if kind not in _VALID_NOTE_KINDS:
         raise ValueError(f"kind inválido: {kind!r}. Use um de {sorted(_VALID_NOTE_KINDS)}.")
-    st.markdown(f'<div class="app-note app-note--{kind}">{text}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="app-note app-note--{kind}">{escape(text)}</div>', unsafe_allow_html=True)
+
+
+def page_header(title: str, description: str, category: str = "EXPLORAR") -> None:
+    st.markdown(
+        '<div class="page-heading">'
+        f'<div class="page-eyebrow">NBA ANALYTICS LAB / {escape(category)}</div>'
+        f"<h1>{escape(title)}</h1><p>{escape(description)}</p></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def section_header(title: str, description: str = "") -> None:
+    st.markdown(
+        f'<div class="section-heading"><h2>{escape(title)}</h2><p>{escape(description)}</p></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def tool_card(page_id: str) -> None:
+    from .navigation import PAGE_BY_ID, page_link
+
+    page = PAGE_BY_ID[page_id]
+    with st.container(border=True):
+        st.markdown(
+            f'<div class="tool-card"><div class="tool-icon">{page.icon}</div>'
+            f"<h3>{escape(page.label)}</h3><p>{escape(page.description)}</p></div>",
+            unsafe_allow_html=True,
+        )
+        page_link(page_id, label=f"Abrir {page.label.lower()}")
+
+
+def load_on_demand(label: str, key: str, description: str) -> bool:
+    """Mantém análises caras fora da abertura inicial; preserva a ativação na sessão."""
+    if st.session_state.get(key, False):
+        return True
+    st.info(description)
+    if st.button(label, key=f"{key}_activate", type="primary"):
+        st.session_state[key] = True
+        return True
+    return False
 
 
 def db_last_updated(path: Path) -> datetime | None:
@@ -58,7 +99,8 @@ def source_badge(
         parts.append(f"Atualizado em {format_datetime_br(updated_at)}")
     if seasons:
         parts.append(f"Temporadas: {seasons}")
-    st.markdown(f'<div class="source-badge">{" · ".join(parts)}</div>', unsafe_allow_html=True)
+    demo = " source-badge--demo" if "demonstra" in source_label.casefold() else ""
+    st.markdown(f'<div class="source-badge{demo}">{escape(" · ".join(parts))}</div>', unsafe_allow_html=True)
 
 
 def metric_row(items: list[dict]) -> None:
@@ -76,16 +118,14 @@ def metric_row(items: list[dict]) -> None:
 
 
 def sample_size_caption(shown: int, total: int, unit: str = "partidas") -> None:
-    """"Exibindo X de Y partidas · Amostra {pequena/moderada/grande}" (seção 7.1)."""
+    """ "Exibindo X de Y partidas · Amostra {pequena/moderada/grande}" (seção 7.1)."""
     if shown <= SMALL_SAMPLE_THRESHOLD:
         label = "pequena"
     elif shown <= MODERATE_SAMPLE_THRESHOLD:
         label = "moderada"
     else:
         label = "grande"
-    st.caption(
-        f"Exibindo {format_int_br(shown)} de {format_int_br(total)} {unit} · Amostra {label}"
-    )
+    st.caption(f"Exibindo {format_int_br(shown)} de {format_int_br(total)} {unit} · Amostra {label}")
 
 
 def clear_filters_button(keys: list[str], label: str = "Limpar filtros") -> None:

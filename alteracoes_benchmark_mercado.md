@@ -1,5 +1,11 @@
 # Alterações do módulo Benchmark de Mercado
 
+> **Registro histórico, sem implementação correspondente na árvore atual.**
+> Os arquivos descritos abaixo não estão presentes nesta versão. Este documento
+> não deve ser usado como lista de funcionalidades disponíveis nem como evidência
+> da validação atual do projeto. A página de Qualidade do Modelo reúne as métricas
+> implementadas; a página Desempenho acompanha previsões e resultados reais.
+
 ## 1. Resumo
 
 Foi adicionado ao **NBA Analytics Lab** um módulo de comparação retrospectiva entre as probabilidades produzidas pelo modelo e uma referência probabilística histórica.

@@ -48,7 +48,8 @@ st.set_page_config(
     layout="wide",
 )
 
-theme.inject_base_style()
+theme.inject_base_style("shots")
+
 
 def _render_period_comparison(comparison: pd.DataFrame, label_a: str, label_b: str) -> None:
     st.markdown(f"> {explain_zone_shift(comparison, label_a=label_a, label_b=label_b)}")
@@ -87,18 +88,11 @@ def _render_period_comparison(comparison: pd.DataFrame, label_a: str, label_b: s
     )
 
 
-st.markdown("## 🎯 Mapa de Arremessos")
-st.caption(
-    "De onde cada jogador arremessa, com que eficiência e como isso mudou ao longo "
-    "do tempo. Estimativas educacionais, não orientação de apostas."
+components.page_header(
+    "Veja o jogo pela quadra.",
+    "Explore onde um atleta arremessa, sua eficiência e as mudanças de perfil ao longo do tempo.",
+    category="MAPA DE ARREMESSOS",
 )
-
-with st.sidebar:
-    st.header("Configuração")
-    st.caption(
-        "Este projeto produz estimativas esportivas educacionais. "
-        "Não utiliza odds e não fornece orientação de apostas."
-    )
 
 shots_collected = count_player_shots(DEFAULT_DB_PATH)
 if shots_collected == 0:
@@ -122,42 +116,39 @@ if shots_collected == 0:
 # objeto em memória sem serializar; seguro aqui porque nada no resto da
 # página modifica esses DataFrames no lugar (só lê, filtra e agrega em cópias
 # novas).
-@st.cache_resource(show_spinner=False)
-def _load_players() -> pd.DataFrame:
+@st.cache_resource(show_spinner="Buscando jogadores com arremessos…", max_entries=1)
+def _load_players(db_version: int) -> pd.DataFrame:
     return list_players_with_shots(DEFAULT_DB_PATH)
 
 
-@st.cache_resource(show_spinner=False)
-def _load_zone_reference() -> pd.DataFrame:
+@st.cache_resource(show_spinner="Preparando as referências da quadra…", max_entries=1)
+def _load_zone_reference(db_version: int) -> pd.DataFrame:
     return read_shots_for_zone_reference(DEFAULT_DB_PATH)
 
 
 @st.cache_data(show_spinner=False)
-def _load_player_shots(player_id: int) -> pd.DataFrame:
+def _load_player_shots(player_id: int, db_version: int) -> pd.DataFrame:
     return read_player_shots(DEFAULT_DB_PATH, player_id=player_id)
 
 
-players = _load_players()
-zone_reference = _load_zone_reference()
+db_version = DEFAULT_DB_PATH.stat().st_mtime_ns
+players = _load_players(db_version)
 
 player_options = players["player_name"].tolist()
 player_id_by_name = dict(zip(players["player_name"], players["player_id"], strict=True))
 
 selector_col, season_col = st.columns([2, 1])
 with selector_col:
-    selected_name = components.persistent_selectbox(
-        "Jogador", player_options, query_key="player"
-    )
+    selected_name = components.persistent_selectbox("Jogador", player_options, query_key="player")
 selected_id = player_id_by_name[selected_name]
 
-player_shots_all_seasons = _load_player_shots(selected_id)
+player_shots_all_seasons = _load_player_shots(selected_id, db_version)
 seasons = sorted(player_shots_all_seasons["season"].unique(), reverse=True)
 with season_col:
-    selected_season = components.persistent_selectbox(
-        "Temporada", seasons, query_key="season"
-    )
+    selected_season = components.persistent_selectbox("Temporada", seasons, query_key="season")
 
 shots = filter_shots(player_shots_all_seasons, season=selected_season)
+zone_reference = _load_zone_reference(db_version)
 
 components.source_badge("NBA API — dados reais", components.db_last_updated(DEFAULT_DB_PATH))
 st.caption(
@@ -190,27 +181,29 @@ components.metric_row(
     ]
 )
 
-tab_points, tab_heatmap, tab_hexbin, tab_zones, tab_trend, tab_compare, tab_projections = st.tabs(
-    ["Mapa de pontos", "Mapa de calor", "Mapa hexagonal", "Por zona", "Evolução", "Comparações", "Projeções"]
+tab_court, tab_zones, tab_trend, tab_compare, tab_projections = st.tabs(
+    ["Quadra", "Por zona", "Evolução", "Comparações", "Projeções"]
 )
 
-with tab_points:
-    st.plotly_chart(shot_points_chart(shots), use_container_width=True)
-    st.caption("Verde: convertido. Vermelho: errado.")
-
-with tab_heatmap:
-    st.plotly_chart(shot_heatmap_chart(shots), use_container_width=True)
-    st.caption("Representa volume de tentativas, não eficiência.")
-
-with tab_hexbin:
-    st.plotly_chart(
-        shot_hexbin_chart(shots, league_average_points_per_shot=league_points_per_shot),
-        use_container_width=True,
+with tab_court:
+    view = st.radio(
+        "Visualização da quadra", ["Tentativas", "Calor", "Hexágonos"], horizontal=True, key="court_view"
     )
-    st.caption(
-        "Tamanho do hexágono: volume de tentativas. Cor: pontos por tentativa "
-        "(vermelho acima da referência de liga, azul abaixo)."
-    )
+    if view == "Tentativas":
+        st.plotly_chart(shot_points_chart(shots), use_container_width=True)
+        st.caption("Círculo laranja: convertido. X azul: errado. Passe o cursor para ver a tentativa.")
+    elif view == "Calor":
+        st.plotly_chart(shot_heatmap_chart(shots), use_container_width=True)
+        st.caption("A intensidade representa o volume de tentativas na região da quadra.")
+    else:
+        st.plotly_chart(
+            shot_hexbin_chart(shots, league_average_points_per_shot=league_points_per_shot),
+            use_container_width=True,
+        )
+        st.caption(
+            "Tamanho: volume de tentativas. Cor: pontos por tentativa — "
+            "laranja acima da referência, azul abaixo."
+        )
 
 with tab_zones:
     summary = zone_summary(shots)
@@ -271,9 +264,7 @@ with tab_zones:
     )
 
 with tab_trend:
-    st.plotly_chart(
-        zone_frequency_trend_chart(player_shots_all_seasons), use_container_width=True
-    )
+    st.plotly_chart(zone_frequency_trend_chart(player_shots_all_seasons), use_container_width=True)
     st.caption(
         "Frequência por categoria de zona ao longo de toda a carreira coletada "
         "(não só a temporada selecionada acima). Linhas tracejadas marcam troca de time."
@@ -370,6 +361,12 @@ with tab_compare:
         )
 
 with tab_projections:
+    if not components.load_on_demand(
+        "Carregar projeções por zona",
+        key="zone_projections_enabled",
+        description="Prepare a projeção por zona quando quiser explorar o próximo confronto do atleta.",
+    ):
+        st.stop()
     if len(zone_reference) < MIN_GAMES_FOR_ZONE_MODELS:
         st.info(
             f"São necessários pelo menos {MIN_GAMES_FOR_ZONE_MODELS} jogos coletados (de "
@@ -406,9 +403,7 @@ with tab_projections:
                 "Próximo adversário", ["(nenhum)"] + opponent_teams_proj, key="proj_opponent"
             )
         recent_avg_fga = float(
-            zone_games_with_features.loc[
-                zone_games_with_features["player_id"] == selected_id, "total_fga"
-            ]
+            zone_games_with_features.loc[zone_games_with_features["player_id"] == selected_id, "total_fga"]
             .tail(10)
             .mean()
         )
@@ -427,9 +422,7 @@ with tab_projections:
         states.small_sample_warning(player_games_collected, threshold=15)
 
         defending_team = None if projection_opponent == "(nenhum)" else projection_opponent
-        snapshot = live_zone_snapshot(
-            zone_games_with_features, selected_id, defending_team, zone_reference
-        )
+        snapshot = live_zone_snapshot(zone_games_with_features, selected_id, defending_team, zone_reference)
         filled_snapshot = fill_missing_features_with_league_average(zone_bundle, snapshot)
         zone_prediction = predict_zone_distribution(zone_bundle, filled_snapshot)
         predicted_points = expected_fg_points(zone_prediction, pd.Series({0: projected_fga}))

@@ -177,7 +177,7 @@ def shot_points_chart(shots: pd.DataFrame) -> go.Figure:
                 y=missed["loc_y_ft"],
                 mode="markers",
                 name="Errou",
-                marker=dict(color="#f87171", size=7, opacity=0.55, symbol="x-thin", line=dict(width=1)),
+                marker=dict(color="#38bdf8", size=7, opacity=0.65, symbol="x-thin", line=dict(width=1)),
                 text=_shot_hover_text(missed),
                 hoverinfo="text",
             )
@@ -188,7 +188,7 @@ def shot_points_chart(shots: pd.DataFrame) -> go.Figure:
                 y=made["loc_y_ft"],
                 mode="markers",
                 name="Converteu",
-                marker=dict(color="#4ade80", size=7, opacity=0.65),
+                marker=dict(color="#fb923c", size=7, opacity=0.75),
                 text=_shot_hover_text(made),
                 hoverinfo="text",
             )
@@ -339,7 +339,7 @@ def shot_hexbin_chart(
             symbol="hexagon",
             size=sizes,
             color=hexbins["points_per_shot"],
-            colorscale="RdYlBu_r",
+            colorscale=[[0.0, "#38bdf8"], [0.5, "#94a3b8"], [1.0, "#fb923c"]],
             colorbar=dict(title="Pontos<br>/tentativa"),
             line=dict(width=1, color="#0f172a"),
         )

@@ -24,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-theme.inject_base_style()
+theme.inject_base_style("teams")
 
 
 @st.cache_data(show_spinner=False)
@@ -95,20 +95,16 @@ def recent_form_chart(games: pd.DataFrame, home_team: str, away_team: str):
 
 
 def main() -> None:
-    st.markdown(
-        """
-        <div class="hero">
-            <h1>🏀 Times</h1>
-            <p>Comparação de times, previsão experimental e explicação dos fatores do modelo.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    components.page_header(
+        "O confronto, em perspectiva.",
+        "Compare a forma das equipes, explore os fatores e veja a faixa de placares estimada.",
+        category="TIMES",
     )
 
     real_data_available = DEFAULT_DB_PATH.exists() and count_games(DEFAULT_DB_PATH) > 0
 
-    with st.sidebar:
-        st.header("Configuração")
+    with st.expander("Fonte e opções da análise", expanded=False):
+        st.subheader("Fonte da análise")
         source_options = ["Base demonstrativa", "Dados reais (coletados)", "Enviar CSV"]
         source = st.radio(
             "Fonte dos dados",
@@ -139,9 +135,7 @@ def main() -> None:
                 states.empty_state(
                     "Nenhum dado real encontrado ainda",
                     "Colete jogos reais antes de usar esta fonte.",
-                    actions=[
-                        ("Coletar dados", "vá até a página 'Dados e Atualizações' na barra lateral")
-                    ],
+                    actions=[("Coletar dados", "vá até a página 'Dados e Atualizações' na barra lateral")],
                 )
             games = load_real_games()
             is_demo = False
@@ -164,11 +158,10 @@ def main() -> None:
 
     components.source_badge(source, last_updated)
     if is_demo:
-        components.note(
-            "Os números desta tela são sintéticos e não representam a temporada atual da NBA."
-        )
+        components.note("Os números desta tela são sintéticos e não representam a temporada atual da NBA.")
 
     teams = available_teams(games)
+    components.section_header("Monte o confronto", "Selecione as equipes e ajuste os dias de descanso.")
     selection_a, selection_b, rest_a, rest_b = st.columns([2, 2, 1, 1])
     with selection_a:
         home_team = st.selectbox("Time da casa", teams, index=0)
@@ -187,8 +180,8 @@ def main() -> None:
     st.subheader("Cenário projetado")
     components.metric_row(
         [
-            {"label": home_team, "value": f"{prediction.home_win_probability:.1%}", "delta": "mandante"},
-            {"label": away_team, "value": f"{prediction.away_win_probability:.1%}", "delta": "visitante"},
+            {"label": home_team, "value": f"{prediction.home_win_probability:.1%}", "help": "Mandante"},
+            {"label": away_team, "value": f"{prediction.away_win_probability:.1%}", "help": "Visitante"},
             {
                 "label": "Placar central",
                 "value": f"{prediction.home_score:.0f} × {prediction.away_score:.0f}",
@@ -198,7 +191,7 @@ def main() -> None:
         ]
     )
 
-    if st.button("Registrar esta previsão"):
+    if st.button("Registrar esta previsão", type="primary"):
         log_team_prediction(
             home_team,
             away_team,
@@ -215,9 +208,7 @@ def main() -> None:
     chart_column, score_column = st.columns([1.25, 1])
     with chart_column:
         st.plotly_chart(
-            probability_chart(
-                home_team, away_team, prediction.home_win_probability
-            ),
+            probability_chart(home_team, away_team, prediction.home_win_probability),
             use_container_width=True,
         )
     with score_column:
@@ -231,9 +222,7 @@ def main() -> None:
             }
         )
         st.dataframe(
-            interval_data.style.format(
-                {"Mínimo": "{:.0f}", "Central": "{:.0f}", "Máximo": "{:.0f}"}
-            ),
+            interval_data.style.format({"Mínimo": "{:.0f}", "Central": "{:.0f}", "Máximo": "{:.0f}"}),
             hide_index=True,
             use_container_width=True,
         )
@@ -275,9 +264,7 @@ def main() -> None:
         left, right = st.columns([1, 1.4])
         with left:
             st.dataframe(
-                comparison.style.format(
-                    {home_team: "{:.2f}", away_team: "{:.2f}"}
-                ),
+                comparison.style.format({home_team: "{:.2f}", away_team: "{:.2f}"}),
                 hide_index=True,
                 use_container_width=True,
             )
@@ -288,13 +275,9 @@ def main() -> None:
             )
 
     with tab_factors:
-        st.markdown(
-            "Valores positivos favorecem o mandante; valores negativos favorecem o visitante."
-        )
+        st.markdown("Valores positivos favorecem o mandante; valores negativos favorecem o visitante.")
         factors = pd.DataFrame(prediction.factors, columns=["Fator", "Impacto"])
-        factors["Direção"] = factors["Impacto"].map(
-            lambda value: home_team if value >= 0 else away_team
-        )
+        factors["Direção"] = factors["Impacto"].map(lambda value: home_team if value >= 0 else away_team)
         factor_figure = px.bar(
             factors.sort_values("Impacto"),
             x="Impacto",

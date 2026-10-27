@@ -36,3 +36,17 @@ def test_profile_tab_shows_a_warning_when_filters_match_no_games(app_db):
 
     warnings = [w.value for w in app.tabs[1].get("warning")]
     assert any("Nenhum jogo encontrado" in message for message in warnings)
+
+
+def test_player_search_filters_ranking_and_does_not_train_projections(app_db, monkeypatch):
+    def unexpected_training(*args, **kwargs):
+        raise AssertionError("A abertura da página não deve preparar projeções.")
+
+    monkeypatch.setattr("src.player_model.train_player_models", unexpected_training)
+    app = AppTest.from_file("../pages/1_Jogadores.py").run(timeout=30)
+    assert not app.exception
+    search = next(field for field in app.text_input if field.label == "Buscar jogador")
+    search.set_value("JOGADOR INEXISTENTE XYZ").run(timeout=30)
+    assert not app.exception
+    assert app.tabs[0].get("dataframe")[0].value.empty
+    assert any(button.label == "Carregar projeções" for button in app.button)

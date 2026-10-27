@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 import time
 
 import streamlit as st
 
+from src.current_roster import current_nba_season
 from src.nba_client import fetch_player_season_logs, fetch_season_games, pair_home_away
 from src.shot_connector import fetch_player_shots
 from src.shot_storage import count_player_shots, players_missing_shots, upsert_player_shots
@@ -29,14 +31,12 @@ st.set_page_config(
     layout="wide",
 )
 
-theme.inject_base_style()
+theme.inject_base_style("data")
 
-st.markdown("## 🔄 Dados e Atualizações")
-st.caption(
-    "Coleta de dados reais via nba_api, separada das páginas de análise (seção 3 do "
-    "planejamento de UI/UX: atualização não deve se misturar com exploração). Coletas "
-    "grandes ainda são melhor feitas pelo terminal, em segundo plano — esta página "
-    "cobre lotes pequenos direto na interface."
+components.page_header(
+    "Uma boa análise começa na base.",
+    "Colete partidas e jogadores por temporada e amplie sua base de arremessos em pequenos lotes.",
+    category="DADOS E ATUALIZAÇÕES",
 )
 
 init_db(DEFAULT_DB_PATH)
@@ -53,18 +53,25 @@ components.metric_row(
     ]
 )
 
-tab_games, tab_shots = st.tabs(["Jogos e jogadores (por temporada)", "Arremessos (incremental)"])
+tab_games, tab_shots, tab_advanced = st.tabs(["Jogos e jogadores", "Arremessos", "Coletas avançadas"])
 
 with tab_games:
-    st.markdown(
-        "Baixa o log de jogos e de jogadores de uma temporada inteira em poucas "
-        "chamadas (uma para os jogos da liga toda, uma para os jogadores da liga "
-        "toda) — rápido, roda direto aqui, sem precisar do terminal."
+    components.section_header(
+        "Atualizar uma temporada",
+        "A coleta adiciona jogos e estatísticas individuais à base local. "
+        "É necessário acesso aos serviços NBA.",
     )
     season_input = st.text_input(
-        "Temporada (formato AAAA-AA, ex.: 2025-26)", value="2025-26", key="season_to_collect"
+        "Temporada (formato AAAA-AA, ex.: 2025-26)", value=current_nba_season(), key="season_to_collect"
     )
-    if st.button("Coletar esta temporada"):
+    st.caption("Você pode repetir uma coleta para buscar novos registros da mesma temporada.")
+    if st.button("Coletar esta temporada", type="primary"):
+        season_input = season_input.strip()
+        if not re.fullmatch(r"\d{4}-\d{2}", season_input) or (
+            int(season_input[-2:]) != (int(season_input[:4]) + 1) % 100
+        ):
+            st.error("Informe uma temporada válida, como 2025-26 ou 2026-27.")
+            st.stop()
         progress = st.progress(0.0, text="Baixando jogos...")
         try:
             raw_games = fetch_season_games(season_input)
@@ -83,9 +90,7 @@ with tab_games:
             st.rerun()
         except Exception as error:  # nba_api costuma falhar por timeout/bloqueio de rede
             progress.empty()
-            states.error_state(
-                f"Falha ao coletar a temporada {season_input}.", detail=str(error)
-            )
+            states.error_state(f"Falha ao coletar a temporada {season_input}.", detail=str(error))
 
 with tab_shots:
     pending = players_missing_shots(DEFAULT_DB_PATH)
@@ -127,15 +132,16 @@ with tab_shots:
             st.success(f"{collected} jogadores coletados, {failed} falharam nesta execução.")
             st.rerun()
 
-st.divider()
-st.markdown("#### Coletas avançadas (só pelo terminal, por enquanto)")
-st.caption(
-    "Rating oficial (Offensive/Defensive Rating) e titularidade real exigem uma "
-    "chamada por jogo — muito mais lento que as coletas acima, ainda não trazido "
-    "para dentro da interface:"
-)
-st.code(
-    "python scripts/update_advanced_stats.py --seasons 2024-25\n"
-    "python scripts/update_starter_status.py --seasons 2024-25",
-    language="powershell",
-)
+with tab_advanced:
+    components.section_header(
+        "Estatísticas avançadas", "Coletas maiores disponíveis pelo terminal do projeto."
+    )
+    st.caption(
+        "Ratings oficiais e titularidade exigem uma consulta por partida. "
+        "Escolha a temporada nos comandos antes de executar."
+    )
+    st.code(
+        "python scripts/update_advanced_stats.py --seasons 2025-26\n"
+        "python scripts/update_starter_status.py --seasons 2025-26",
+        language="powershell",
+    )

@@ -44,6 +44,8 @@ def test_shots_page_zone_projection_updates_without_raising(app_db):
     app = AppTest.from_file("../pages/4_Mapa_Arremessos.py")
     app.run(timeout=60)
     assert not app.exception
+    next(b for b in app.button if b.label == "Carregar projeções por zona").click().run(timeout=60)
+    assert not app.exception
 
     opponent_select = next(s for s in app.selectbox if s.label == "Próximo adversário")
     if len(opponent_select.options) > 1:

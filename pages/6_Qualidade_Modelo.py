@@ -19,16 +19,20 @@ st.set_page_config(
     layout="wide",
 )
 
-theme.inject_base_style()
+theme.inject_base_style("quality")
 
-st.markdown("## 📊 Qualidade do Modelo")
-st.caption(
-    "Erros, calibração e histórico de retreinamento dos três modelos do projeto "
-    "(times, jogadores e zonas de arremesso) — separado de qual time, jogador ou "
-    "adversário está selecionado nas páginas de análise."
+components.page_header(
+    "Quanto confiar em uma projeção?",
+    "Consulte os erros de validação, compare referências e acompanhe a evolução dos treinamentos.",
+    category="QUALIDADE DO MODELO",
 )
 
 training_log = read_model_training_log(DEFAULT_DB_PATH)
+components.source_badge("Validação dos modelos locais", components.db_last_updated(DEFAULT_DB_PATH))
+components.note(
+    "MAE é o erro absoluto médio: quanto menor, melhor. Para intervalos de 80%, uma cobertura próxima "
+    "de 80% indica maior coerência entre a incerteza estimada e os resultados observados."
+)
 
 
 def _render_team_metrics(latest: pd.Series) -> None:
@@ -144,9 +148,7 @@ def _render_zone_metrics(latest: pd.Series) -> None:
 
     zone_rows = [
         {
-            "Zona": ZONE_LABELS_PT.get(
-                key.removeprefix("share_mae_"), key.removeprefix("share_mae_")
-            ),
+            "Zona": ZONE_LABELS_PT.get(key.removeprefix("share_mae_"), key.removeprefix("share_mae_")),
             "MAE de participação": value,
         }
         for key, value in metrics.items()
@@ -182,24 +184,32 @@ with tab_current:
         states.empty_state(
             "Nenhum retreinamento registrado ainda",
             "Rode o script de retreinamento para gerar as primeiras métricas.",
-            actions=[
-                ("Retreinar", "rode 'python scripts/retrain_models.py' no terminal do projeto")
-            ],
+            actions=[("Retreinar", "rode 'python scripts/retrain_models.py' no terminal do projeto")],
         )
     else:
         for model_type, label in MODEL_LABELS.items():
             subset = training_log[training_log["model_type"] == model_type]
-            st.markdown(f"#### {label}")
-            if subset.empty:
-                st.info(f"Nenhum treinamento de '{label.lower()}' registrado ainda.")
-            else:
-                _RENDER_BY_MODEL_TYPE[model_type](subset.iloc[0])
-            st.divider()
+            with st.container(border=True):
+                st.markdown(f"#### {label}")
+                if subset.empty:
+                    st.info(f"Nenhum treinamento de '{label.lower()}' registrado ainda.")
+                else:
+                    latest = subset.iloc[0]
+                    st.caption(
+                        f"Treinado em {format_datetime_br(latest['trained_at'])} · "
+                        f"{format_int_br(latest['n_games'])} registros na avaliação"
+                    )
+                    _RENDER_BY_MODEL_TYPE[model_type](latest)
 
     # Relatório linha-a-linha produzido por scripts/retrain_models.py. Esse
     # relatório fica local (e é ignorado pelo Git) por depender da base coletada.
     backtest_path = Path(__file__).resolve().parents[1] / "reports" / "player_backtest_predictions.csv"
-    if backtest_path.exists():
+    if backtest_path.exists() and components.load_on_demand(
+        "Abrir auditoria detalhada",
+        key="backtest_audit_enabled",
+        description="O relatório por jogador e partida pode ser grande. "
+        "Abra para investigar os erros em detalhe.",
+    ):
         st.markdown("#### Auditoria do backtest por rodada")
         try:
             backtest = pd.read_csv(backtest_path, parse_dates=["game_date"])

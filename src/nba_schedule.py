@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
 import logging
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -297,13 +297,14 @@ def _fetch_espn_schedule(
     # Try one compact date-range request first. Some ESPN scoreboard deployments
     # reject ranges, so daily requests remain the reliable fallback below.
     range_end = start_date + timedelta(days=max(1, lookahead_days) - 1)
+    range_params: dict[str, str | int] = {
+        "dates": f"{start_date:%Y%m%d}-{range_end:%Y%m%d}",
+        "limit": 100,
+    }
     try:
         range_response = requests.get(
             ESPN_SCOREBOARD_URL,
-            params={
-                "dates": f"{start_date:%Y%m%d}-{range_end:%Y%m%d}",
-                "limit": 100,
-            },
+            params=range_params,
             headers=headers,
             timeout=min(timeout, 3.0),
         )
@@ -329,10 +330,11 @@ def _fetch_espn_schedule(
 
     for day_offset in range(max(1, lookahead_days)):
         game_day = start_date + timedelta(days=day_offset)
+        day_params: dict[str, str | int] = {"dates": game_day.strftime("%Y%m%d"), "limit": 100}
         try:
             response = requests.get(
                 ESPN_SCOREBOARD_URL,
-                params={"dates": game_day.strftime("%Y%m%d"), "limit": 100},
+                params=day_params,
                 headers=headers,
                 timeout=min(timeout, 2.5),
             )
@@ -366,8 +368,9 @@ def fetch_nba_schedule(
     timeout: float = 8.0,
     team_tricode: str | None = None,
     lookahead_days: int = 21,
+    start_date: date | None = None,
 ) -> pd.DataFrame:
-    """Fetch NBA schedule, falling back to ESPN if the NBA CDN is unreachable.
+    """Fetch NBA schedule, falling back to public season files and then ESPN.
 
     The source column marks whether rows came from NBA CDN or the ESPN fallback.
     Raises a concise RuntimeError if neither source is available.
@@ -377,6 +380,7 @@ def fetch_nba_schedule(
         "Referer": "https://www.nba.com/",
         "Accept": "application/json,text/plain,*/*",
     }
+    selected_date = start_date or datetime.now(ZoneInfo("America/New_York")).date()
     errors: list[str] = []
     for url in NBA_SCHEDULE_URLS:
         try:
@@ -389,21 +393,29 @@ def fetch_nba_schedule(
         except (requests.RequestException, ValueError, TypeError) as error:
             errors.append(f"NBA CDN {url.rsplit('/', 1)[-1]}: {type(error).__name__}")
 
-    # The official NBA CDN can be blocked/reset by some home or corporate networks.
-    # Use ESPN as an alternate source rather than making the user fill every field.
+    # These public files use GitHub delivery instead of the NBA/ESPN network hosts.
+    # Import here because the parser shares this module's normalized schema.
+    from .public_schedule import fetch_public_schedule
+
     try:
-        now_et = datetime.now(ZoneInfo("America/New_York")).date()
+        return fetch_public_schedule(selected_date, lookahead_days=lookahead_days, timeout=timeout)
+    except (requests.RequestException, ValueError, TypeError) as error:
+        errors.append(f"SportsDataverse/GitHub: {type(error).__name__}")
+
+    # Keep ESPN's live endpoint as another alternative if the public file is unavailable.
+    try:
         return _fetch_espn_schedule(
             team_tricode=team_tricode,
-            start_date=now_et,
+            start_date=selected_date,
             lookahead_days=lookahead_days,
             timeout=min(timeout, 2.5),
         )
     except RuntimeError as error:
         errors.append(str(error))
-        LOGGER.warning("Falha ao consultar calendário NBA/ESPN: %s", "; ".join(errors))
+        LOGGER.warning("Falha ao consultar calendário NBA/SportsDataverse/ESPN: %s", "; ".join(errors))
         raise RuntimeError(
             "Não foi possível consultar o calendário automaticamente nas fontes NBA e ESPN. "
+            "O arquivo público SportsDataverse/GitHub também não respondeu. "
             "A rede pode estar bloqueando esses serviços. Preencha o adversário e a data manualmente "
             "ou tente novamente em outra conexão."
         ) from error
@@ -437,7 +449,7 @@ def get_next_game_for_team(
         now_utc = timestamp.tz_convert("UTC")
         today = now_utc.tz_convert(ZoneInfo("America/New_York")).date()
     else:
-        current = datetime.now(timezone.utc)
+        current = datetime.now(UTC)
         now_utc = pd.Timestamp(current)
         today = current.astimezone(ZoneInfo("America/New_York")).date()
 
