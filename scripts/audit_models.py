@@ -20,7 +20,12 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.features import engineer_features  # noqa: E402
-from src.model import build_features, train_models  # noqa: E402
+from src.model import (  # noqa: E402
+    SCORE_MODEL_VERSION,
+    build_features,
+    build_score_features,
+    train_models,
+)
 from src.player_features import add_opponent_context, add_rolling_features  # noqa: E402
 from src.player_metrics import (  # noqa: E402
     add_advanced_rate_metrics,
@@ -80,37 +85,7 @@ def team_audit(connection: sqlite3.Connection, as_of: str) -> tuple[dict, pd.Dat
     )
     advanced = pd.read_sql_query("SELECT * FROM team_advanced_stats", connection)
     games = engineer_features(raw, advanced)
-    # Uma referência por equipe usa a média de pontos dos seus próprios jogos anteriores.
-    long = pd.concat(
-        [
-            raw.rename(columns={"home_team": "team", "home_points": "points"})[
-                ["game_id", "game_date", "team", "points"]
-            ],
-            raw.rename(columns={"away_team": "team", "away_points": "points"})[
-                ["game_id", "game_date", "team", "points"]
-            ],
-        ]
-    ).sort_values(["team", "game_date"])
-    long["points_avg10"] = long.groupby("team")["points"].transform(
-        lambda values: values.shift(1).rolling(10, min_periods=1).mean()
-    )
-    for side in ("home", "away"):
-        lookup = long.rename(columns={"team": f"{side}_team", "points_avg10": f"{side}_points_avg10"})
-        games = games.merge(
-            lookup[["game_id", f"{side}_team", f"{side}_points_avg10"]],
-            on=["game_id", f"{side}_team"],
-            how="left",
-        )
-    enriched = build_features(games)
-    for column in (
-        "home_off_rating",
-        "away_off_rating",
-        "home_def_rating",
-        "away_def_rating",
-        "home_points_avg10",
-        "away_points_avg10",
-    ):
-        enriched[column] = games[column].fillna(110.0)
+    score_features = build_score_features(games)
     folds = []
     for season in sorted(games["season"].unique())[-3:]:
         test = games[games["season"].eq(season)]
@@ -150,24 +125,29 @@ def team_audit(connection: sqlite3.Connection, as_of: str) -> tuple[dict, pd.Dat
         ]
         for side, model in (("home", bundle.home_score_model), ("away", bundle.away_score_model)):
             target = f"{side}_points"
-            predicted = model.predict(x_test)
-            absolute = (
+            predicted = model.predict(score_features.loc[test.index])
+            legacy = (
                 make_pipeline(StandardScaler(), Ridge(alpha=2.0))
                 .fit(
-                    enriched.loc[train.index],
+                    build_features(train),
                     train[target],
                 )
-                .predict(enriched.loc[test.index])
+                .predict(x_test)
             )
-            baseline = test[f"{side}_points_avg10"].fillna(float(train[target].mean()))
+            baseline = score_features.loc[test.index, f"{side}_points_avg10"]
             row[f"{side}_mae"] = float(mean_absolute_error(test[target], predicted))
             row[f"{side}_recent_mean_mae"] = float(mean_absolute_error(test[target], baseline))
-            row[f"{side}_absolute_features_candidate_mae"] = float(
-                mean_absolute_error(test[target], absolute)
+            row[f"{side}_relative_features_legacy_mae"] = float(
+                mean_absolute_error(test[target], legacy)
             )
         folds.append(row)
     return {
         "method": "Expanding train; complete seasons as outer tests; no parameter search",
+        "score_model_version": SCORE_MODEL_VERSION,
+        "comparison": (
+            "Production absolute/recent score features vs legacy five relative features; "
+            "causal priors in both"
+        ),
         "folds": folds,
     }, games
 

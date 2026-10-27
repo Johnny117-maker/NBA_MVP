@@ -1,7 +1,16 @@
+import pandas as pd
 import pytest
 
-from src.data import available_teams, generate_demo_games, team_snapshot
-from src.model import predict_game, train_models
+from src.data import available_teams, generate_demo_games, load_real_games, team_snapshot
+from src.model import (
+    FEATURE_NAMES,
+    SCORE_FEATURE_NAMES,
+    build_score_features,
+    matchup_score_features,
+    predict_game,
+    temporal_split_index,
+    train_models,
+)
 from src.simulation import simulate_score_distribution
 
 
@@ -46,4 +55,57 @@ def test_simulation_returns_expected_rows(setup_model):
     result = simulate_score_distribution(prediction, 8.0, 8.0, simulations=500)
     assert len(result) == 500
     assert not (result["home_score"] == result["away_score"]).any()
+
+
+def test_score_models_use_absolute_context_while_winner_uses_relative_features(setup_model):
+    games, bundle, teams = setup_model
+    assert bundle.win_model.feature_names_in_.tolist() == FEATURE_NAMES
+    assert bundle.home_score_model.feature_names_in_.tolist() == SCORE_FEATURE_NAMES
+    assert bundle.away_score_model.feature_names_in_.tolist() == SCORE_FEATURE_NAMES
+    home, away = (team_snapshot(games, team) for team in teams[:2])
+    baseline = predict_game(bundle, home, away)
+    # O mesmo aumento nos dois times preserva as diferenças, mas altera o
+    # nível esperado do placar: limitação que motivou a troca do modelo.
+    higher = [dict(snapshot) for snapshot in (home, away)]
+    for snapshot in higher:
+        for key in ("off_rating", "def_rating", "points_for"):
+            snapshot[key] += 20
+    prediction = predict_game(bundle, *higher)
+    assert prediction.home_win_probability == pytest.approx(baseline.home_win_probability)
+    assert prediction.home_score + prediction.away_score > baseline.home_score + baseline.away_score + 5
+
+
+def test_score_inputs_do_not_use_the_target_games_points():
+    games = generate_demo_games(100)
+    before = build_score_features(games)
+    day = games.iloc[50]["game_date"]
+    changed = games.copy()
+    changed.loc[changed["game_date"].ge(day), ["home_points", "away_points"]] = 999
+    after = build_score_features(changed)
+    pd.testing.assert_frame_equal(before.loc[games["game_date"].le(day)],
+                                  after.loc[games["game_date"].le(day)])
+
+
+def test_validation_keeps_a_whole_date_out_of_training():
+    dates = pd.DataFrame({"game_date": pd.to_datetime(["2026-01-01"] * 79
+                                                     + ["2026-01-02"] * 15
+                                                     + ["2026-01-03"] * 6)})
+    split = temporal_split_index(dates)
+    assert split == 79
+    assert dates.iloc[:split]["game_date"].max() < dates.iloc[split:]["game_date"].min()
+    with pytest.raises(ValueError, match="duas datas"):
+        temporal_split_index(dates.head(50))
+
+
+def test_next_game_snapshot_matches_training_inputs_without_averaging_rolling_averages(app_db):
+    games = load_real_games(app_db)
+    target = games.iloc[-1]
+    history = games[games["game_date"].lt(target["game_date"])]
+    features = matchup_score_features(
+        team_snapshot(history, target["home_team"]),
+        team_snapshot(history, target["away_team"]),
+        int(target["home_rest_days"]), int(target["away_rest_days"]),
+    )
+    expected = build_score_features(games).tail(1).reset_index(drop=True)
+    pd.testing.assert_frame_equal(features, expected)
 

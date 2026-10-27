@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -31,12 +32,17 @@ def _load_player_games():
     return load_player_games(source="demo"), "demo"
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Retreina e registra as métricas dos modelos locais.")
+    parser.add_argument("--team-only", action="store_true", help="Treina somente os modelos de times.")
+    args = parser.parse_args(argv)
     print("Retreinando modelo de times...")
     team_games, team_source = _load_team_games()
     team_bundle = train_models(team_games)
     log_model_training("team", len(team_games), team_bundle.metrics, DEFAULT_DB_PATH)
     print(f"  Fonte: {team_source} | {len(team_games)} jogos | métricas: {team_bundle.metrics}")
+    if args.team_only:
+        return
 
     print("Avaliando modelo de jogadores (validação walk-forward)...")
     player_games, player_source = _load_player_games()

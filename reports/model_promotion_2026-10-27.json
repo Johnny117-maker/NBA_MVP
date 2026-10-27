@@ -1,0 +1,411 @@
+{
+  "as_of": "2026-10-27",
+  "coverage": {
+    "games": {
+      "rows": 9509,
+      "first_game": "2018-10-16",
+      "last_game": "2026-04-12"
+    },
+    "player_game_stats": {
+      "rows": 202840,
+      "first_game": "2018-10-16",
+      "last_game": "2026-04-12"
+    },
+    "player_shots": {
+      "rows": 1689886,
+      "first_game": "2018-10-16",
+      "last_game": "2026-04-12"
+    }
+  },
+  "last_recorded_training": {
+    "team": {
+      "recorded_at": "2026-10-27T16:42:55.921721",
+      "rows": 9509,
+      "metrics": {
+        "score_model_version": 2.0,
+        "score_feature_count": 11.0,
+        "accuracy": 0.6507603565810173,
+        "log_loss": 0.6192237562897083,
+        "brier_score": 0.21509716544496157,
+        "home_points_mae": 9.72546243795471,
+        "away_points_mae": 9.46258629315512
+      }
+    },
+    "player": {
+      "recorded_at": "2026-10-21T11:03:45.193516",
+      "rows": 202840,
+      "metrics": {
+        "minutes_mae": 5.094068577640695,
+        "pts_mae": 4.722766977923093,
+        "reb_mae": 2.5477781417277354,
+        "ast_mae": 1.380287650255595,
+        "pts_chain_mae": 4.828086875872326,
+        "pts_baseline_mae": 4.794952694383302,
+        "pts_season_baseline_mae": 4.747760116412585,
+        "reb_season_baseline_mae": 1.9602528624517714,
+        "ast_season_baseline_mae": 1.3572830634524522,
+        "pts_interval_coverage": 0.8389137489701305,
+        "reb_interval_coverage": 0.7756269242373091,
+        "ast_interval_coverage": 0.8464998234583666,
+        "minutes_bias": 0.05101189824410598,
+        "pts_bias": -0.328100182824116,
+        "reb_bias": 0.5351582235428582,
+        "ast_bias": -0.11090830124464073,
+        "n_folds": 5
+      }
+    },
+    "zone": {
+      "recorded_at": "2026-10-21T11:04:36.483952",
+      "rows": 192965,
+      "metrics": {
+        "fg_points_mae": 2.71691334281416,
+        "share_mae_Restricted Area": 0.17106337517864892,
+        "share_mae_In The Paint (Non-RA)": 0.1354386291383847,
+        "share_mae_Mid-Range": 0.09759987530814188,
+        "share_mae_Left Corner 3": 0.07491100027124967,
+        "share_mae_Right Corner 3": 0.06979964662709164,
+        "share_mae_Above the Break 3": 0.15645445576278877,
+        "share_mae_Backcourt": 0.0038075480207111468,
+        "n_folds": 5
+      }
+    }
+  },
+  "input_quality": {
+    "official_team_rating_rows": 50,
+    "team_game_rows": 19018,
+    "known_starter_rows": 112
+  },
+  "leakage_probes": {
+    "method": "Append a future game; the first game's pregame features must not change",
+    "team": {
+      "feature": "home_off_rating",
+      "before": 110.0,
+      "after_appending_future": 110.0
+    },
+    "zone": {
+      "feature": "fgpct_avg10_Restricted Area",
+      "before": 0.5,
+      "after_appending_future": 0.625
+    }
+  },
+  "zone_validation_splits": {
+    "player_game_rows": 192965,
+    "boundaries": [
+      {
+        "row": 154372,
+        "train_last_date": "2025-01-12",
+        "test_first_date": "2025-01-12",
+        "same_day_on_both_sides": true
+      },
+      {
+        "row": 38641,
+        "train_last_date": "2020-01-22",
+        "test_first_date": "2020-01-22",
+        "same_day_on_both_sides": true
+      },
+      {
+        "row": 77222,
+        "train_last_date": "2021-12-16",
+        "test_first_date": "2021-12-16",
+        "same_day_on_both_sides": true
+      },
+      {
+        "row": 115803,
+        "train_last_date": "2023-03-27",
+        "test_first_date": "2023-03-27",
+        "same_day_on_both_sides": true
+      },
+      {
+        "row": 154384,
+        "train_last_date": "2025-01-12",
+        "test_first_date": "2025-01-12",
+        "same_day_on_both_sides": true
+      }
+    ],
+    "method": "Dates at current 80% row split and five-fold row boundaries; not a fresh zone backtest"
+  },
+  "teams": {
+    "method": "Expanding train; complete seasons as outer tests; no parameter search",
+    "score_model_version": 2,
+    "comparison": "Production absolute/recent score features vs legacy five relative features; causal priors in both",
+    "folds": [
+      {
+        "season": "2023-24",
+        "train_rows": 5829,
+        "test_rows": 1230,
+        "train_end": "2023-04-09",
+        "test_start": "2023-10-24",
+        "test_end": "2024-04-14",
+        "accuracy": 0.6357723577235772,
+        "always_home_accuracy": 0.5430894308943089,
+        "brier": 0.2225050512237703,
+        "constant_home_rate_brier": 0.24854847597227459,
+        "log_loss": 0.6352201555904826,
+        "calibration_bins": [
+          {
+            "bin": 1,
+            "count": 2,
+            "mean_probability": 0.1863423705757292,
+            "home_win_frequency": 0.0
+          },
+          {
+            "bin": 2,
+            "count": 49,
+            "mean_probability": 0.2590000676902999,
+            "home_win_frequency": 0.22448979591836735
+          },
+          {
+            "bin": 3,
+            "count": 134,
+            "mean_probability": 0.35685663806451123,
+            "home_win_frequency": 0.3656716417910448
+          },
+          {
+            "bin": 4,
+            "count": 237,
+            "mean_probability": 0.4569169236251672,
+            "home_win_frequency": 0.39662447257383965
+          },
+          {
+            "bin": 5,
+            "count": 300,
+            "mean_probability": 0.5510134966833791,
+            "home_win_frequency": 0.5033333333333333
+          },
+          {
+            "bin": 6,
+            "count": 283,
+            "mean_probability": 0.6482102178051294,
+            "home_win_frequency": 0.6466431095406361
+          },
+          {
+            "bin": 7,
+            "count": 169,
+            "mean_probability": 0.7436352321357323,
+            "home_win_frequency": 0.7928994082840237
+          },
+          {
+            "bin": 8,
+            "count": 56,
+            "mean_probability": 0.8343486554120091,
+            "home_win_frequency": 0.8214285714285714
+          }
+        ],
+        "home_mae": 9.479700877366504,
+        "home_recent_mean_mae": 10.04569105691057,
+        "home_relative_features_legacy_mae": 10.076909943880315,
+        "away_mae": 9.350631560689392,
+        "away_recent_mean_mae": 10.064227642276423,
+        "away_relative_features_legacy_mae": 10.065231656504958
+      },
+      {
+        "season": "2024-25",
+        "train_rows": 7059,
+        "test_rows": 1225,
+        "train_end": "2024-04-14",
+        "test_start": "2024-10-22",
+        "test_end": "2025-04-13",
+        "accuracy": 0.6489795918367347,
+        "always_home_accuracy": 0.5444897959183673,
+        "brier": 0.2171911184660805,
+        "constant_home_rate_brier": 0.2482523433327777,
+        "log_loss": 0.6240097135788545,
+        "calibration_bins": [
+          {
+            "bin": 1,
+            "count": 8,
+            "mean_probability": 0.16704190573936192,
+            "home_win_frequency": 0.0
+          },
+          {
+            "bin": 2,
+            "count": 59,
+            "mean_probability": 0.25579187071251,
+            "home_win_frequency": 0.23728813559322035
+          },
+          {
+            "bin": 3,
+            "count": 141,
+            "mean_probability": 0.3573348228309538,
+            "home_win_frequency": 0.24113475177304963
+          },
+          {
+            "bin": 4,
+            "count": 212,
+            "mean_probability": 0.4516904179446658,
+            "home_win_frequency": 0.46226415094339623
+          },
+          {
+            "bin": 5,
+            "count": 296,
+            "mean_probability": 0.5506964122481911,
+            "home_win_frequency": 0.527027027027027
+          },
+          {
+            "bin": 6,
+            "count": 251,
+            "mean_probability": 0.6516649946206289,
+            "home_win_frequency": 0.6533864541832669
+          },
+          {
+            "bin": 7,
+            "count": 190,
+            "mean_probability": 0.7493435276966685,
+            "home_win_frequency": 0.7526315789473684
+          },
+          {
+            "bin": 8,
+            "count": 65,
+            "mean_probability": 0.8400120515089389,
+            "home_win_frequency": 0.8615384615384616
+          },
+          {
+            "bin": 9,
+            "count": 3,
+            "mean_probability": 0.9125489721890733,
+            "home_win_frequency": 0.6666666666666666
+          }
+        ],
+        "home_mae": 9.360606549342144,
+        "home_recent_mean_mae": 9.74391836734694,
+        "home_relative_features_legacy_mae": 9.889805627636289,
+        "away_mae": 9.445694780069921,
+        "away_recent_mean_mae": 10.019428571428572,
+        "away_relative_features_legacy_mae": 9.852696573832906
+      },
+      {
+        "season": "2025-26",
+        "train_rows": 8284,
+        "test_rows": 1225,
+        "train_end": "2025-04-13",
+        "test_start": "2025-10-21",
+        "test_end": "2026-04-12",
+        "accuracy": 0.6555102040816326,
+        "always_home_accuracy": 0.5542857142857143,
+        "brier": 0.21348962979149244,
+        "constant_home_rate_brier": 0.24706313835656968,
+        "log_loss": 0.6153111569337403,
+        "calibration_bins": [
+          {
+            "bin": 1,
+            "count": 10,
+            "mean_probability": 0.1631339647837479,
+            "home_win_frequency": 0.2
+          },
+          {
+            "bin": 2,
+            "count": 65,
+            "mean_probability": 0.26072418369721956,
+            "home_win_frequency": 0.15384615384615385
+          },
+          {
+            "bin": 3,
+            "count": 148,
+            "mean_probability": 0.355132370714026,
+            "home_win_frequency": 0.2702702702702703
+          },
+          {
+            "bin": 4,
+            "count": 203,
+            "mean_probability": 0.45234205650909326,
+            "home_win_frequency": 0.4876847290640394
+          },
+          {
+            "bin": 5,
+            "count": 292,
+            "mean_probability": 0.5493699366148894,
+            "home_win_frequency": 0.5445205479452054
+          },
+          {
+            "bin": 6,
+            "count": 250,
+            "mean_probability": 0.6462658839243295,
+            "home_win_frequency": 0.64
+          },
+          {
+            "bin": 7,
+            "count": 171,
+            "mean_probability": 0.7465656758439095,
+            "home_win_frequency": 0.7894736842105263
+          },
+          {
+            "bin": 8,
+            "count": 80,
+            "mean_probability": 0.837817768768611,
+            "home_win_frequency": 0.8625
+          },
+          {
+            "bin": 9,
+            "count": 6,
+            "mean_probability": 0.9084813938674255,
+            "home_win_frequency": 0.8333333333333334
+          }
+        ],
+        "home_mae": 9.902453913676535,
+        "home_recent_mean_mae": 10.696408163265307,
+        "home_relative_features_legacy_mae": 10.250840375587336,
+        "away_mae": 9.474596451917563,
+        "away_recent_mean_mae": 10.339918367346938,
+        "away_relative_features_legacy_mae": 9.968260511169843
+      }
+    ]
+  },
+  "historical_player_report": {
+    "available": true,
+    "path": "reports\\player_backtest_predictions.csv",
+    "rows": 201844,
+    "folds": [
+      {
+        "fold": 1,
+        "rows": 39239,
+        "start": "2018-10-18",
+        "end": "2020-01-19",
+        "minutes_mae": 5.559788998642977,
+        "pts_mae": 5.342404190301651,
+        "reb_mae": 5.089084907962553,
+        "ast_mae": 1.6241335805244796
+      },
+      {
+        "fold": 2,
+        "rows": 40211,
+        "start": "2020-01-20",
+        "end": "2021-12-10",
+        "minutes_mae": 4.9075920230823895,
+        "pts_mae": 4.529580563310181,
+        "reb_mae": 1.918418074838352,
+        "ast_mae": 1.2899123771556487
+      },
+      {
+        "fold": 3,
+        "rows": 39628,
+        "start": "2021-12-11",
+        "end": "2023-03-17",
+        "minutes_mae": 5.078393411247638,
+        "pts_mae": 4.602277349947203,
+        "reb_mae": 1.9303421041279671,
+        "ast_mae": 1.3039179707297495
+      },
+      {
+        "fold": 4,
+        "rows": 41391,
+        "start": "2023-03-18",
+        "end": "2025-01-06",
+        "minutes_mae": 4.982628423066654,
+        "pts_mae": 4.557724880864122,
+        "reb_mae": 1.8845554056528693,
+        "ast_mae": 1.3368964737883866
+      },
+      {
+        "fold": 5,
+        "rows": 41375,
+        "start": "2025-01-07",
+        "end": "2026-04-12",
+        "minutes_mae": 4.941940032163819,
+        "pts_mae": 4.581847905192305,
+        "reb_mae": 1.9164902160569341,
+        "ast_mae": 1.3465778490797107
+      }
+    ],
+    "warning": "Existing CSV: not a fresh evaluation, no model fingerprint and no interval bounds"
+  }
+}

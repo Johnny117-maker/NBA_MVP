@@ -5,7 +5,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.audit_models import coverage_and_logs
+from scripts.audit_models import coverage_and_logs, leakage_probes
+
+
+def test_team_initial_prior_is_independent_of_future_results():
+    probes = leakage_probes()
+    assert probes["team"]["before"] == probes["team"]["after_appending_future"]
 
 
 def test_audit_coverage_excludes_future_rows():

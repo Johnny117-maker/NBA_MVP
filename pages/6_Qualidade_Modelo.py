@@ -47,9 +47,14 @@ def _render_team_metrics(latest: pd.Series) -> None:
         ]
     )
     st.caption(
-        "Avaliação nos 20% finais da base em ordem cronológica. Treinado em "
+        "Avaliação na parte final da base em ordem cronológica. Treinado em "
         f"{format_datetime_br(latest['trained_at'])} com {format_int_br(int(latest['n_games']))} jogos."
     )
+    if metrics.get("score_model_version", 1) >= 2:
+        st.caption(
+            "Placar v2 · ataque, defesa e média de pontos dos últimos 10 jogos de cada time. "
+            "Validação com datas completas; o dia de teste fica fora do treinamento."
+        )
 
 
 def _render_player_metrics(latest: pd.Series) -> None:

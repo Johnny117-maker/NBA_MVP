@@ -232,6 +232,16 @@ def team_game_history(games: pd.DataFrame, team: str) -> pd.DataFrame:
             "net_rating": np.where(
                 is_home, selected["home_net_rating"], selected["away_net_rating"]
             ),
+            "observed_off_rating": np.where(
+                is_home,
+                selected.get("home_observed_off_rating", selected["home_off_rating"]),
+                selected.get("away_observed_off_rating", selected["away_off_rating"]),
+            ),
+            "observed_def_rating": np.where(
+                is_home,
+                selected.get("home_observed_def_rating", selected["home_def_rating"]),
+                selected.get("away_observed_def_rating", selected["away_def_rating"]),
+            ),
             "pregame_form": np.where(
                 is_home,
                 selected["home_last10_win_pct"],
@@ -245,10 +255,23 @@ def team_game_history(games: pd.DataFrame, team: str) -> pd.DataFrame:
 
 def team_snapshot(games: pd.DataFrame, team: str, window: int = 10) -> dict[str, float]:
     history = team_game_history(games, team).tail(window)
+    # Na base real, calcule o próximo contexto a partir dos ratings observados,
+    # sem fazer uma segunda média sobre médias pré-jogo já defasadas.
+    off_rating = float(history["observed_off_rating"].mean())
+    def_rating = float(history["observed_def_rating"].mean())
+    observed_columns = {
+        f"{side}_observed_{rating}"
+        for side in ("home", "away")
+        for rating in ("off_rating", "def_rating")
+    }
+    net_rating = (
+        off_rating - def_rating if observed_columns.issubset(games.columns)
+        else float(history["net_rating"].mean())
+    )
     return {
-        "off_rating": float(history["off_rating"].mean()),
-        "def_rating": float(history["def_rating"].mean()),
-        "net_rating": float(history["net_rating"].mean()),
+        "off_rating": off_rating,
+        "def_rating": def_rating,
+        "net_rating": net_rating,
         "win_pct": float(history["win"].mean()),
         "points_for": float(history["points_for"].mean()),
         "points_against": float(history["points_against"].mean()),

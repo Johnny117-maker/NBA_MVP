@@ -212,6 +212,15 @@ python scripts/audit_models.py --players
 O resultado fica em `reports/model_audit.json`. A auditoria consulta o banco em modo
 somente leitura e mantém os modelos e o histórico de treinamentos existentes.
 
+O modelo de placar v2 usa ataque, defesa e pontuação recente de cada equipe,
+além das diferenças entre os times. A [validação da ativação](docs/MODELO_PLACAR_V2.md)
+registra a comparação com o modelo anterior em três temporadas completas.
+Para treinar e registrar apenas os modelos de times, com o ambiente virtual ativado:
+
+```powershell
+python scripts/retrain_models.py --team-only
+```
+
 ## Publicar no GitHub
 
 O arquivo `PUBLICAR_GITHUB.bat` cria um commit e publica a **branch atual** no remoto `origin`. Em uma pasta sem Git, inicializa a branch `main`; em um repositório existente, preserva a branch selecionada. Antes de executá-lo:

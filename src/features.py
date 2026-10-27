@@ -6,6 +6,7 @@ import pandas as pd
 DEFAULT_WIN_PCT = 0.5
 DEFAULT_REST_DAYS = 3
 ROLLING_WINDOW = 10
+DEFAULT_RATING = 110.0
 
 FEATURE_COLUMNS = ["off_rating", "def_rating", "net_rating", "last10_win_pct", "rest_days"]
 
@@ -25,6 +26,10 @@ _OUTPUT_COLUMNS = [
     "away_last10_win_pct",
     "home_rest_days",
     "away_rest_days",
+    "home_observed_off_rating",
+    "away_observed_off_rating",
+    "home_observed_def_rating",
+    "away_observed_def_rating",
     "home_points",
     "away_points",
     "home_win",
@@ -64,6 +69,8 @@ def _team_long_format(raw_games: pd.DataFrame, advanced_stats: pd.DataFrame | No
 
     long["rating_for"] = long["official_off_rating"].fillna(long["points_for"])
     long["rating_against"] = long["official_def_rating"].fillna(long["points_against"])
+    long["observed_off_rating"] = long["rating_for"]
+    long["observed_def_rating"] = long["rating_against"]
 
     return long.sort_values(["team", "game_date"]).reset_index(drop=True)
 
@@ -84,14 +91,54 @@ def _per_team_rolling(group: pd.DataFrame) -> pd.DataFrame:
     return group
 
 
-def _add_rolling_features(long: pd.DataFrame) -> pd.DataFrame:
-    league_avg_rating = float(long["rating_for"].mean())
+def pregame_scoring_averages(games: pd.DataFrame) -> pd.DataFrame:
+    """Média dos últimos dez placares por time, excluindo a data da previsão.
 
+    Aceita também bases demonstrativas/CSV sem game_id. As posições preservam
+    a ordem e o índice recebidos, mesmo quando há vários jogos na mesma data.
+    """
+    rows = []
+    for side in ("home", "away"):
+        rows.append(
+            pd.DataFrame({
+                "row": np.arange(len(games)),
+                "side": side,
+                "team": games[f"{side}_team"].to_numpy(),
+                "game_date": pd.to_datetime(games["game_date"]).dt.normalize().to_numpy(),
+                "points": games[f"{side}_points"].to_numpy(),
+            })
+        )
+    long = pd.concat(rows, ignore_index=True).sort_values(
+        ["team", "game_date", "row"], kind="stable"
+    )
+    long["average"] = long.groupby("team")["points"].transform(
+        lambda values: values.shift(1).rolling(ROLLING_WINDOW, min_periods=1).mean()
+    )
+    # Todos os confrontos de um time na mesma data recebem o contexto anterior
+    # ao primeiro deles; nenhum placar do próprio dia entra nas variáveis.
+    prior_by_day = long.drop_duplicates(["team", "game_date"])[
+        ["team", "game_date", "average"]
+    ]
+    long = long.drop(columns="average").merge(
+        prior_by_day, on=["team", "game_date"], how="left", validate="many_to_one"
+    )
+    return pd.DataFrame(
+        {
+            f"{side}_points_avg10": long.loc[long["side"].eq(side)]
+            .sort_values("row")["average"].fillna(DEFAULT_RATING).to_numpy()
+            for side in ("home", "away")
+        },
+        index=games.index,
+    )
+
+
+def _add_rolling_features(long: pd.DataFrame) -> pd.DataFrame:
     long = long.groupby("team", group_keys=False).apply(
         _per_team_rolling, include_groups=False
     )
-    long["off_rating"] = long["off_rating"].fillna(league_avg_rating)
-    long["def_rating"] = long["def_rating"].fillna(league_avg_rating)
+    # Um prior fixo não muda quando jogos futuros são acrescentados à base.
+    long["off_rating"] = long["off_rating"].fillna(DEFAULT_RATING)
+    long["def_rating"] = long["def_rating"].fillna(DEFAULT_RATING)
     long["last10_win_pct"] = long["last10_win_pct"].fillna(DEFAULT_WIN_PCT)
     long["rest_days"] = long["rest_days"].fillna(DEFAULT_REST_DAYS).astype(int)
     long["net_rating"] = long["off_rating"] - long["def_rating"]
@@ -114,14 +161,15 @@ def engineer_features(
     raw_games["game_date"] = pd.to_datetime(raw_games["game_date"])
 
     long = _add_rolling_features(_team_long_format(raw_games, advanced_stats))
+    context_columns = ["game_id", *FEATURE_COLUMNS, "observed_off_rating", "observed_def_rating"]
 
     home_features = (
-        long.loc[long["is_home"], ["game_id", *FEATURE_COLUMNS]]
+        long.loc[long["is_home"], context_columns]
         .set_index("game_id")
         .add_prefix("home_")
     )
     away_features = (
-        long.loc[~long["is_home"], ["game_id", *FEATURE_COLUMNS]]
+        long.loc[~long["is_home"], context_columns]
         .set_index("game_id")
         .add_prefix("away_")
     )
