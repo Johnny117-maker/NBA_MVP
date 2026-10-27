@@ -139,9 +139,8 @@ def team_highlights(form_table: pd.DataFrame, team: str, top_n: int = 3) -> pd.D
         )
     if "tag" not in selected:
         selected["tag"] = "Consistente"
-    return (
-        selected.sort_values("impact_recent", ascending=False).head(max(1, int(top_n))).reset_index(drop=True)
-    )
+    ranked = selected.sort_values("impact_recent", ascending=False)
+    return ranked.head(max(1, int(top_n))).reset_index(drop=True)
 
 
 def game_headliner(home_players: pd.DataFrame, away_players: pd.DataFrame) -> dict | None:

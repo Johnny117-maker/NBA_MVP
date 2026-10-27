@@ -285,7 +285,7 @@ def _fetch_espn_schedule(
     A compact date-range request is attempted first. Since date-range behavior can
     vary by scoreboard deployment, the code falls back to one request per day.
     """
-    headers = {
+    headers: dict[str, str] = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
         "Accept": "application/json,text/plain,*/*",
         "Origin": "https://www.espn.com",
@@ -375,7 +375,7 @@ def fetch_nba_schedule(
     The source column marks whether rows came from NBA CDN or the ESPN fallback.
     Raises a concise RuntimeError if neither source is available.
     """
-    headers = {
+    headers: dict[str, str] = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
         "Referer": "https://www.nba.com/",
         "Accept": "application/json,text/plain,*/*",
