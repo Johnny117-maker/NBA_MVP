@@ -16,6 +16,7 @@ from src.model import predict_game, train_models
 from src.simulation import simulate_score_distribution
 from src.store import DEFAULT_DB_PATH, count_games, log_team_prediction
 from src.ui import components, states, theme
+from src.ui.insights import matchup_intel
 
 st.set_page_config(
     page_title="Times — NBA Analytics Lab",
@@ -176,6 +177,9 @@ def main() -> None:
     home = team_snapshot(games, home_team)
     away = team_snapshot(games, away_team)
     prediction = predict_game(bundle, home, away, home_rest, away_rest)
+
+    components.section_header("Central da partida", "Forma recente, força das equipes e pontuação observada.")
+    matchup_intel(games, away_team, home_team, key="teams")
 
     st.subheader("Cenário projetado")
     components.metric_row(

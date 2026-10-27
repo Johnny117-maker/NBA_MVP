@@ -9,6 +9,7 @@ from src.model import train_models
 from src.season_simulator import actual_final_standings, simulate_season
 from src.store import DEFAULT_DB_PATH, list_seasons
 from src.ui import components, states, theme
+from src.ui.insights import ranking_list, team_form_table
 
 st.set_page_config(
     page_title="Temporada — NBA Analytics Lab",
@@ -22,6 +23,7 @@ components.page_header(
     "Milhares de caminhos até os playoffs.",
     "Escolha um ponto da temporada, simule os jogos restantes e compare com o que aconteceu.",
     category="TEMPORADA",
+    hero=True,
 )
 
 if not DEFAULT_DB_PATH.exists() or not list_seasons(DEFAULT_DB_PATH):
@@ -55,21 +57,47 @@ components.note(
 
 with st.container(border=True):
     st.subheader("Seu cenário")
-    season = st.selectbox("Temporada", sorted(list_seasons(DEFAULT_DB_PATH), reverse=True))
+    season_column, cutoff_column = st.columns(2)
+    with season_column:
+        season = st.selectbox("Temporada", sorted(list_seasons(DEFAULT_DB_PATH), reverse=True))
 
     season_dates = games.loc[games["season"] == season, "game_date"]
     min_date, max_date = season_dates.min().date(), season_dates.max().date()
     default_cutoff = min_date + (max_date - min_date) * 0.7 if season_dates.size else min_date
 
-    cutoff_date = st.date_input(
-        "Simular a partir de",
-        value=default_cutoff,
-        format="DD/MM/YYYY",
-        min_value=min_date,
-        max_value=max_date,
+    with cutoff_column:
+        cutoff_date = st.date_input(
+            "Simular a partir de",
+            value=default_cutoff,
+            format="DD/MM/YYYY",
+            min_value=min_date,
+            max_value=max_date,
+        )
+    count_column, action_column = st.columns([3, 1])
+    with count_column:
+        n_simulations = st.slider("Número de cenários simulados", 1_000, 20_000, 5_000, step=1_000)
+    with action_column:
+        st.caption("Calcular projeções")
+        run_simulation = st.button("Rodar simulação", type="primary", use_container_width=True)
+
+season_history = games[games["season"].eq(season)]
+with st.expander("Panorama da temporada coletada", expanded=True):
+    st.caption(
+        "Resumo de todos os jogos coletados desta temporada; "
+        "a simulação abaixo usa a data de corte escolhida."
     )
-    n_simulations = st.slider("Número de cenários simulados", 1_000, 20_000, 5_000, step=1_000)
-    run_simulation = st.button("Rodar simulação", type="primary")
+    season_form = team_form_table(season_history)
+    stats, ranking_col = st.columns([1, 2])
+    with stats:
+        components.metric_row([
+            {"label": "Partidas coletadas", "value": str(len(season_history))},
+            {"label": "Equipes", "value": str(len(season_form))},
+        ])
+        st.caption(f"Histórico até {season_history['game_date'].max():%d/%m/%Y}.")
+    with ranking_col:
+        ranking_list(
+            season_form.sort_values(["wins", "net_rating"], ascending=False), "Mais vitórias na base"
+        )
 
 
 if not run_simulation:

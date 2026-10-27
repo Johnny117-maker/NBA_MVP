@@ -31,9 +31,16 @@ def note(text: str, kind: str = "info") -> None:
     st.markdown(f'<div class="app-note app-note--{kind}">{escape(text)}</div>', unsafe_allow_html=True)
 
 
-def page_header(title: str, description: str, category: str = "EXPLORAR") -> None:
+def page_header(title: str, description: str, category: str = "EXPLORAR", *, hero: bool = False) -> None:
+    heading_class = "page-heading page-heading--hero" if hero else "page-heading"
+    illustration = (
+        '<svg class="hero-art" viewBox="0 0 200 200" fill="none" aria-hidden="true">'
+        '<path d="M65 25h70v45a35 35 0 0 1-70 0V25ZM65 35H30v20q0 40 40 40'
+        'M135 35h35v20q0 40-40 40M100 105v40M65 170h70M80 145h40v25H80z" '
+        'stroke="currentColor" stroke-width="10" stroke-linejoin="round"/></svg>' if hero else ""
+    )
     st.markdown(
-        '<div class="page-heading">'
+        f'<div class="{heading_class}">{illustration}'
         f'<div class="page-eyebrow">NBA ANALYTICS LAB / {escape(category)}</div>'
         f"<h1>{escape(title)}</h1><p>{escape(description)}</p></div>",
         unsafe_allow_html=True,

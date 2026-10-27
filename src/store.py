@@ -9,6 +9,40 @@ import pandas as pd
 
 DEFAULT_DB_PATH = Path("data/nba.db")
 
+
+def read_dashboard_leaders(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
+    """Líderes em pontos da temporada mais recente coletada, mínimo de 10 jogos.
+
+    Agrega no SQLite para a abertura do painel não carregar todos os boxscores.
+    A equipe é a última registrada nessa temporada, incluindo jogadores trocados.
+    """
+    if not Path(path).exists():
+        return pd.DataFrame()
+    with sqlite3.connect(path) as connection:
+        exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_game_stats'"
+        ).fetchone()
+        if not exists:
+            return pd.DataFrame()
+        return pd.read_sql_query(
+            """
+            WITH recent AS (
+                SELECT * FROM player_game_stats
+                WHERE season = (SELECT season FROM player_game_stats ORDER BY game_date DESC LIMIT 1)
+            ), leaders AS (
+                SELECT player_id, season, COUNT(*) AS games, AVG(pts) AS pts,
+                       AVG(reb) AS reb, AVG(ast) AS ast
+                FROM recent GROUP BY player_id, season HAVING COUNT(*) >= 10
+                ORDER BY pts DESC, player_id LIMIT 4
+            )
+            SELECT l.*, r.player_name, r.team FROM leaders l
+            JOIN player_game_stats r ON r.rowid = (
+                SELECT rowid FROM player_game_stats p WHERE p.player_id = l.player_id
+                AND p.season = l.season ORDER BY p.game_date DESC, p.game_id DESC LIMIT 1
+            ) ORDER BY l.pts DESC, l.player_id
+            """, connection,
+        )
+
 _GAMES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS games (
     game_id TEXT PRIMARY KEY,

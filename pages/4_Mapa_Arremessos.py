@@ -16,7 +16,6 @@ from src.shot_features import (
     compare_to_league,
     compare_to_opponent_defense,
     filter_shots,
-    league_zone_rates,
     opponent_zone_defense,
     shot_indicators,
     zone_summary,
@@ -126,6 +125,17 @@ def _load_zone_reference(db_version: int) -> pd.DataFrame:
     return read_shots_for_zone_reference(DEFAULT_DB_PATH)
 
 
+@st.cache_data(show_spinner="Calculando as referências por zona…", max_entries=1)
+def _league_reference(db_version: int) -> tuple[pd.DataFrame, float | None]:
+    summary = zone_summary(_load_zone_reference(db_version))
+    rates = summary[["shot_zone_basic", "fg_pct", "points_per_shot"]].rename(
+        columns={"fg_pct": "league_fg_pct", "points_per_shot": "league_points_per_shot"}
+    )
+    attempts = int(summary["attempts"].sum())
+    mean_points = float(summary["points"].sum() / attempts) if attempts else None
+    return rates, mean_points
+
+
 @st.cache_data(show_spinner=False)
 def _load_player_shots(player_id: int, db_version: int) -> pd.DataFrame:
     return read_player_shots(DEFAULT_DB_PATH, player_id=player_id)
@@ -158,11 +168,7 @@ st.caption(
     "coletados nesta base (ainda não é a liga inteira — cresce a cada coleta)."
 )
 
-league_rates = league_zone_rates(zone_reference)
-_league_points_per_shot_raw = shot_indicators(zone_reference).get("points_per_shot")
-league_points_per_shot = (
-    cast(float, _league_points_per_shot_raw) if _league_points_per_shot_raw is not None else None
-)
+league_rates, league_points_per_shot = _league_reference(db_version)
 
 if shots.empty:
     st.warning("Nenhum arremesso encontrado para esse jogador nessa temporada.")
@@ -170,22 +176,14 @@ if shots.empty:
 
 indicators = shot_indicators(shots, league_rates=league_rates)
 
-components.metric_row(
-    [
-        {"label": "Tentativas", "value": format_int_br(cast(int, indicators["total_attempts"]))},
-        {"label": "FG%", "value": f"{indicators['fg_pct']:.1%}"},
-        {"label": "eFG%", "value": f"{indicators['efg_pct']:.1%}"},
-        {"label": "Pontos/tentativa", "value": f"{indicators['points_per_shot']:.2f}"},
-        {"label": "Distância média", "value": f"{indicators['avg_distance']:.1f} pés"},
-        {"label": "Zona mais usada", "value": indicators["most_used_zone"]},
-    ]
-)
-
 tab_court, tab_zones, tab_trend, tab_compare, tab_projections = st.tabs(
     ["Quadra", "Por zona", "Evolução", "Comparações", "Projeções"]
 )
 
-with tab_court:
+with tab_court, st.container(key="shot_court_layout"):
+    court_column, stats_column = st.columns([2, 1], gap="large")
+with tab_court, court_column, st.container(border=True):
+    st.markdown(f"#### {selected_name} · {selected_season}")
     view = st.radio(
         "Visualização da quadra", ["Tentativas", "Calor", "Hexágonos"], horizontal=True, key="court_view"
     )
@@ -204,6 +202,36 @@ with tab_court:
             "Tamanho: volume de tentativas. Cor: pontos por tentativa — "
             "laranja acima da referência, azul abaixo."
         )
+
+with tab_court, stats_column:
+    with st.container(border=True):
+        st.markdown("#### Estatísticas de arremesso")
+        for metric_pair in (
+            [
+                {"label": "Tentativas", "value": format_int_br(cast(int, indicators["total_attempts"]))},
+                {"label": "FG%", "value": f"{indicators['fg_pct']:.1%}"},
+            ],
+            [
+                {"label": "eFG%", "value": f"{indicators['efg_pct']:.1%}"},
+                {"label": "Pts/tentativa", "value": f"{indicators['points_per_shot']:.2f}"},
+            ],
+        ):
+            components.metric_row(metric_pair)
+        st.caption(f"Distância média: {indicators['avg_distance']:.1f} pés.")
+    with st.container(border=True):
+        st.markdown("#### Eficiência por zona")
+        breakdown = zone_summary(shots).sort_values("attempts", ascending=False)
+        from html import escape
+
+        for _, zone in breakdown.iterrows():
+            st.markdown(
+                '<div class="zone-row">'
+                f'<span>{escape(str(zone["zone_label"]))}</span>'
+                f'<strong>{zone["fg_pct"]:.0%}</strong>'
+                f'<small>{int(zone["makes"])}/{int(zone["attempts"])}</small></div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("Conversões / tentativas · valores do jogador na temporada selecionada.")
 
 with tab_zones:
     summary = zone_summary(shots)

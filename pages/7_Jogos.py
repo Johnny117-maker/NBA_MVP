@@ -30,6 +30,7 @@ from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH, read_schedule_cach
 from src.store import DEFAULT_DB_PATH, count_player_games
 from src.ui import components, states, theme
 from src.ui.formatters import format_date_br
+from src.ui.insights import matchup_intel
 
 st.set_page_config(
     page_title="Jogos do Dia — NBA Analytics Lab",
@@ -403,87 +404,111 @@ if team_bundle is not None:
         "Probabilidades experimentais pelo modelo de Times, considerando histórico e descanso das equipes."
     )
 
-for _, game in games.iterrows():
-    away_name, home_name = str(game["away_team_name"]), str(game["home_team_name"])
-    with st.container(border=True):
-        st.markdown(f"### {away_name} @ {home_name}")
-        details = [format_tipoff(game.get("game_datetime_utc")), status_label(game.get("game_status"))]
-        if str(game.get("arena_name") or "").strip():
-            details.append(str(game["arena_name"]))
-        st.caption(" · ".join(details))
+tab_round, tab_matchup = st.tabs(["Rodada", "Central da partida"])
 
-        if team_bundle is not None:
-            try:
-                away_snapshot = team_snapshot(team_games, away_name)
-                home_snapshot = team_snapshot(team_games, home_name)
-                prediction = predict_game(
-                    team_bundle,
-                    home_snapshot,
-                    away_snapshot,
-                    team_rest_days(team_games, home_name, selected_day),
-                    team_rest_days(team_games, away_name, selected_day),
-                )
-                prob_cols = st.columns(2)
-                prob_cols[0].metric(f"Prob. {away_name}", f"{prediction.away_win_probability:.0%}")
-                prob_cols[1].metric(f"Prob. {home_name}", f"{prediction.home_win_probability:.0%}")
-            except (ValueError, KeyError, TypeError, OverflowError):
-                st.info("Probabilidade indisponível: histórico recente insuficiente para um dos times.")
+with tab_round:
+    for _, game in games.iterrows():
+        away_name, home_name = str(game["away_team_name"]), str(game["home_team_name"])
+        with st.container(border=True):
+            st.markdown(f"### {away_name} @ {home_name}")
+            details = [format_tipoff(game.get("game_datetime_utc")), status_label(game.get("game_status"))]
+            if str(game.get("arena_name") or "").strip():
+                details.append(str(game["arena_name"]))
+            st.caption(" · ".join(details))
 
-        if form_table.empty:
-            continue
-
-        away_players = team_highlights(form_table, str(game["away_team_tricode"]), top_n=top_n)
-        home_players = team_highlights(form_table, str(game["home_team_tricode"]), top_n=top_n)
-
-        headliner = game_headliner(home_players, away_players)
-        if headliner is not None:
-            st.markdown(
-                f"⭐ **Destaque da partida:** {headliner['player_name']} — "
-                f"{headliner['pts_recent']:.1f} pts, {headliner['reb_recent']:.1f} reb, "
-                f"{headliner['ast_recent']:.1f} ast nos últimos jogos"
-            )
-
-        with st.expander("Ver destaques das equipes", expanded=False):
-            for column, team_name, team_players, opponent, is_home in (
-                *zip(
-                    st.columns(2),
-                    (away_name, home_name),
-                    (away_players, home_players),
-                    (home_name, away_name),
-                    (False, True),
-                    strict=True,
-                ),
-            ):
-                with column:
-                    st.markdown(f"**{team_name}**")
-                    if team_players.empty:
-                        st.caption("Sem jogadores elegíveis na base (histórico ou minutos insuficientes).")
-                        continue
-                    table = _highlight_table(team_players, opponent, is_home)
-                    formats = {
-                        "Min": "{:.1f}",
-                        "PTS": "{:.1f}",
-                        "REB": "{:.1f}",
-                        "AST": "{:.1f}",
-                        "PTS vs. temporada": "{:+.1f}",
-                        "Proj. PTS": "{:.1f}",
-                        "Proj. REB": "{:.1f}",
-                        "Proj. AST": "{:.1f}",
-                    }
-                    st.dataframe(
-                        table.style.format(
-                            {key: value for key, value in formats.items() if key in table.columns},
-                            na_rep="—",
-                        ),
-                        hide_index=True,
-                        use_container_width=True,
+            if team_bundle is not None:
+                try:
+                    away_snapshot = team_snapshot(team_games, away_name)
+                    home_snapshot = team_snapshot(team_games, home_name)
+                    prediction = predict_game(
+                        team_bundle,
+                        home_snapshot,
+                        away_snapshot,
+                        team_rest_days(team_games, home_name, selected_day),
+                        team_rest_days(team_games, away_name, selected_day),
                     )
+                    prob_cols = st.columns(2)
+                    prob_cols[0].metric(f"Prob. {away_name}", f"{prediction.away_win_probability:.0%}")
+                    prob_cols[1].metric(f"Prob. {home_name}", f"{prediction.home_win_probability:.0%}")
+                except (ValueError, KeyError, TypeError, OverflowError):
+                    st.info("Probabilidade indisponível: histórico recente insuficiente para um dos times.")
 
-if not form_table.empty:
-    st.caption(
-        "Destaques: ranking pelo índice de impacto recente (pontos + 0,7 × rebotes + assistências, "
-        "média dos últimos 5 jogos com minutos). 'PTS vs. temporada' compara a forma recente com a "
-        "média da temporada mais recente do jogador. A base não tem dados de lesão ou escalação "
-        "confirmada: um destaque pode estar fora da partida — confira o status oficial antes de "
-        "interpretar. Horários em Brasília e na costa leste (ET)."
-    )
+            if form_table.empty:
+                continue
+
+            away_players = team_highlights(form_table, str(game["away_team_tricode"]), top_n=top_n)
+            home_players = team_highlights(form_table, str(game["home_team_tricode"]), top_n=top_n)
+
+            headliner = game_headliner(home_players, away_players)
+            if headliner is not None:
+                st.markdown(
+                    f"⭐ **Destaque da partida:** {headliner['player_name']} — "
+                    f"{headliner['pts_recent']:.1f} pts, {headliner['reb_recent']:.1f} reb, "
+                    f"{headliner['ast_recent']:.1f} ast nos últimos jogos"
+                )
+
+            with st.expander("Ver destaques das equipes", expanded=False):
+                for column, team_name, team_players, opponent, is_home in (
+                    *zip(
+                        st.columns(2),
+                        (away_name, home_name),
+                        (away_players, home_players),
+                        (home_name, away_name),
+                        (False, True),
+                        strict=True,
+                    ),
+                ):
+                    with column:
+                        st.markdown(f"**{team_name}**")
+                        if team_players.empty:
+                            st.caption(
+                                "Sem jogadores elegíveis na base (histórico ou minutos insuficientes)."
+                            )
+                            continue
+                        table = _highlight_table(team_players, opponent, is_home)
+                        formats = {
+                            "Min": "{:.1f}",
+                            "PTS": "{:.1f}",
+                            "REB": "{:.1f}",
+                            "AST": "{:.1f}",
+                            "PTS vs. temporada": "{:+.1f}",
+                            "Proj. PTS": "{:.1f}",
+                            "Proj. REB": "{:.1f}",
+                            "Proj. AST": "{:.1f}",
+                        }
+                        st.dataframe(
+                            table.style.format(
+                                {key: value for key, value in formats.items() if key in table.columns},
+                                na_rep="—",
+                            ),
+                            hide_index=True,
+                            use_container_width=True,
+                        )
+
+    if not form_table.empty:
+        st.caption(
+            "Destaques: ranking pelo índice de impacto recente (pontos + 0,7 × rebotes + assistências, "
+            "média dos últimos 5 jogos com minutos). 'PTS vs. temporada' compara a forma recente com a "
+            "média da temporada mais recente do jogador. A base não tem dados de lesão ou escalação "
+            "confirmada: um destaque pode estar fora da partida — confira o status oficial antes de "
+            "interpretar. Horários em Brasília e na costa leste (ET)."
+        )
+
+with tab_matchup:
+    if not team_games.empty:
+        components.section_header(
+            "Central da partida", "Escolha um confronto da rodada para explorar as equipes."
+        )
+        matchups = games.reset_index(drop=True)
+        selected_matchup = st.selectbox(
+            "Detalhar confronto", list(range(len(matchups))),
+            format_func=lambda idx: (
+                f"{matchups.iloc[idx]['away_team_name']} @ {matchups.iloc[idx]['home_team_name']}"
+            ),
+            key="daily_matchup_detail",
+        )
+        chosen = matchups.iloc[selected_matchup]
+        matchup_intel(team_games, str(chosen["away_team_name"]), str(chosen["home_team_name"]), key="daily")
+
+    else:
+        st.info("Colete histórico de times para abrir a central da partida.")

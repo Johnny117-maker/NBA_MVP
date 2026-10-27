@@ -178,7 +178,8 @@ def test_roster_failure_keeps_highlights_available(app_db, monkeypatch):
     app = AppTest.from_file("../pages/7_Jogos.py").run(timeout=30)
     assert not app.exception
     assert any("Não foi possível consultar o elenco" in warning.value for warning in app.warning)
-    assert len(app.dataframe) == 2
+    highlights = [table for table in app.dataframe if "Jogador" in table.value.columns]
+    assert len(highlights) == 2
 
 
 def test_highlights_exclude_results_from_the_selected_day(app_db, monkeypatch):
@@ -197,8 +198,11 @@ def test_highlights_exclude_results_from_the_selected_day(app_db, monkeypatch):
 
     app = AppTest.from_file("../pages/7_Jogos.py").run(timeout=30)
     assert not app.exception
-    assert len(app.dataframe) == 2
-    assert all("Resultado futuro" not in frame.value["Jogador"].tolist() for frame in app.dataframe)
+    assert len([frame for frame in app.dataframe if "Jogador" in frame.value.columns]) == 2
+    assert all(
+        "Resultado futuro" not in frame.value["Jogador"].tolist()
+        for frame in app.dataframe if "Jogador" in frame.value.columns
+    )
 
 
 def test_past_dates_do_not_consult_current_roster(app_db, monkeypatch):
@@ -217,7 +221,7 @@ def test_past_dates_do_not_consult_current_roster(app_db, monkeypatch):
     app.date_input[0].set_value(yesterday).run(timeout=30)
     assert not app.exception
     assert not calls
-    assert len(app.dataframe) == 2
+    assert len([frame for frame in app.dataframe if "Jogador" in frame.value.columns]) == 2
 
 
 def test_player_projection_can_be_enabled(app_db, monkeypatch):
@@ -225,8 +229,8 @@ def test_player_projection_can_be_enabled(app_db, monkeypatch):
     app = AppTest.from_file("../pages/7_Jogos.py").run(timeout=30)
     app.checkbox[0].check().run(timeout=60)
     assert not app.exception
-    assert len(app.dataframe) == 2
-    for frame in app.dataframe:
+    assert len([frame for frame in app.dataframe if "Jogador" in frame.value.columns]) == 2
+    for frame in [frame for frame in app.dataframe if "Jogador" in frame.value.columns]:
         assert {"Proj. PTS", "Proj. REB", "Proj. AST", "Confiança"}.issubset(frame.value.columns)
         assert frame.value["Proj. PTS"].notna().all()
 
@@ -258,7 +262,7 @@ def test_network_failure_allows_manual_game_and_keeps_it_on_rerun(app_db, monkey
     assert not app.exception
     assert any("Boston Celtics @ New York Knicks" in md.value for md in app.markdown)
     assert any("Cadastro manual" in md.value for md in app.markdown)
-    assert len(app.dataframe) == 2
+    assert len([frame for frame in app.dataframe if "Jogador" in frame.value.columns]) == 2
     app.slider[0].set_value(2).run(timeout=30)
     assert not app.exception
     assert any("Boston Celtics @ New York Knicks" in md.value for md in app.markdown)

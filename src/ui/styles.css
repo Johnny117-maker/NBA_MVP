@@ -1,6 +1,6 @@
 <style>
 :root {--nba-accent:#f97316; --nba-border:#29354a; --nba-muted:#b8c2d6;}
-.block-container {max-width:1480px; padding:3.8rem 2.5rem 4rem;}
+.block-container {max-width:1560px; padding:3.8rem 2rem 4rem;}
 [data-testid="stAppDeployButton"] {display:none;}
 [data-testid="stHeader"] {background:rgba(11,17,32,.96);}
 [data-testid="stSidebar"] {background:#101827; border-right:1px solid #253044;}
@@ -36,13 +36,13 @@
 [data-testid="stExpander"] {border-color:#29354a; border-radius:12px;}
 [data-baseweb="tab-list"], [role="tablist"] {gap:8px; border-bottom:1px solid #29354a; padding-bottom:6px;
     margin:12px 0 16px; overflow-x:auto;}
-button[data-baseweb="tab"], button[role="tab"] {
+button[data-baseweb="tab"], [role="tab"] {
     font-size:14px; padding:8px 14px; height:auto; border-radius:8px; white-space:nowrap;
 }
-button[data-baseweb="tab"][aria-selected="true"], button[role="tab"][aria-selected="true"] {
+button[data-baseweb="tab"][aria-selected="true"], [role="tab"][aria-selected="true"] {
     color:#ffb078; background:#f973161c;
 }
-button[data-baseweb="tab"]:hover, button[role="tab"]:hover {background:#ffffff08;}
+button[data-baseweb="tab"]:hover, [role="tab"]:hover {background:#ffffff08;}
 [data-testid="stButton"] button, [data-testid="stFormSubmitButton"] button {border-radius:9px; min-height:40px;}
 a:focus-visible,button:focus-visible,input:focus-visible {outline:2px solid #38bdf8!important; outline-offset:3px;}
 .source-badge {display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; padding:10px 13px;
@@ -62,6 +62,70 @@ a:focus-visible,button:focus-visible,input:focus-visible {outline:2px solid #38b
 .tool-card p {color:#a9b8cc; font-size:14px; line-height:1.6; margin:0;}
 .game-kicker {font-size:11px; color:#fb923c; text-transform:uppercase; letter-spacing:.08em;}
 .game-title {font-size:22px; font-weight:700; letter-spacing:-.025em; margin:5px 0 10px;}
+.page-heading--hero {position:relative; overflow:hidden; border:1px solid #5976be66;
+    padding:32px 34px; border-radius:24px; min-height:220px;
+    background:linear-gradient(120deg,#2257bb 0%,#344b88 54%,#652b63 100%);}
+.page-heading--hero .page-eyebrow {color:#fce6a9; position:relative; z-index:1;}
+.page-heading--hero h1 {color:white; max-width:700px; font-size:clamp(2rem,3.3vw,3.3rem);
+    font-style:italic; text-transform:uppercase; font-weight:850; position:relative; z-index:1;}
+.page-heading--hero p {color:#e1e9ff; max-width:650px; position:relative; z-index:1;}
+.hero-art {position:absolute; width:230px; height:230px; right:25px; top:5px; color:#ffffff14;
+    transform:rotate(15deg);}
+.team-intel {--team-color:#8ba5fa; padding:20px; margin:0 0 10px; border:1px solid #334155;
+    border-top:2px solid var(--team-color); border-radius:20px;
+    background:linear-gradient(135deg,color-mix(in srgb,var(--team-color) 7%,#0d1421),#0d1421 70%);}
+.team-intel-head {display:flex; align-items:center; gap:12px; min-height:60px;}
+.team-monogram {display:grid; place-items:center; flex-shrink:0; width:55px; height:55px;
+    border-radius:50%; border:1px solid var(--team-color); color:var(--team-color);
+    background:#ffffff05; font-weight:850; font-size:16px;}
+.team-intel h3 {font-size:17px; margin:0; padding:0; line-height:1.3;}
+.team-intel-head p {color:#aebbd0; font-size:12px; margin:4px 0 0;}
+.team-record {margin-left:auto; text-align:right; flex-shrink:0;}
+.team-record strong {display:block; font-size:21px;}
+.team-record span {display:block; font-size:10px; color:#aebbd0;}
+.form-strip {display:flex; flex-wrap:wrap; gap:5px; margin:18px 0 14px;}
+.form-result {display:grid; place-items:center; border-radius:8px; width:28px; height:25px;
+    font-size:11px; font-weight:800;}
+.is-win {color:#86efac; background:#16653455;}
+.is-loss {color:#fda4af; background:#9f123944;}
+.intel-grid {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;}
+.intel-grid>div,.rank-grid>div {background:#ffffff05; border:1px solid #ffffff0e;
+    border-radius:11px; padding:10px 11px; min-width:0;}
+.intel-grid span,.rank-grid span,.player-stat-line span {display:block; font-size:10px;
+    color:#aebbd0; letter-spacing:.06em; text-transform:uppercase;}
+.intel-grid strong {display:block; font-size:17px; margin-top:4px;}
+.rank-grid {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-top:14px;}
+.rank-grid strong {color:var(--team-color); display:block; margin-top:4px; font-size:15px;}
+.frequency-scroll {overflow-x:auto; padding-bottom:6px;}
+.frequency-grid {display:grid; grid-template-columns:55px repeat(10,minmax(44px,1fr));
+    gap:4px; min-width:590px; padding:8px 0; align-items:center;}
+.frequency-label {font-size:10px; color:#b8c2d6; text-align:center;}
+.frequency-cell {border-radius:6px; text-align:center; padding:12px 3px; font-size:12px; font-weight:750;}
+.frequency-high {background:#145c4666; color:#86efac;}
+.frequency-low {background:#7f243755; color:#fda4af;}
+.frequency-mid {background:#7f621944; color:#fde68a;}
+.player-spotlight {--team-color:#8ba5fa; background:linear-gradient(120deg,#ffffff05,#ffffff02);
+    border:1px solid #334155; border-left:4px solid var(--team-color); border-radius:14px;
+    padding:18px 20px; margin:0 0 14px;}
+.player-card-heading {display:flex; align-items:center; gap:12px; min-height:50px;}
+.player-avatar {display:grid; place-items:center; width:42px; height:42px; flex-shrink:0;
+    border-radius:50%; color:var(--team-color); background:#ffffff08;
+    border:1px solid #ffffff18; font-weight:800; font-size:14px;}
+.player-spotlight h3 {font-size:16px; line-height:1.3; padding:0; margin:0;}
+.player-spotlight p {font-size:10px; color:#aebbd0; margin:5px 0 0; text-transform:uppercase;}
+.player-stat-line {display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px;}
+.player-stat-line strong {font-size:20px; display:block; margin-top:3px;}
+.ranking-row {display:flex; gap:12px; align-items:center; padding:14px 16px; border:1px solid #29354a;
+    background:#ffffff03; border-radius:12px; margin:8px 0; min-height:66px;}
+.rank-position {color:#6385d2; font-size:23px; font-style:italic;}
+.ranking-row div {min-width:0;}
+.ranking-row strong {font-size:13px; display:block;}
+.ranking-row span {font-size:11px; color:#aebbd0; display:block; margin-top:2px;}
+.team-tag {margin-left:auto; font-size:11px; background:#ffffff08; padding:7px; border-radius:6px;}
+.zone-row {display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:10px; align-items:center;
+    border-bottom:1px solid #ffffff0c; padding:11px 0; font-size:12px;}
+.zone-row strong {color:#fbba75;}
+.zone-row small {color:#aebbd0;}
 @media (max-width:900px) {
     .block-container {padding:3.8rem 1.2rem 3rem;}
     [data-testid="stMetric"] {padding:13px; min-height:95px;}
@@ -82,7 +146,24 @@ a:focus-visible,button:focus-visible,input:focus-visible {outline:2px solid #38b
         [data-testid="stColumn"] {min-width:0!important; flex:1 1 0!important;}
     .page-heading h1 {font-size:1.85rem;}
     .page-heading p {font-size:14px;}
-    button[data-baseweb="tab"], button[role="tab"] {padding:8px 10px; font-size:13px;}
+    .page-heading--hero {padding:24px 20px; border-radius:18px; min-height:200px;}
+    .hero-art {right:-45px; opacity:.6;}
+    .team-intel {padding:15px;}
+    .team-intel-head {gap:8px;}
+    .team-intel h3 {font-size:15px;}
+    .team-monogram {width:42px; height:42px; font-size:13px;}
+    .team-record strong {font-size:18px;}
+    .intel-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+    .rank-grid {gap:5px;}
+    .rank-grid>div {padding:8px 5px;}
+    .rank-grid span {font-size:8px;}
+    .player-spotlight {padding:15px;}
+    [data-testid="stHorizontalBlock"]:has(.team-intel) > [data-testid="stColumn"],
+    [data-testid="stHorizontalBlock"]:has(.player-spotlight) > [data-testid="stColumn"],
+    [data-testid="stHorizontalBlock"]:has(.ranking-row) > [data-testid="stColumn"],
+    .st-key-shot_court_layout > [data-testid="stLayoutWrapper"] >
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {flex-basis:100%!important;}
+    button[data-baseweb="tab"], [role="tab"] {padding:8px 10px; font-size:13px;}
 }
 @media (prefers-reduced-motion:reduce) {*,*::before,*::after {scroll-behavior:auto!important;}}
 </style>

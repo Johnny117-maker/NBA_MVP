@@ -177,7 +177,10 @@ def shot_points_chart(shots: pd.DataFrame) -> go.Figure:
                 y=missed["loc_y_ft"],
                 mode="markers",
                 name="Errou",
-                marker=dict(color="#38bdf8", size=7, opacity=0.65, symbol="x-thin", line=dict(width=1)),
+                marker=dict(
+                    color="#38bdf8", size=7, opacity=0.8, symbol="x-thin",
+                    line=dict(width=1.5, color="#38bdf8"),
+                ),
                 text=_shot_hover_text(missed),
                 hoverinfo="text",
             )
