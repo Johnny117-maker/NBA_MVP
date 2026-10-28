@@ -85,9 +85,16 @@ def conditional_prop(
     if stat not in PROP_LABELS or not math.isfinite(line) or line < 0 or player.canonical_id is None:
         return None
     prior = player_prior(history, player.canonical_id, game, stat)
-    if prior is None or not game.regular_season or game.state not in {"pre", "live"}:
+    if prior is None:
         return None
-    now = now or utc_now()
+    return _conditional_from_prior(prior, player, game, stat, line, now or utc_now())
+
+
+def _conditional_from_prior(
+    prior: dict, player: LivePlayer, game: LiveGame, stat: str, line: float, now: datetime
+) -> dict | None:
+    if not game.regular_season or game.state not in {"pre", "live"}:
+        return None
     if game.state == "pre":
         kickoff = pd.to_datetime(game.kickoff, utc=True, errors="coerce")
         if pd.isna(kickoff) or kickoff.to_pydatetime() <= now:
@@ -189,10 +196,13 @@ def players_for_game(history: pd.DataFrame, game: LiveGame) -> list[LivePlayer]:
 def opportunity_candidates(
     history: pd.DataFrame, games: list[LiveGame], now: datetime | None = None
 ) -> list[dict]:
-    if history.empty:
+    if history.empty or not games:
         return []
     now = now or utc_now()
     results = []
+    # Separa uma vez, mantendo a ordem original. Cada atleta consulta somente
+    # o próprio histórico; os valores e o corte temporal do modelo são preservados.
+    histories = {pid: group for pid, group in history.groupby("player_id", sort=False)}
     for game in games:
         if game.state not in {"pre", "live"}:
             continue
@@ -206,14 +216,17 @@ def opportunity_candidates(
         for player in players:
             if player.canonical_id is None:
                 continue
+            player_history = histories.get(player.canonical_id)
+            if player_history is None:
+                continue
             for stat in PROP_LABELS:
-                prior = player_prior(history, player.canonical_id, game, stat)
+                prior = player_prior(player_history, player.canonical_id, game, stat)
                 if prior is None or prior["season_mean"] < {"pts": 8, "reb": 2, "ast": 1}[stat]:
                     continue
                 if prior["season_games"] < 3:
                     continue
                 line = math.floor(prior["reference_mean"]) + 0.5
-                row = conditional_prop(history, player, game, stat, line, now)
+                row = _conditional_from_prior(prior, player, game, stat, line, now)
                 if row is not None and row["eligible"]:
                     if prior["season_games"] < 5:
                         row["line_source"] = "Referência com histórico anterior"

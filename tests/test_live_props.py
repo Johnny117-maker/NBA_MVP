@@ -5,7 +5,8 @@ import pandas as pd
 import pytest
 
 from src.live_types import LiveGame, LivePlayer
-from src.prop_model import conditional_prop, opportunity_candidates, player_prior
+from src.prop_model import conditional_prop, opportunity_candidates, player_prior, players_for_game
+from src.ui.live import _pregame_candidates, current_candidates
 
 
 @pytest.fixture
@@ -107,3 +108,40 @@ def test_finished_games_and_pregames_already_started_do_not_generate_opportuniti
     game.state = "pre"
     game.kickoff = (now - timedelta(hours=1)).isoformat()
     assert opportunity_candidates(history, [game], now) == []
+
+
+@pytest.mark.parametrize("state", ["pre", "live"])
+def test_batch_candidates_match_individual_predictions_with_other_player_history(context, state):
+    now, game, _, history = context
+    game.state = state
+    game.kickoff = (now + timedelta(hours=1)).isoformat()
+    other = history.assign(player_id=2, player_name="Other Player", team="NYK", pts=40, reb=10, ast=8)
+    combined = pd.concat([history, other], ignore_index=True).sort_values("game_date")
+    expected = []
+    for player in players_for_game(combined, game):
+        for stat in ("pts", "reb", "ast"):
+            prior = player_prior(combined, player.canonical_id, game, stat)
+            row = conditional_prop(combined, player, game, stat, int(prior["reference_mean"]) + 0.5, now)
+            if row["eligible"]:
+                expected.append(row)
+    expected.sort(key=lambda row: (row["state"] == "live", row["probability"]), reverse=True)
+    assert opportunity_candidates(combined, [game], now) == expected
+
+
+def test_pregame_cache_rechecks_kickoff_history_and_live_freshness(context):
+    now, game, _, history = context
+    _pregame_candidates.clear()
+    game.state = "pre"
+    game.kickoff = (now + timedelta(hours=1)).isoformat()
+    first = current_candidates(history, [game], now)
+    assert first
+    assert current_candidates(history, [game], now + timedelta(minutes=1)) == first
+    assert current_candidates(history, [game], now + timedelta(hours=2)) == []
+    updated = current_candidates(history.assign(pts=40), [game], now)
+    assert next(r for r in updated if r["stat"] == "pts")["projected"] != next(
+        r for r in first if r["stat"] == "pts"
+    )["projected"]
+    game.state = "live"
+    assert current_candidates(history, [game], now)
+    assert current_candidates(history, [game], now + timedelta(minutes=5)) == []
+    _pregame_candidates.clear()

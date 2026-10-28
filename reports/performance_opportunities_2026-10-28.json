@@ -1,0 +1,35 @@
+{
+  "day": "2026-10-28",
+  "history_rows": 40000,
+  "games": 12,
+  "candidates": 510,
+  "baseline_uncached_seconds": [
+    5.005549399997108,
+    4.8167106000037165
+  ],
+  "optimized_uncached_seconds": [
+    3.7944144000066444,
+    3.354818799998611
+  ],
+  "measurements": [
+    {
+      "cache_hit": false,
+      "seconds": 4.01402610000514
+    },
+    {
+      "cache_hit": true,
+      "seconds": 0.027385199995478615
+    },
+    {
+      "cache_hit": false,
+      "seconds": 4.123979999989388
+    },
+    {
+      "cache_hit": true,
+      "seconds": 0.027810899991891347
+    }
+  ],
+  "exact_baseline_comparison": true,
+  "scope": "Cálculo de oportunidades; não inclui renderização, rede ou treino",
+  "validation": "19 testes de probabilidades, cache, horário e interface aprovados"
+}

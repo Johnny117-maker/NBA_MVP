@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -31,6 +32,45 @@ from .navigation import page_link
 def _history(path: str, version: int) -> pd.DataFrame:
     _ = version
     return load_prop_history(path)
+
+
+@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
+def _pregame_candidates(history: pd.DataFrame, contexts: tuple, _now: datetime) -> list[dict]:
+    # O horário e o estado atuais são verificados ANTES do cache. O histórico
+    # e o contexto completo da previsão entram na chave; ticks de rede não entram.
+    games = [
+        LiveGame(
+            external_id, source, day, season, home, away, "pre", "", kickoff=kickoff, regular_season=regular
+        )
+        for external_id, source, day, season, home, away, kickoff, regular in contexts
+    ]
+    return opportunity_candidates(history, games, _now)
+
+
+def current_candidates(history: pd.DataFrame, games: list[LiveGame], now: datetime) -> list[dict]:
+    contexts = []
+    for game in games:
+        if game.state != "pre" or not game.kickoff:
+            continue
+        kickoff = pd.to_datetime(game.kickoff, utc=True, errors="coerce")
+        if pd.isna(kickoff) or kickoff.to_pydatetime() <= now:
+            continue
+        contexts.append(
+            (
+                game.external_id,
+                game.source,
+                game.day,
+                game.season,
+                game.home,
+                game.away,
+                game.kickoff,
+                game.regular_season,
+            )
+        )
+    rows = _pregame_candidates(history, tuple(contexts), now) if contexts else []
+    # Ao vivo: relógio, estatísticas e validade da fonte são recalculados em cada tick.
+    rows.extend(opportunity_candidates(history, [g for g in games if g.state == "live"], now))
+    return sorted(rows, key=lambda row: (row["state"] == "live", row["probability"]), reverse=True)
 
 
 def current_games(path: str | Path) -> list[LiveGame]:
@@ -342,7 +382,7 @@ def opportunities_panel(path: str | Path, compact: bool = False) -> None:
                 "Probabilidade mínima", 0.5, 0.95, 0.6, 0.01, format="%.2f", key=prefix + "_threshold"
             )
     candidates = apply_frozen_pregame_props(
-        path, opportunity_candidates(history, games), utc_now().astimezone(EASTERN).date().isoformat()
+        path, current_candidates(history, games, utc_now()), utc_now().astimezone(EASTERN).date().isoformat()
     )
     rows = [
         row
