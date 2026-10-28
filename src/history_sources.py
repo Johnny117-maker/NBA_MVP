@@ -214,7 +214,7 @@ def collect_history(
     return result
 
 
-_workers: dict[str, threading.Thread] = {}
+_workers: dict[str, tuple[threading.Thread, threading.Event]] = {}
 _worker_lock = threading.Lock()
 
 
@@ -222,7 +222,7 @@ def start_current_history_sync(db_path: str | Path, stop_event: threading.Event)
     """Uma tarefa diária independente; downloads não interrompem a consulta dos jogos ao vivo."""
     key = str(Path(db_path).resolve())
     with _worker_lock:
-        if key in _workers and _workers[key].is_alive():
+        if key in _workers and _workers[key][0].is_alive() and not _workers[key][1].is_set():
             return
 
         def work() -> None:
@@ -249,5 +249,5 @@ def start_current_history_sync(db_path: str | Path, stop_event: threading.Event)
                 stop_event.wait(60)
 
         thread = threading.Thread(target=work, name="nba-defense-sync", daemon=True)
-        _workers[key] = thread
+        _workers[key] = (thread, stop_event)
         thread.start()

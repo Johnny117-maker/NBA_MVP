@@ -58,6 +58,8 @@ phase_options = [
     for item in (REGULAR, "Playoffs", "Play-in", "Pós-temporada", "Pré-temporada", "Final da NBA Cup")
     if item in phases or item == REGULAR
 ]
+if st.session_state.get("defense_phase") not in phase_options:
+    st.session_state.pop("defense_phase",None)
 phase = controls[1].selectbox("Fase", phase_options, key="defense_phase")
 window = controls[2].selectbox(
     "Amostra", ["Fase inteira", "Últimos 10 jogos", "Últimos 20 jogos"], key="defense_window"

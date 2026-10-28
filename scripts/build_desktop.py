@@ -57,7 +57,7 @@ def main() -> None:
     initial = {}
     source = ROOT / "data" / "nba.db"
     if source.exists() and not args.no_seed:
-        print("Preparando base pública compacta...", flush=True)
+        print("Preparando base pública histórica desde 2022...", flush=True)
         initial = build_seed(source, seed / "nba.db")
         print(json.dumps(initial, indent=2), flush=True)
         schedule = ROOT / "data" / "nba_schedule.json"
