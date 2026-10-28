@@ -8,9 +8,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from .app_paths import data_path
 from .nba_schedule import SCHEDULE_COLUMNS
 
-DEFAULT_SCHEDULE_CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "nba_schedule.json"
+DEFAULT_SCHEDULE_CACHE_PATH = data_path("nba_schedule.json")
 LOGGER = logging.getLogger(__name__)
 
 

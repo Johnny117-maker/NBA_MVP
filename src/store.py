@@ -7,9 +7,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from .app_paths import data_path
 from .entity_ids import reconcile_official_player
 
-DEFAULT_DB_PATH = Path("data/nba.db")
+DEFAULT_DB_PATH = data_path("nba.db")
 
 
 def read_dashboard_leaders(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:

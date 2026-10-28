@@ -53,6 +53,11 @@ dist/
 
 # Ferramentas de IA locais
 .claude/
+.agents/
+
+# Arquivos de trabalho locais e atalhos específicos deste computador
+outputs/
+*.lnk
 
 # Backtests locais gerados por scripts/retrain_models.py
 reports/player_backtest_predictions.csv

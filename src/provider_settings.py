@@ -3,14 +3,14 @@ from __future__ import annotations
 import os
 import tomllib
 from collections.abc import Mapping
-from pathlib import Path
 
+from .app_paths import secrets_path
 from .live_providers import ApiKeys
 
 
 def load_api_keys(provided: Mapping | None = None) -> ApiKeys:
     """Lê apenas o arquivo protegido do projeto e variáveis do processo; nunca grava chaves."""
-    path = Path(__file__).resolve().parents[1] / ".streamlit" / "secrets.toml"
+    path = secrets_path()
     settings: dict = dict(provided) if provided is not None else {}
     if provided is None and path.exists():
         try:

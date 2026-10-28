@@ -2,6 +2,19 @@
 
 Aplicativo de análise da NBA com histórico local, atualização da temporada, projeções de jogadores e comparação entre previsões e resultados.
 
+## Executável para Windows
+
+Extraia o pacote `NBAAnalyticsLab-1.0.0-Windows-x64.zip` inteiro e abra
+`NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
+janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
+externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para
+consultar novos dados. Fechar a janela encerra o processamento.
+
+Execute `CRIAR_ATALHO.bat` para criar o ícone **NBA Analytics Lab** na Área de Trabalho.
+
+Para gerar uma nova versão, use `GERAR_EXECUTAVEL.bat` no ambiente de desenvolvimento.
+[Uso, backup, migração e compilação](docs/EXECUTAVEL_WINDOWS.md).
+
 > Os dados reais são coletados após a instalação; exemplos sintéticos servem para demonstração e testes. A disponibilidade ao vivo depende das fontes e da rede. As probabilidades são experimentais; cotações externas são opcionais.
 
 ## Histórico diário e modelos Bayes + XGBoost

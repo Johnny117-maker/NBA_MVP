@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -208,7 +206,9 @@ with tab_current:
 
     # Relatório linha-a-linha produzido por scripts/retrain_models.py. Esse
     # relatório fica local (e é ignorado pelo Git) por depender da base coletada.
-    backtest_path = Path(__file__).resolve().parents[1] / "reports" / "player_backtest_predictions.csv"
+    from src.app_paths import report_path
+
+    backtest_path = report_path("player_backtest_predictions.csv")
     if backtest_path.exists() and components.load_on_demand(
         "Abrir auditoria detalhada",
         key="backtest_audit_enabled",
