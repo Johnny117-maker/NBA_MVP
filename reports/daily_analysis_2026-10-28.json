@@ -1,0 +1,134 @@
+{
+  "day": "2026-10-28",
+  "games_archived": 12,
+  "players_archived": 72,
+  "projections_archived": 216,
+  "immutable_snapshots": true,
+  "retroactive_predictions": false,
+  "first_capture_utc": "2026-10-28T13:58:13.417292+00:00",
+  "html_reports": 12,
+  "props_model": {
+    "calibration_start": "2026-01-08",
+    "config": {
+      "colsample_bytree": 0.9,
+      "learning_rate": 0.05,
+      "max_depth": 3,
+      "min_child_weight": 25,
+      "n_estimators": 120,
+      "n_jobs": 2,
+      "objective": "count:poisson",
+      "random_state": 42,
+      "reg_lambda": 5,
+      "subsample": 0.85,
+      "tree_method": "hist"
+    },
+    "created_at": "2026-10-28T13:57:12.521424+00:00",
+    "data_hash": "0b619c09b8177eed6ec7432bc6fcad9cc2c213456c390247806bc6a579633fde",
+    "dispersion": {
+      "ast": 6.909117273353983,
+      "pts": 4.705837017889392,
+      "reb": 7.689929038580827
+    },
+    "features": [
+      "minutes_5",
+      "minutes_10",
+      "rest",
+      "is_home",
+      "history_games",
+      "ts_10",
+      "usage_10",
+      "assist_ratio_10",
+      "turnover_ratio_10",
+      "pts_mean5",
+      "pts_mean10",
+      "pts_rate5",
+      "pts_rate10",
+      "pts_std10",
+      "pts_dynamic",
+      "reb_mean5",
+      "reb_mean10",
+      "reb_rate5",
+      "reb_rate10",
+      "reb_std10",
+      "reb_dynamic",
+      "ast_mean5",
+      "ast_mean10",
+      "ast_rate5",
+      "ast_rate10",
+      "ast_std10",
+      "ast_dynamic",
+      "opponent_pts_10",
+      "opponent_reb_10",
+      "opponent_ast_10"
+    ],
+    "fit_end": "2026-01-07",
+    "id": "props-xgb-bayes-v1-0b619c09b8177eed",
+    "metrics": {
+      "ast": {
+        "bayes_mae": 1.4192257758967035,
+        "calibration_mae": 1.3628954036918683,
+        "ensemble_mae": 1.4192257758967035,
+        "xgb_mae": 1.4213333129882812
+      },
+      "pts": {
+        "bayes_mae": 4.872886307900397,
+        "calibration_mae": 4.5452856374212205,
+        "ensemble_mae": 4.872886307900397,
+        "xgb_mae": 4.863724708557129
+      },
+      "reb": {
+        "bayes_mae": 1.945933639551547,
+        "calibration_mae": 1.9329516213976123,
+        "ensemble_mae": 1.945933639551547,
+        "xgb_mae": 1.9534432888031006
+      }
+    },
+    "probability_status": "Experimental; avaliação de médias não calibra probabilidades Over/Under",
+    "rows": 36569,
+    "test_end": "2026-10-27",
+    "test_rows": 7867,
+    "test_start": "2026-03-03",
+    "train_end": "2026-10-27",
+    "version": "props-xgb-bayes-v1",
+    "weights": {
+      "ast": 0.0,
+      "pts": 0.0,
+      "reb": 0.0
+    }
+  },
+  "shot_quality": {
+    "version": "xp-location-v1",
+    "features": [
+      "shot_distance",
+      "angle",
+      "shot_value",
+      "period",
+      "seconds_in_period"
+    ],
+    "rows": 60000,
+    "history_end": "2026-04-12",
+    "test_start": "2026-04-03",
+    "brier": 0.22857850790023804,
+    "baseline_brier": 0.24967951581557005,
+    "log_loss": 0.6486804485321045,
+    "tracking": false,
+    "description": "xP de localização; sem distância de defensor ou relógio de posse"
+  },
+  "missing_sources": {
+    "nba_rim_defense": "ConnectionError on this network",
+    "lebron": "No published values imported",
+    "darko": "No published values imported; public endpoint connection failed",
+    "rapm": "No measured possession stints imported",
+    "gravity": "No optical tracking frames imported"
+  },
+  "validation": {
+    "full_local_suite": "341 passed before final opportunities integration",
+    "final_integration_suite": "31 passed",
+    "mypy_platforms": [
+      "linux",
+      "win32"
+    ],
+    "ruff": "passed",
+    "mypy_sources": 72
+  }
+}

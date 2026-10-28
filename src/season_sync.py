@@ -294,5 +294,15 @@ class SeasonSync:
             status["errors"] = status.get("last_errors", [])
         status["changed_games"] = changed
         status["rejected_games"] = rejected[:10]
+        try:
+            from .analysis_archive import run_daily_analysis
+            from .research_feeds import collect_rim_daily
+
+            status["daily_analysis"] = run_daily_analysis(self.db_path)
+            if os.environ.get("NBA_AUTO_SYNC", "1") != "0":
+                status["rim_defense"] = collect_rim_daily(self.db_path, day)
+        except Exception as error:
+            logging.getLogger(__name__).exception("Falha no arquivo de análises pré-jogo")
+            status["daily_analysis"] = {"error": str(error)}
         set_state(self.db_path, "status", status)
         return status

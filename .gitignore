@@ -33,6 +33,10 @@ models/*.joblib
 models/*.pkl
 models/*.pickle
 models/*.onnx
+models/props/
+models/research/
+data/analyses/
+data/research/
 *.joblib
 
 # Logs, sistema e IDE

@@ -49,6 +49,9 @@ def add_efficiency_metrics(player_games: pd.DataFrame) -> pd.DataFrame:
         df["fga"] > 0, (df["fgm"] + 0.5 * df["fg3m"]) / df["fga"], np.nan
     )
     df["ast_to_ratio"] = np.where(df["tov"] > 0, df["ast"] / df["tov"], np.nan)
+    individual_possessions = df["fga"] + 0.44 * df["fta"] + df["ast"] + df["tov"]
+    df["assist_ratio"] = 100 * df["ast"] / individual_possessions.replace(0, np.nan)
+    df["turnover_ratio"] = 100 * df["tov"] / individual_possessions.replace(0, np.nan)
 
     totals = estimate_team_game_totals(df)
     merged = df.merge(totals, on=["game_id", "team"], how="left")

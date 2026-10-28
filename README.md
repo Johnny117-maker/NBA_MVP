@@ -1,8 +1,19 @@
 # NBA Analytics Lab
 
-MVP educacional para análise de jogos e comparação de times da NBA. O projeto treina modelos simples com dados históricos, calcula probabilidades experimentais, projeta pontuações e explica os fatores mais relevantes.
+Aplicativo de análise da NBA com histórico local, atualização da temporada, projeções de jogadores e comparação entre previsões e resultados.
 
-> A base incluída é sintética e não representa a temporada atual. O projeto não utiliza odds e não oferece orientação de apostas.
+> Os dados reais são coletados após a instalação; exemplos sintéticos servem para demonstração e testes. A disponibilidade ao vivo depende das fontes e da rede. As probabilidades são experimentais; cotações externas são opcionais.
+
+## Histórico diário e modelos Bayes + XGBoost
+
+O monitor preserva as primeiras projeções pré-jogo dos destaques de cada equipe, com PTS,
+REB, AST, intervalos, horário e versão do modelo. Abra **Histórico diário** para consultar,
+imprimir e comparar com os resultados. O servidor precisa estar aberto para registrar novos dias.
+
+O **Laboratório de modelos** reúne treino temporal de XGBoost, estimativas bayesianas,
+TS%/USG%/AST Ratio/TOV Ratio, xP por localização e ferramentas para RAPM, Gravity e importação
+de indicadores publicados LEBRON/DARKO. As métricas que dependem de dados ainda ausentes
+aparecem com seus requisitos. [Funcionamento, validação e limites](docs/HISTORICO_DIARIO_E_MODELOS.md).
 
 ## Funcionalidades da versão 0.2
 

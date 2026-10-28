@@ -9,6 +9,7 @@ from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH
 from src.store import DEFAULT_DB_PATH, count_player_games
 from src.today_picks import build_matchup_pick, round_highlights, upcoming_games
 from src.ui import components, theme
+from src.ui.archive import archived_preview
 from src.ui.formatters import format_date_br
 from src.ui.navigation import page_link
 from src.ui.round_cards import highlights_grid, history_notice, matchup_strip
@@ -22,6 +23,7 @@ components.page_header(
 )
 
 today = today_et()
+archived_preview(DEFAULT_DB_PATH, today.isoformat(), "picks_archive")
 day_column, refresh_column = st.columns([3, 1])
 with day_column:
     st.markdown(f"**{format_date_br(today)} · calendário NBA (ET)**")

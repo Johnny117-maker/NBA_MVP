@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from src.analysis_archive import apply_frozen_pregame_props
 from src.live_providers import ApiKeys, FeedClient, ProviderError
 from src.live_store import get_state, read_live_games, set_state
 from src.live_types import EASTERN, LiveGame, current_season, utc_now
@@ -99,6 +100,8 @@ def _prop_card(row: dict) -> None:
             )
         st.caption(f"Últimos jogos: {row['recent_mean']:.1f} · temporada: {row['season_mean']:.1f}")
         st.caption(f"{row['season_games']} jogos na temporada · {row['confidence']} · {row['line_source']}")
+    if row.get("snapshot_id"):
+        st.caption("Projeção preservada no Histórico diário · Bayes com comparação XGBoost")
 
 
 def _live_games(games: list[LiveGame]) -> None:
@@ -338,9 +341,12 @@ def opportunities_panel(path: str | Path, compact: bool = False) -> None:
             threshold = st.slider(
                 "Probabilidade mínima", 0.5, 0.95, 0.6, 0.01, format="%.2f", key=prefix + "_threshold"
             )
+    candidates = apply_frozen_pregame_props(
+        path, opportunity_candidates(history, games), utc_now().astimezone(EASTERN).date().isoformat()
+    )
     rows = [
         row
-        for row in opportunity_candidates(history, games)
+        for row in candidates
         if row["stat"] in stats
         and row["probability"] >= threshold
         and (side == "Ambos" or row["side"] == side)

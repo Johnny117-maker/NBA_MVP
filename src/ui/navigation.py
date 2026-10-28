@@ -82,6 +82,14 @@ PAGES = (
         "/Temporada",
     ),
     Page(
+        "archive", "pages/10_Historico_Diario.py", "Histórico diário", ":material/history:",
+        "ACOMPANHAR", "Previsões pré-jogo preservadas e resultados de cada rodada.", "/Historico_Diario",
+    ),
+    Page(
+        "research", "pages/11_Laboratorio.py", "Laboratório de modelos", ":material/science:",
+        "ACOMPANHAR", "Bayes, XGBoost e métricas de impacto e tracking.", "/Laboratorio",
+    ),
+    Page(
         "performance",
         "pages/3_Desempenho.py",
         "Desempenho",

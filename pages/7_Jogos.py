@@ -30,6 +30,7 @@ from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH
 from src.store import DEFAULT_DB_PATH, count_player_games
 from src.today_picks import round_highlights
 from src.ui import components, theme
+from src.ui.archive import archived_preview
 from src.ui.formatters import format_date_br
 from src.ui.insights import matchup_intel
 from src.ui.navigation import page_link
@@ -144,6 +145,7 @@ with st.container(key="daily_date_controls"):
             )
             st.button("Atualizar calendário", on_click=_refresh_schedule)
 
+archived_preview(DEFAULT_DB_PATH, selected_day.isoformat(), "games_archive")
 schedule, schedule_error = _load_schedule(int(st.session_state.get("daily_schedule_retry", 0)), selected_day)
 games = games_for_date(schedule, selected_day)
 
