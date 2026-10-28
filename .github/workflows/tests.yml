@@ -26,7 +26,9 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Lint (ruff)
         run: python -m ruff check .
-      - name: Checagem de tipos (mypy)
-        run: python -m mypy src pages app.py scripts
+      - name: Checagem de tipos Linux (mypy)
+        run: python -m mypy --platform linux src pages app.py scripts
+      - name: Checagem de tipos Windows (mypy)
+        run: python -m mypy --platform win32 src pages app.py scripts
       - name: Executar testes
         run: python -m pytest -q

@@ -1,4 +1,7 @@
+import os
 import sqlite3
+import subprocess
+import sys
 from datetime import UTC, date, datetime
 
 import pandas as pd
@@ -288,6 +291,23 @@ def test_dead_collector_does_not_block_restart(tmp_path, monkeypatch):
     assert acquire_lease(path, "old")
     monkeypatch.setattr("src.live_store._owner_alive", lambda owner: False)
     assert acquire_lease(path, "new")
+
+
+def test_running_collector_lease_cannot_be_stolen(tmp_path):
+    path = tmp_path / "nba.db"
+    owner = f"{os.getpid()}:current"
+    assert acquire_lease(path, owner)
+    assert not acquire_lease(path, "another-collector")
+    assert acquire_lease(path, owner)
+
+
+def test_finished_process_lease_is_reclaimed_without_waiting_for_expiration(tmp_path):
+    with subprocess.Popen([sys.executable, "-c", "pass"]) as process:
+        process.wait(timeout=10)
+        owner = f"{process.pid}:finished"
+    path = tmp_path / "nba.db"
+    assert acquire_lease(path, owner)
+    assert acquire_lease(path, f"{os.getpid()}:replacement")
 
 
 def test_nba_boxscore_uses_its_own_clock_and_rejects_old_provider_timestamp():

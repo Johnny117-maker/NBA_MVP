@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -72,7 +73,8 @@ def _owner_alive(owner: str) -> bool:
     if not raw.isdigit() or int(raw) <= 0:
         return True
     pid = int(raw)
-    if os.name == "nt":
+    # O mypy reconhece sys.platform e exclui as APIs Win32 na análise do Linux.
+    if sys.platform == "win32":
         import ctypes
         from ctypes import wintypes
 
