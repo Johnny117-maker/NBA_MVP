@@ -6,7 +6,7 @@ necessário instalar dependências, configurar um servidor ou manter um terminal
 
 ## Abrir o sistema
 
-1. Extraia **todo** o arquivo `NBAAnalyticsLab-1.0.0-Windows-x64.zip`.
+1. Extraia **todo** o arquivo `NBAAnalyticsLab-1.1.0-Windows-x64.zip`.
 2. Entre na pasta `NBAAnalyticsLab` e abra `NBAAnalyticsLab.exe`.
 3. Mantenha a pasta `_internal` ao lado do executável. Ela contém o navegador e as bibliotecas.
 4. Para criar o ícone de inicialização, execute `CRIAR_ATALHO.bat`. Depois abra
@@ -17,8 +17,9 @@ Trabalho redirecionada para OneDrive. Ao mover a pasta do programa, execute-o
 novamente para atualizar o destino do atalho.
 
 O pacote se destina ao **Windows 10/11 de 64 bits**. Pode ser movido para outra pasta.
-A primeira abertura prepara o perfil do usuário e uma base pública compacta. A base
-inicial é um recorte do histórico disponível na compilação, não toda a base do desenvolvedor.
+A primeira abertura prepara o perfil do usuário e uma base pública ampliada. A base
+inicial inclui o histórico público desde 2022 disponível na compilação, incluindo 2021–22,
+e o acervo de fontes. A cobertura varia conforme o conjunto e aparece na interface.
 
 A internet é necessária para obter novos jogos, placares e estatísticas. A análise
 dos dados já salvos funciona localmente. O menu **Sistema** permite recarregar a
@@ -64,14 +65,14 @@ de desenvolvimento configurado, execute `GERAR_EXECUTAVEL.bat`. A saída fica em
 
 ```text
 dist/
-  NBAAnalyticsLab/
+  1.1.0/NBAAnalyticsLab/
     NBAAnalyticsLab.exe
     CRIAR_ATALHO.bat
     _internal/
     LEIA-ME.txt
     package.json
-  NBAAnalyticsLab-1.0.0-Windows-x64.zip
-  NBAAnalyticsLab-1.0.0-Windows-x64.sha256
+  NBAAnalyticsLab-1.1.0-Windows-x64.zip
+  NBAAnalyticsLab-1.1.0-Windows-x64.sha256
 ```
 
 O script usa PyInstaller no modo pasta portátil. Esse formato evita extrair o

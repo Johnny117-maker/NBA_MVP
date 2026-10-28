@@ -45,8 +45,10 @@ init_db(DEFAULT_DB_PATH)
 with st.container(border=True):
     st.subheader("Temporada atual: atualização automática")
     sync_status(DEFAULT_DB_PATH, detailed=True)
-    st.caption("A coleta incremental já acompanha a temporada enquanto o projeto está aberto. "
-               "Partidas em andamento ficam separadas dos dados usados no treinamento.")
+    st.caption(
+        "A coleta incremental já acompanha a temporada enquanto o projeto está aberto. "
+        "Partidas em andamento ficam separadas dos dados usados no treinamento."
+    )
 
 components.source_badge("NBA API", components.db_last_updated(DEFAULT_DB_PATH))
 
@@ -152,3 +154,45 @@ with tab_advanced:
         "python scripts/update_starter_status.py --seasons 2025-26",
         language="powershell",
     )
+
+with st.expander("Base ampliada desde 2022", expanded=False):
+    from src.history_sources import collect_history
+    from src.history_store import get_history_state, read_assets
+
+    st.caption(
+        "Boxscores, arremessos, eventos, posses, escalações, tracking, hustle e matchups públicos. "
+        "2022 corresponde ao ano final de 2021–22, incluindo o calendário de 2022. "
+        "A coleta é retomável e mantém os arquivos de origem separados das previsões pessoais."
+    )
+    catalog = read_assets(DEFAULT_DB_PATH)
+    st.write(f"{len(catalog)} arquivos públicos disponíveis no acervo local.")
+    previous = get_history_state(DEFAULT_DB_PATH, "last_sync", {})
+    if previous.get("completed_at"):
+        st.caption(
+            f"Última coleta: {previous['completed_at'][:16]} · falhas: {len(previous.get('errors', []))}"
+        )
+    if st.button("Ampliar e atualizar base desde 2022", key="collect_full_history"):
+        status = st.progress(0.0, text="Conferindo catálogo público…")
+
+        def history_progress(done, total, name):
+            status.progress(done / total, text=f"{done}/{total} · {name}")
+
+        try:
+            result = collect_history(DEFAULT_DB_PATH, progress=history_progress)
+            status.empty()
+            failures = len(result["errors"]) + len(result["normalized"].get("errors", []))
+            if failures:
+                st.warning(
+                    f"Coleta parcial: {failures} arquivos ou transformações falharam. Repita para retomar."
+                )
+            else:
+                st.success(
+                    f"Acervo atualizado: {result['downloaded']} arquivos novos; "
+                    f"{result['cached']} já conferidos."
+                )
+        except Exception as error:
+            status.empty()
+            st.error(
+                f"Não foi possível consultar o acervo ({type(error).__name__}). "
+                "Os dados salvos foram preservados."
+            )

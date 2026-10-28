@@ -142,8 +142,6 @@ def _run_window(root: Path, resources: Path) -> int:
     if not lock.tryLock(100):
         QMessageBox.information(None, APP_NAME, "O sistema já está aberto para este usuário.")
         return 0
-    initialize_user_data(root, resources)
-
     class AppPage(QWebEnginePage):
         def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
             if url.scheme() in {"about", "data", "blob"}:

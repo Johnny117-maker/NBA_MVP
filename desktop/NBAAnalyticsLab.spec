@@ -24,9 +24,9 @@ for folder in ("pages", "src", ".streamlit", "docs", "reports", "desktop/assets"
             continue
         datas.append((str(file), str(file.parent.relative_to(root))))
 datas += [(str(root / "app.py"), "."), (str(root / "README.md"), ".")]
-for file in seed_dir.glob("*"):
+for file in seed_dir.rglob("*"):
     if file.is_file():
-        datas.append((str(file), "seed"))
+        datas.append((str(file), str(Path("seed") / file.parent.relative_to(seed_dir))))
 hiddenimports += [
     ".".join(file.relative_to(root).with_suffix("").parts).removesuffix(".__init__")
     for file in (root / "src").rglob("*.py")

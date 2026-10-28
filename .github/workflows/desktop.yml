@@ -28,7 +28,7 @@ jobs:
       - name: Compilar pacote portátil
         run: python scripts/build_desktop.py --no-seed
       - name: Validar bibliotecas, interface e desligamento do executável
-        run: python scripts/validate_desktop.py dist/NBAAnalyticsLab/NBAAnalyticsLab.exe --profile build/desktop-ci-validation
+        run: python scripts/validate_desktop.py --profile build/desktop-ci-validation
       - name: Disponibilizar pacote Windows
         uses: actions/upload-artifact@v4
         with:

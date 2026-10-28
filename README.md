@@ -4,7 +4,7 @@ Aplicativo de análise da NBA com histórico local, atualização da temporada, 
 
 ## Executável para Windows
 
-Extraia o pacote `NBAAnalyticsLab-1.0.0-Windows-x64.zip` inteiro e abra
+Extraia o pacote `NBAAnalyticsLab-1.1.0-Windows-x64.zip` inteiro e abra
 `NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
 janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
 externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para
@@ -16,6 +16,17 @@ Para gerar uma nova versão, use `GERAR_EXECUTAVEL.bat` no ambiente de desenvolv
 [Uso, backup, migração e compilação](docs/EXECUTAVEL_WINDOWS.md).
 
 > Os dados reais são coletados após a instalação; exemplos sintéticos servem para demonstração e testes. A disponibilidade ao vivo depende das fontes e da rede. As probabilidades são experimentais; cotações externas são opcionais.
+
+## Defesa e marcações por jogador
+
+**Defesa dos times** compara DRtg, perímetro, pontos no garrafão cedidos e regiões
+de arremesso, com fonte, data e cobertura. **Marcações e encaixes** mostra os
+defensores enfrentados por partida e o desempenho contra perfis defensivos
+pré-jogo, com ajuste por minutos e intervalos de incerteza.
+
+O acervo público desde 2022 inclui boxscores, eventos, posses, tracking, hustle,
+escalações e matchups. A disponibilidade de marcações atuais depende da publicação
+pela NBA. [Fontes, definições e coleta](docs/DEFESA_MARCACOES_E_ACERVO.md).
 
 ## Histórico diário e modelos Bayes + XGBoost
 

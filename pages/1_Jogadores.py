@@ -210,6 +210,9 @@ with tab_profile:
         key=f"profile_player_select_{source}",
     )
     selected_id = player_id_by_label[selection]
+    if source == "real" and st.button("Ver marcações e encaixes defensivos", key="open_player_matchups"):
+        st.session_state["matchups_player_id"] = int(selected_id)
+        st.switch_page("pages/13_Marcacoes.py")
 
     full_player_history = player_games[player_games["player_id"] == selected_id].sort_values("game_date")
 

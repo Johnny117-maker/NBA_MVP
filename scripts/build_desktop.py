@@ -20,6 +20,8 @@ def main() -> None:
     from PIL import Image, ImageDraw
 
     from src.desktop_seed import build_seed
+    from src.desktop_support import APP_VERSION
+
     parser = argparse.ArgumentParser(
         description="Gera a versão Windows sem instalação de Python pelo usuário."
     )
@@ -73,7 +75,8 @@ def main() -> None:
             windows,
         )
     )
-    target = (ROOT / "dist" / "NBAAnalyticsLab").resolve()
+    distribution = ROOT / "dist" / APP_VERSION
+    target = (distribution / "NBAAnalyticsLab").resolve()
     if not target.is_relative_to((ROOT / "dist").resolve()):
         raise RuntimeError("Diretório de saída fora da pasta dist do projeto.")
     subprocess.run(
@@ -83,7 +86,7 @@ def main() -> None:
             "PyInstaller",
             "--noconfirm",
             "--distpath",
-            str(ROOT / "dist"),
+            str(distribution),
             "--workpath",
             str(build / "pyinstaller"),
             str(ROOT / "desktop" / "NBAAnalyticsLab.spec"),
@@ -133,8 +136,8 @@ def package_distribution(target: Path, initial: dict) -> None:
         shutil.make_archive(
             str(ROOT / "dist" / f"NBAAnalyticsLab-{APP_VERSION}-Windows-x64"),
             "zip",
-            root_dir=ROOT / "dist",
-            base_dir="NBAAnalyticsLab",
+            root_dir=target.parent,
+            base_dir=target.name,
         )
     )
     with archive.open("rb") as stream:
@@ -151,6 +154,18 @@ def package_distribution(target: Path, initial: dict) -> None:
             indent=2,
         ),
         flush=True,
+    )
+    (ROOT / "dist" / "latest_build.json").write_text(
+        json.dumps(
+            {
+                "version": APP_VERSION,
+                "executable": str(target / "NBAAnalyticsLab.exe"),
+                "zip": str(archive),
+                "sha256": digest,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
     )
 
 

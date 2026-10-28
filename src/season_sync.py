@@ -160,6 +160,9 @@ class SeasonSync:
         if self.thread is None or not self.thread.is_alive():
             self.thread = threading.Thread(target=self._watch, name="nba-season-sync", daemon=True)
             self.thread.start()
+            from .history_sources import start_current_history_sync
+
+            start_current_history_sync(self.db_path, self.stop_event)
             atexit.register(self.stop)
         return self
 

@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 
 APP_NAME = "NBA Analytics Lab"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 
 def resource_root() -> Path:
@@ -30,8 +30,15 @@ def initialize_user_data(root: Path, resources: Path) -> None:
         (root / directory).mkdir(parents=True, exist_ok=True)
     files = [
         (resources / "seed" / name, root / "data" / name)
-        for name in ("nba.db", "nba_sync.sqlite", "nba_schedule.json")
+        for name in ("nba.db", "nba_sync.sqlite", "nba_schedule.json", "nba_history.sqlite")
     ]
+    seed_history = resources / "seed" / "history"
+    if seed_history.is_dir():
+        files.extend(
+            (file, root / "data" / "history" / file.relative_to(seed_history))
+            for file in seed_history.rglob("*")
+            if file.is_file()
+        )
     files.extend(
         [
             (resources / ".streamlit" / "config.toml", root / ".streamlit" / "config.toml"),
@@ -40,6 +47,7 @@ def initialize_user_data(root: Path, resources: Path) -> None:
     )
     for source, target in files:
         if source.exists() and not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
             temporary = target.with_name(target.name + "." + uuid.uuid4().hex + ".tmp")
             shutil.copyfile(source, temporary)
             # A trava da janela principal protege a criação inicial; o filho só abre os mesmos arquivos.

@@ -37,6 +37,7 @@ models/props/
 models/research/
 data/analyses/
 data/research/
+data/history/
 *.joblib
 
 # Logs, sistema e IDE

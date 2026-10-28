@@ -23,10 +23,13 @@ def main() -> None:
     from src.desktop_support import available_port, instance_hash
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("executable", type=Path)
+    parser.add_argument("executable", type=Path, nargs="?")
     parser.add_argument("--profile", type=Path, required=True, help="Perfil isolado para este teste.")
     args = parser.parse_args()
-    executable = args.executable.resolve()
+    executable = (
+        args.executable
+        or Path(json.loads((ROOT / "dist/latest_build.json").read_text(encoding="utf-8"))["executable"])
+    ).resolve()
     profile = args.profile.resolve()
     profile.mkdir(parents=True, exist_ok=True)
     diagnostic = profile / "diagnostic.json"
