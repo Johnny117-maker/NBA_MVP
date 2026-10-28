@@ -156,17 +156,22 @@ mantendo a separação de responsabilidades da navegação (seção 3 do
 Na pasta raiz do projeto ha tres atalhos para facilitar o uso:
 
 1. `INSTALAR_DEPENDENCIAS.bat` — cria o ambiente virtual `.venv`, atualiza o `pip` e baixa/instala todos os pacotes listados em `requirements.txt`. Execute este arquivo primeiro se quiser preparar o projeto manualmente.
-2. `INICIAR_PROJETO.bat` — inicia o Streamlit. Se o ambiente virtual ou o Streamlit ainda nao estiver instalado, chama automaticamente o instalador de dependencias.
+2. `INICIAR_PROJETO.bat` — inicia o Streamlit e abre o navegador. Se o ambiente virtual ou o Streamlit ainda nao estiver instalado, chama automaticamente o instalador de dependencias.
 3. `EXECUTAR_TESTES.bat` — executa a suite automatizada com `pytest`.
 
 **Antes de comecar:** extraia o ZIP inteiro para uma pasta local; nao execute os arquivos de dentro do ZIP. E necessario ter Python instalado (preferencialmente Python 3.12) e acesso a internet para baixar os pacotes. O arquivo `.bat` instala as bibliotecas Python, mas nao instala o proprio Python nem atualiza automaticamente os dados da NBA.
 
 Para uso normal, basta dar duplo clique em `INICIAR_PROJETO.bat`. Mantenha a janela aberta enquanto estiver usando a aplicacao. Para parar o servidor, volte a essa janela e pressione `Ctrl+C`.
 
-O BAT usa explicitamente a porta **8501**. Se ela estiver ocupada, encerre a instância
-anterior antes de iniciar outra; o atalho não tenta abrir uma cópia em outra porta.
-Após atualizar arquivos Python, encerre e inicie o servidor novamente para recarregar
-os módulos importados. Limpar o cache de dados não substitui esse reinício.
+O BAT abre **http://localhost:8501** automaticamente quando o servidor fica pronto.
+Se este projeto já estiver usando a porta 8501, o auxiliar
+`scripts/prepare_start.ps1` confirma os processos e reinicia essa instância para
+carregar os arquivos atuais. Outros programas na mesma porta são preservados;
+nesse caso, o atalho explica o conflito e encerra a inicialização.
+Abrir o projeto não dispara um novo treinamento completo dos modelos.
+
+Para verificar a inicialização sem encerrar o servidor nem abrir o navegador,
+execute `INICIAR_PROJETO.bat --verificar` no terminal.
 
 ## Como executar no Windows
 

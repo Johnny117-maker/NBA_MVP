@@ -10,12 +10,23 @@ echo.
 
 set "VENV_PY=%~dp0.venv\Scripts\python.exe"
 
+if not exist "%~dp0app.py" (
+    echo [ERRO] O app.py nao foi encontrado. Execute este BAT na pasta completa do projeto.
+    goto :fail
+)
+
+if not exist "%~dp0scripts\prepare_start.ps1" (
+    echo [ERRO] O auxiliar scripts\prepare_start.ps1 nao foi encontrado.
+    echo Atualize os arquivos do projeto antes de iniciar.
+    goto :fail
+)
+
 if not exist "%VENV_PY%" goto :install_dependencies
 
 "%VENV_PY%" -c "import streamlit" >nul 2>&1
 if errorlevel 1 goto :install_dependencies
 
-goto :run_app
+goto :prepare_server
 
 :install_dependencies
 echo O ambiente virtual ou o Streamlit nao foi encontrado.
@@ -30,28 +41,39 @@ if not exist "%VENV_PY%" (
     goto :fail
 )
 
+:prepare_server
+if /i "%~1"=="--verificar" goto :verify_start
+
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File "%~dp0scripts\prepare_start.ps1" -ProjectRoot "%~dp0." -Port 8501
+if errorlevel 1 goto :fail
+
 :run_app
 echo Iniciando o Streamlit...
 echo Endereco do projeto: http://localhost:8501
-echo Se o projeto ja estiver aberto em outra janela, encerre-o com Ctrl+C antes de iniciar novamente.
+echo O navegador sera aberto automaticamente quando o servidor estiver pronto.
+echo Os modelos atuais sao carregados pelo aplicativo; nao e preciso retreinar para abrir.
 echo Para encerrar a aplicacao, pressione Ctrl+C nesta janela.
 echo.
-"%VENV_PY%" -m streamlit run app.py --server.port 8501
+"%VENV_PY%" -m streamlit run "%~dp0app.py" --server.port 8501 --server.headless false --server.showEmailPrompt false --browser.serverAddress localhost
 set "APP_EXIT_CODE=%ERRORLEVEL%"
 
 if not "%APP_EXIT_CODE%"=="0" (
     echo.
     echo [AVISO] O Streamlit encerrou com codigo %APP_EXIT_CODE%.
     echo Se houve erro de dependencia, execute INSTALAR_DEPENDENCIAS.bat.
-    echo Se a porta 8501 estiver em uso, encerre o servidor anterior antes de tentar novamente.
+    echo Se outro programa ocupar a porta 8501, libere essa porta e tente novamente.
     echo Depois de atualizar arquivos Python, reinicie o servidor para recarregar os modulos.
     pause
 )
 exit /b %APP_EXIT_CODE%
 
+:verify_start
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File "%~dp0scripts\prepare_start.ps1" -ProjectRoot "%~dp0." -Port 8501 -CheckOnly
+exit /b %ERRORLEVEL%
+
 :fail
 echo.
 echo [ERRO] Nao foi possivel iniciar o projeto.
-echo Execute INSTALAR_DEPENDENCIAS.bat manualmente e confira a mensagem.
+echo Confira a mensagem acima. Se faltar algum pacote, execute INSTALAR_DEPENDENCIAS.bat.
 pause
 exit /b 1
