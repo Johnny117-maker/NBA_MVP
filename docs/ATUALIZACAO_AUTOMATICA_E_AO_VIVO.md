@@ -122,6 +122,9 @@ futuras ou prorrogações que ainda não começaram.
 Para usar as fontes públicas, abra `INICIAR_PROJETO.bat`. Para um ciclo sem abrir
 o aplicativo, use `ATUALIZAR_TEMPORADA.bat` ou, no ambiente virtual:
 
+O novo painel foi validado com Streamlit 1.66.0. O requisito mínimo é 1.66;
+o BAT confere a versão e chama o instalador se o ambiente estiver desatualizado.
+
 ```powershell
 python scripts/sync_current_season.py --once
 python scripts/sync_current_season.py --watch

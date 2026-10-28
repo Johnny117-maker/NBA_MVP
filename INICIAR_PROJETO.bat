@@ -24,13 +24,13 @@ if not exist "%~dp0scripts\prepare_start.ps1" (
 
 if not exist "%VENV_PY%" goto :install_dependencies
 
-"%VENV_PY%" -c "import streamlit" >nul 2>&1
+"%VENV_PY%" -c "import streamlit as st; from packaging.version import Version; assert Version('1.66') <= Version(st.__version__) < Version('2')" >nul 2>&1
 if errorlevel 1 goto :install_dependencies
 
 goto :prepare_server
 
 :install_dependencies
-echo O ambiente virtual ou o Streamlit nao foi encontrado.
+echo O ambiente virtual ou uma versao compativel do Streamlit nao foi encontrado.
 echo Vou instalar as dependencias antes de iniciar.
 echo.
 set "NBA_CALLED_FROM_START=1"
