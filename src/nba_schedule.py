@@ -24,6 +24,7 @@ LOGGER = logging.getLogger(__name__)
 ESPN_TRICODE_ALIASES = {
     "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS",
     "UTAH": "UTA", "WSH": "WAS",
+    "PHO": "PHX", "BRK": "BKN", "CHO": "CHA",
 }
 
 SCHEDULE_COLUMNS = [

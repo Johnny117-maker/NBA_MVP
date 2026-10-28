@@ -206,6 +206,14 @@ pytest -q
 
 ## Auditar o treinamento
 
+A temporada atual agora é sincronizada automaticamente ao abrir o projeto.
+A Visão Geral mostra oportunidades estatísticas de Over/Under e a nova tela
+**Over / Under ao vivo** permite acompanhar boxscores e analisar uma linha de
+pontos, rebotes ou assistências. As fontes públicas funcionam sem cadastro;
+conexões ao vivo dependem da disponibilidade da NBA/ESPN nesta rede.
+Veja [fontes, configuração, limites e validação](docs/ATUALIZACAO_AUTOMATICA_E_AO_VIVO.md).
+Para atualizar uma vez sem abrir o navegador, execute `ATUALIZAR_TEMPORADA.bat`.
+
 A [auditoria de 27/10/2026](docs/AUDITORIA_MODELOS_2026-10-27.md) compara modelos e
 referências simples, verifica dependências temporais e descreve as prioridades de melhoria.
 Para gerar uma nova avaliação local, com até 40 mil registros de jogadores:

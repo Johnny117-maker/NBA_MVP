@@ -7,11 +7,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from .entity_ids import reconcile_official_player
+
 DEFAULT_DB_PATH = Path("data/nba.db")
 
 
 def read_dashboard_leaders(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
-    """Líderes em pontos da temporada mais recente coletada, mínimo de 10 jogos.
+    """Líderes da temporada mais recente; mínimo adaptado ao início da temporada, até 10 jogos.
 
     Agrega no SQLite para a abertura do painel não carregar todos os boxscores.
     A equipe é a última registrada nessa temporada, incluindo jogadores trocados.
@@ -29,13 +31,19 @@ def read_dashboard_leaders(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
             WITH recent AS (
                 SELECT * FROM player_game_stats
                 WHERE season = (SELECT season FROM player_game_stats ORDER BY game_date DESC LIMIT 1)
+            ), counts AS (
+                SELECT COUNT(*) AS n FROM recent GROUP BY player_id
+            ), qualification AS (
+                SELECT MIN(10, MAX(n)) AS minimum_games FROM counts
             ), leaders AS (
                 SELECT player_id, season, COUNT(*) AS games, AVG(pts) AS pts,
                        AVG(reb) AS reb, AVG(ast) AS ast
-                FROM recent GROUP BY player_id, season HAVING COUNT(*) >= 10
+                FROM recent GROUP BY player_id, season
+                HAVING COUNT(*) >= (SELECT minimum_games FROM qualification)
                 ORDER BY pts DESC, player_id LIMIT 4
             )
-            SELECT l.*, r.player_name, r.team FROM leaders l
+            SELECT l.*, r.player_name, r.team, (SELECT minimum_games FROM qualification) AS minimum_games
+            FROM leaders l
             JOIN player_game_stats r ON r.rowid = (
                 SELECT rowid FROM player_game_stats p WHERE p.player_id = l.player_id
                 AND p.season = l.season ORDER BY p.game_date DESC, p.game_id DESC LIMIT 1
@@ -53,6 +61,9 @@ CREATE TABLE IF NOT EXISTS games (
     home_points INTEGER NOT NULL,
     away_points INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_games_matchup_day ON games(date(game_date),home_team,away_team);
+CREATE TABLE IF NOT EXISTS game_id_aliases (alias TEXT PRIMARY KEY, canonical_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS player_id_aliases (alias INTEGER PRIMARY KEY, canonical_id INTEGER NOT NULL);
 """
 
 _PLAYER_GAME_STATS_SCHEMA = """
@@ -84,6 +95,7 @@ CREATE TABLE IF NOT EXISTS player_game_stats (
     is_starter INTEGER,
     PRIMARY KEY (game_id, player_id)
 );
+CREATE INDEX IF NOT EXISTS idx_player_games_player_id ON player_game_stats(player_id);
 """
 
 _TEAM_ADVANCED_STATS_SCHEMA = """
@@ -242,6 +254,17 @@ def upsert_games(games: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> int:
 
     with sqlite3.connect(path) as connection:
         before = connection.execute("SELECT COUNT(*) FROM games").fetchone()[0]
+        for index, row in rows.iterrows():
+            original = str(row["game_id"])
+            existing = connection.execute(
+                "SELECT game_id FROM games WHERE date(game_date)=? AND home_team=? AND away_team=? LIMIT 1",
+                (pd.Timestamp(row["game_date"]).date().isoformat(), row["home_team"], row["away_team"]),
+            ).fetchone()
+            if existing and existing[0] != original:
+                rows.at[index, "game_id"] = existing[0]
+                connection.execute(
+                    "INSERT OR REPLACE INTO game_id_aliases VALUES (?,?)", (original, existing[0])
+                )
         connection.executemany(
             """
             INSERT OR IGNORE INTO games
@@ -253,6 +276,19 @@ def upsert_games(games: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> int:
         connection.commit()
         after = connection.execute("SELECT COUNT(*) FROM games").fetchone()[0]
     return after - before
+
+
+def apply_game_aliases(rows: pd.DataFrame, connection: sqlite3.Connection) -> pd.DataFrame:
+    """Mantém o mesmo confronto ao combinar logs NBA, ESPN, arremessos e ratings."""
+    exists = connection.execute("SELECT 1 FROM sqlite_master WHERE name='game_id_aliases'").fetchone()
+    if not exists or rows.empty:
+        return rows
+    aliases = dict(connection.execute("SELECT alias,canonical_id FROM game_id_aliases").fetchall())
+    if not aliases:
+        return rows
+    result = rows.copy()
+    result["game_id"] = result["game_id"].astype(str).map(lambda value: aliases.get(value, value))
+    return result
 
 
 def read_raw_games(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
@@ -297,6 +333,9 @@ def upsert_player_games(player_games: pd.DataFrame, path: Path = DEFAULT_DB_PATH
     rows["is_home"] = rows["is_home"].astype(int)
 
     with sqlite3.connect(path) as connection:
+        rows = apply_game_aliases(rows, connection)
+        for player_id, name in rows[["player_id", "player_name"]].drop_duplicates().itertuples(index=False):
+            reconcile_official_player(connection, int(player_id), str(name))
         before = connection.execute("SELECT COUNT(*) FROM player_game_stats").fetchone()[0]
         connection.executemany(
             f"""
@@ -371,6 +410,7 @@ def upsert_team_advanced_stats(advanced_stats: pd.DataFrame, path: Path = DEFAUL
     """Insere Rating oficiais novos, ignorando duplicatas (game_id, team)."""
     init_db(path)
     with sqlite3.connect(path) as connection:
+        advanced_stats = apply_game_aliases(advanced_stats, connection)
         before = connection.execute("SELECT COUNT(*) FROM team_advanced_stats").fetchone()[0]
         connection.executemany(
             f"""
@@ -754,6 +794,14 @@ def read_model_training_log(path: Path = DEFAULT_DB_PATH) -> pd.DataFrame:
     return data
 
 
+def _nba_pending_ids(rows: list, connection: sqlite3.Connection) -> list[str]:
+    aliases = {canonical: alias for alias, canonical in connection.execute(
+        "SELECT alias,canonical_id FROM game_id_aliases WHERE alias GLOB '00????????'"
+    )}
+    return [aliases.get(str(row[0]), str(row[0])) for row in rows
+            if ":" not in str(row[0]) or str(row[0]) in aliases]
+
+
 def games_missing_advanced_stats(path: Path = DEFAULT_DB_PATH, season: str | None = None) -> list:
     """Game_ids de `games` que ainda não têm Rating oficial coletado."""
     init_db(path)
@@ -768,7 +816,7 @@ def games_missing_advanced_stats(path: Path = DEFAULT_DB_PATH, season: str | Non
             params = (season,)
         query += " ORDER BY g.game_date"
         rows = connection.execute(query, params).fetchall()
-    return [row[0] for row in rows]
+        return _nba_pending_ids(rows, connection)
 
 
 def games_missing_starter_status(path: Path = DEFAULT_DB_PATH, season: str | None = None) -> list:
@@ -782,7 +830,7 @@ def games_missing_starter_status(path: Path = DEFAULT_DB_PATH, season: str | Non
             params = (season,)
         query += " ORDER BY game_date"
         rows = connection.execute(query, params).fetchall()
-    return [row[0] for row in rows]
+        return _nba_pending_ids(rows, connection)
 
 
 def update_starter_status(rows: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> int:
@@ -796,6 +844,7 @@ def update_starter_status(rows: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> i
     init_db(path)
     updated = 0
     with sqlite3.connect(path) as connection:
+        rows = apply_game_aliases(rows, connection)
         for row in rows.itertuples(index=False):
             cursor = connection.execute(
                 "UPDATE player_game_stats SET is_starter = ? WHERE game_id = ? AND player_id = ?",

@@ -33,7 +33,7 @@ def demo_games() -> pd.DataFrame:
     return load_games()
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=2)
 def cached_train(games: pd.DataFrame):
     return train_models(games)
 

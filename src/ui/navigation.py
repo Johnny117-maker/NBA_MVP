@@ -24,6 +24,10 @@ class Page:
 PAGES = (
     Page("overview", "app.py", "Visão geral", "🏠", "EXPLORAR", "O ponto de partida das suas análises.", "/"),
     Page(
+        "opportunities", "pages/9_Oportunidades.py", "Over / Under ao vivo", ":material/monitoring:",
+        "EXPLORAR", "Forma atual, probabilidades condicionais e acompanhamento dos jogos.", "/Oportunidades",
+    ),
+    Page(
         "games",
         "pages/7_Jogos.py",
         "Jogos do dia",
@@ -136,4 +140,4 @@ def sidebar_navigation(active_page: str) -> None:
                     with st.container(key=f"{prefix}_{page.id}"):
                         page_link(page.id)
         st.divider()
-        st.caption("Estimativas educacionais. Sem odds ou orientação de apostas.")
+        st.caption("Estimativas experimentais. Consulte a fonte, a data e a linha de cada análise.")

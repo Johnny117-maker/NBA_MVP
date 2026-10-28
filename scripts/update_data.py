@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.live_types import current_season  # noqa: E402
 from src.nba_client import (  # noqa: E402
     fetch_player_season_logs,
     fetch_season_games,
@@ -20,7 +21,8 @@ from src.store import (  # noqa: E402
     upsert_player_games,
 )
 
-DEFAULT_SEASONS = ["2022-23", "2023-24", "2024-25"]
+_CURRENT_START = int(current_season()[:4])
+DEFAULT_SEASONS = [f"{year}-{(year + 1) % 100:02d}" for year in range(_CURRENT_START - 2, _CURRENT_START + 1)]
 
 
 def parse_args() -> argparse.Namespace:

@@ -12,6 +12,11 @@ from src.shot_features import THREE_POINT_ZONES, ZONES
 from src.shot_storage import upsert_player_shots
 from src.store import init_db, log_model_training, upsert_games, upsert_player_games
 
+
+@pytest.fixture(autouse=True)
+def disable_background_network_in_tests(monkeypatch):
+    monkeypatch.setenv("NBA_AUTO_SYNC", "0")
+
 # Times reais só para nomear os jogos sintéticos de forma plausível — os
 # testes de página não dependem de nenhum desses times em particular.
 FIXTURE_TEAMS = [

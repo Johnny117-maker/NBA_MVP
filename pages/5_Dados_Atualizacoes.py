@@ -21,6 +21,7 @@ from src.store import (
 )
 from src.ui import components, states, theme
 from src.ui.formatters import format_int_br
+from src.ui.live import sync_status
 
 MAX_SHOT_BATCH = 30
 SHOT_COLLECTION_DELAY_SECONDS = 0.6
@@ -40,6 +41,12 @@ components.page_header(
 )
 
 init_db(DEFAULT_DB_PATH)
+
+with st.container(border=True):
+    st.subheader("Temporada atual: atualização automática")
+    sync_status(DEFAULT_DB_PATH, detailed=True)
+    st.caption("A coleta incremental já acompanha a temporada enquanto o projeto está aberto. "
+               "Partidas em andamento ficam separadas dos dados usados no treinamento.")
 
 components.source_badge("NBA API", components.db_last_updated(DEFAULT_DB_PATH))
 

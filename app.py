@@ -16,6 +16,7 @@ from src.store import (
 from src.ui import components, theme
 from src.ui.formatters import format_int_br
 from src.ui.insights import latest_season_games, player_card, ranking_list, team_form_table
+from src.ui.live import opportunities_panel
 from src.ui.navigation import page_link
 
 st.set_page_config(
@@ -34,13 +35,15 @@ components.page_header(
     hero=True,
 )
 
+opportunities_panel(DEFAULT_DB_PATH, compact=True)
+
 real_data_available = DEFAULT_DB_PATH.exists() and count_games(DEFAULT_DB_PATH) > 0
 last_updated = components.db_last_updated(DEFAULT_DB_PATH) if real_data_available else None
 seasons = list_seasons(DEFAULT_DB_PATH) if real_data_available else []
 seasons_label = f"{seasons[0]} a {seasons[-1]}" if len(seasons) > 1 else (seasons[0] if seasons else None)
 
 components.source_badge(
-    "NBA API — dados reais" if real_data_available else "Nenhum dado real coletado ainda",
+    "NBA / fontes públicas — dados reais" if real_data_available else "Nenhum dado real coletado ainda",
     last_updated,
     seasons=seasons_label,
 )
@@ -79,8 +82,10 @@ if real_data_available:
     leaders, form, recent_games = _dashboard_data(str(DEFAULT_DB_PATH), DEFAULT_DB_PATH.stat().st_mtime_ns)
     highlights, power = st.columns([2, 1], gap="large")
     with highlights:
+        leader_minimum = int(leaders["minimum_games"].iloc[0]) if not leaders.empty else 10
         components.section_header(
-            "Destaques da temporada", "Líderes em pontos por jogo · mínimo de 10 partidas coletadas."
+            "Destaques da temporada",
+            f"Líderes em pontos por jogo · mínimo de {leader_minimum} partidas coletadas.",
         )
         if leaders.empty:
             st.info("Colete estatísticas de jogadores para ver os destaques da temporada.")

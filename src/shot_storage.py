@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from .shot_connector import SHOT_COLUMNS
-from .store import DEFAULT_DB_PATH
+from .store import DEFAULT_DB_PATH, apply_game_aliases
 
 _PLAYER_SHOTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS player_shots (
@@ -69,6 +69,7 @@ def upsert_player_shots(shots: pd.DataFrame, path: Path = DEFAULT_DB_PATH) -> in
     rows["game_date"] = rows["game_date"].astype(str)
 
     with sqlite3.connect(path) as connection:
+        rows = apply_game_aliases(rows, connection)
         before = connection.execute("SELECT COUNT(*) FROM player_shots").fetchone()[0]
         connection.executemany(
             f"""
@@ -209,7 +210,7 @@ def players_missing_shots(
         query = """
             SELECT DISTINCT p.player_id, p.player_name, p.season
             FROM player_game_stats p
-            WHERE NOT EXISTS (
+            WHERE p.player_id > 0 AND NOT EXISTS (
                 SELECT 1 FROM player_shots s
                 WHERE s.player_id = p.player_id AND s.season = p.season
             )

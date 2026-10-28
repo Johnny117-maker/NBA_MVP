@@ -36,12 +36,12 @@ if not DEFAULT_DB_PATH.exists() or not list_seasons(DEFAULT_DB_PATH):
 components.source_badge("NBA API — dados reais", components.db_last_updated(DEFAULT_DB_PATH))
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=2)
 def _load_games(db_version: int) -> pd.DataFrame:
     return load_real_games(DEFAULT_DB_PATH)
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=2)
 def _train(games: pd.DataFrame):
     return train_models(games)
 

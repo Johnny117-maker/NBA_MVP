@@ -15,7 +15,7 @@ from .player_metrics import player_snapshot
 from .player_model import predict_player_game, train_player_models
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, max_entries=8, show_spinner=False)
 def _fetch_schedule(retry_token: int, selected_day: date) -> pd.DataFrame:
     from .nba_schedule import fetch_nba_schedule
     from .schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH, save_schedule_cache
@@ -30,7 +30,13 @@ def _fetch_schedule(retry_token: int, selected_day: date) -> pd.DataFrame:
 
 
 def _load_schedule(retry_token: int, selected_day: date) -> tuple[pd.DataFrame, str | None]:
+    from .live_store import live_schedule
     from .schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH, read_schedule_cache
+    from .store import DEFAULT_DB_PATH
+
+    synchronized = live_schedule(DEFAULT_DB_PATH, selected_day.isoformat())
+    if not synchronized.empty:
+        return synchronized, None
 
     try:
         return _fetch_schedule(retry_token, selected_day), None
@@ -53,7 +59,7 @@ def _load_player_games(db_path: str, updated_at: float, selected_day: date) -> p
     return games.loc[pd.to_datetime(games["game_date"]).dt.date < selected_day].copy()
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=2)
 def _load_team_games(db_path: str, updated_at: float, selected_day: date) -> pd.DataFrame:
     from .data import load_real_games
 
@@ -62,7 +68,7 @@ def _load_team_games(db_path: str, updated_at: float, selected_day: date) -> pd.
     return games.loc[pd.to_datetime(games["game_date"]).dt.date < selected_day].copy()
 
 
-@st.cache_resource(show_spinner="Treinando o modelo de times...")
+@st.cache_resource(show_spinner="Treinando o modelo de times...", max_entries=2)
 def _team_model_context(db_path: str, updated_at: float, selected_day: date):
     from .model import train_models
 
@@ -77,7 +83,7 @@ def _load_current_roster() -> pd.DataFrame:
     return fetch_current_roster()
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=2)
 def _form_table(
     db_path: str,
     updated_at: float,
@@ -125,7 +131,7 @@ def _model_context(db_path: str, updated_at: float, selected_day: date):
     )
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=21600, max_entries=256)
 def _project_player(
     db_path: str,
     updated_at: float,

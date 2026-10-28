@@ -21,6 +21,7 @@ htmlcov/
 # Banco de dados e dados coletados localmente (não versionar bases grandes)
 data/*.db
 data/*.sqlite
+data/*.sqlite-*
 data/*.sqlite3
 data/*.db-*
 data/nba_schedule.json
