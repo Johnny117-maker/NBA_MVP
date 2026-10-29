@@ -163,6 +163,9 @@ class SeasonSync:
             from .history_sources import start_current_history_sync
 
             start_current_history_sync(self.db_path, self.stop_event)
+            from .injuries import start_injury_sync
+
+            start_injury_sync(self.db_path, self.stop_event)
             atexit.register(self.stop)
         return self
 

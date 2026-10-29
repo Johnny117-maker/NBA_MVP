@@ -121,6 +121,11 @@ def defense_tables(
             if paint_total is not None
             else (team_games["paint_opp"].mean() if paint_count else np.nan),
             "paint_games": n if paint_total is not None else paint_count,
+            "paint_allowed_100": 100 * _ratio(
+                float(paint_total) if paint_total is not None else team_games["paint_opp"].sum(min_count=1),
+                team_games["poss_est"].sum() if paint_total is not None
+                else team_games.loc[team_games["paint_opp"].notna(), "poss_est"].sum(),
+            ),
             "paint_method": "NBA Stats oficial" if paint_total is not None else "Boxscore ESPN",
             "rim_fg_pct": _ratio(rim["makes"].sum(), rim["attempts"].sum()) if not rim.empty else np.nan,
             "rim_attempts": int(rim["attempts"].sum()) if not rim.empty else 0,

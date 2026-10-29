@@ -96,6 +96,15 @@ PAGES = (
         "/Mapa_Arremessos",
     ),
     Page(
+        "injuries",
+        "pages/14_Lesoes.py",
+        "Lesões e disponibilidade",
+        ":material/healing:",
+        "ACOMPANHAR",
+        "Boletim de lesões com fonte, referência e atualização automática.",
+        "/Lesoes",
+    ),
+    Page(
         "season",
         "pages/2_Temporada.py",
         "Temporada",

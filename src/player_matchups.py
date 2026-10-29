@@ -172,7 +172,13 @@ def ingest_matchup_assets(db_path: str | Path, *, years=None) -> dict:
 
 
 def read_matchups(
-    db_path: str | Path, season: str, phase: str, *, off_id: int | None = None, game_id: str | None = None
+    db_path: str | Path,
+    season: str,
+    phase: str,
+    *,
+    off_id: int | None = None,
+    def_id: int | None = None,
+    game_id: str | None = None,
 ) -> pd.DataFrame:
     where = ["season=?", "phase=?"]
     parameters: list[str | int] = [season, phase]
@@ -182,6 +188,9 @@ def read_matchups(
     if game_id is not None:
         where.append("game_id=?")
         parameters.append(game_id)
+    if def_id is not None:
+        where.append("def_id=?")
+        parameters.append(def_id)
     with connect_history(db_path) as connection:
         return pd.read_sql_query(
             "SELECT * FROM player_matchups WHERE "
@@ -190,6 +199,48 @@ def read_matchups(
             connection,
             params=parameters,
         )
+
+
+def attacker_summary(rows: pd.DataFrame) -> pd.DataFrame:
+    if rows.empty:
+        return pd.DataFrame()
+    result = rows.groupby(["off_id", "off_name"], as_index=False).agg(
+        off_team=("off_team", lambda teams: ", ".join(sorted(set(teams)))),
+        games=("game_id", "nunique"),
+        seconds=("seconds", "sum"),
+        possessions=("possessions", "sum"),
+        points=("points", "sum"),
+        fgm=("fgm", "sum"),
+        fga=("fga", "sum"),
+        fg3m=("fg3m", "sum"),
+        fg3a=("fg3a", "sum"),
+        turnovers=("turnovers", "sum"),
+    )
+    result["fg_pct"] = result.fgm / result.fga.replace(0, np.nan)
+    result["fg3_pct"] = result.fg3m / result.fg3a.replace(0, np.nan)
+    result["efg_pct"] = (result.fgm + 0.5 * result.fg3m) / result.fga.replace(0, np.nan)
+    result["pts_100_partial"] = 100 * result.points / result.possessions.replace(0, np.nan)
+    return result.sort_values("fga", ascending=False).reset_index(drop=True)
+
+
+def defender_opponents(db_path: str | Path, season: str, phase: str, defender_id: int):
+    rows = read_matchups(db_path, season, phase, def_id=defender_id)
+    summary = attacker_summary(rows)
+    if summary.empty:
+        return rows, summary
+    with connect_history(db_path) as connection:
+        reference = pd.read_sql_query(
+            "SELECT off_id,SUM(fgm) other_fgm,SUM(fga) other_fga FROM player_matchups "
+            "WHERE season=? AND phase=? AND def_id<>? AND off_id IN "
+            "(SELECT DISTINCT off_id FROM player_matchups WHERE season=? AND phase=? AND def_id=?) "
+            "GROUP BY off_id",
+            connection,
+            params=(season, phase, defender_id, season, phase, defender_id),
+        )
+    summary = summary.merge(reference, on="off_id", how="left")
+    summary["reference_pct"] = summary.other_fgm / summary.other_fga.where(summary.other_fga.ge(20))
+    summary["difference_pp"] = 100 * (summary.fg_pct - summary.reference_pct).where(summary.fga.ge(5))
+    return rows, summary
 
 
 def defender_summary(rows: pd.DataFrame) -> pd.DataFrame:

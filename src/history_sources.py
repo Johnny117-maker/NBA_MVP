@@ -21,6 +21,7 @@ from .live_types import current_season, utc_now
 BASE = "https://github.com/sportsdataverse/sportsdataverse-data/releases/download"
 CATALOG_URL = "https://api.github.com/repos/sportsdataverse/sportsdataverse-data/releases"
 TAGS = {
+    "espn_nba_injuries",
     "nba_stats_schedules",
     "nba_stats_team_boxscores",
     "nba_stats_player_boxscores",

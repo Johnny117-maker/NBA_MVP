@@ -6,7 +6,7 @@ data de coleta, SHA-256, tamanho, linhas e colunas de cada arquivo. O ano dos
 arquivos é o **ano final** da temporada: 2022 corresponde a 2021–22. Essa temporada
 é incluída para cobrir também os jogos do calendário de 2022.
 
-A carga inicial contém 826 arquivos, com aproximadamente 15,47 milhões de linhas
+A carga de referência da versão 1.1.0 contém 826 arquivos, com aproximadamente 15,47 milhões de linhas
 entre conjuntos sobrepostos: NBA/ESPN boxscores, eventos, arremessos, posses,
 escalações, métricas avançadas, tracking, hustle, matchups e play types. Esses
 registros não representam jogos únicos. A tela **Defesa dos times → Fontes e

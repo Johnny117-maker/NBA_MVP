@@ -128,7 +128,7 @@ phase_options = phase_options or ["Temporada regular"]
 if st.session_state.get("matchups_phase") not in phase_options:
     st.session_state.pop("matchups_phase", None)
 phase = cols[1].selectbox("Fase", phase_options, key="matchups_phase")
-mode = cols[2].selectbox("Analisar", ["Jogador", "Partida"], key="matchups_mode")
+mode = cols[2].selectbox("Analisar", ["Jogador", "Marcador", "Partida"], key="matchups_mode")
 with connect_history(DEFAULT_DB_PATH) as connection:
     coverage = connection.execute(
         "SELECT COUNT(DISTINCT game_id),MAX(game_date) FROM player_matchups WHERE season=? AND phase=?",
@@ -141,6 +141,12 @@ st.caption(
     f"Cobertura de marcações: {coverage[0]} de {expected or '—'} jogos no acervo. "
     f"Último registro: {coverage[1] or 'ainda indisponível'}."
 )
+
+if mode == "Marcador":
+    from src.ui.defenders import render_defender
+
+    render_defender(DEFAULT_DB_PATH, season, phase)
+    st.stop()
 
 if mode == "Partida":
     with connect_history(DEFAULT_DB_PATH) as connection:

@@ -17,6 +17,7 @@ from src.team_defense import (
     rim_defenders,
 )
 from src.ui import components, theme
+from src.ui.defense import render_defense_index, render_team_charts
 
 st.set_page_config(
     page_title="Defesa dos times — NBA Analytics Lab", page_icon=":material/shield:", layout="wide"
@@ -66,7 +67,7 @@ window = controls[2].selectbox(
 )
 last_n = {"Fase inteira": 0, "Últimos 10 jogos": 10, "Últimos 20 jogos": 20}[window]
 view = st.segmented_control(
-    "Visualização", ["Panorama", "Por time", "Fontes e cobertura"], default="Panorama"
+    "Visualização", ["Panorama", "Índice e gráficos", "Por time", "Fontes e cobertura"], default="Panorama"
 )
 
 assets = read_assets(DEFAULT_DB_PATH)
@@ -230,6 +231,8 @@ if view == "Panorama":
         f"defesa_{season}.csv",
         "text/csv",
     )
+elif view == "Índice e gráficos":
+    render_defense_index(summary)
 else:
     team = st.selectbox(
         "Time",
@@ -306,6 +309,7 @@ else:
                 },
                 alt="Defensores da equipe com volume e aproveitamento dos arremessos defendidos no aro.",
             )
+    render_team_charts(DEFAULT_DB_PATH, season, phase, team, last_n, zones)
     with st.expander("Consultar tracking direto da NBA"):
         st.caption(
             "Consulta gratuita via nba_api. Pode falhar quando stats.nba.com recusa a conexão; "

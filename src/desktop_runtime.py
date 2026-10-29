@@ -90,6 +90,10 @@ def _diagnose(root: Path, resources: Path, output: Path) -> int:
         "src.team_defense",
         "src.player_matchups",
         "src.player_defense_fit",
+        "src.defense_analytics",
+        "src.defense_charts",
+        "src.injuries",
+        "src.ui.defenders",
         "PySide6.QtWebEngineWidgets",
     ):
         importlib.import_module(name)
@@ -115,7 +119,7 @@ def _diagnose(root: Path, resources: Path, output: Path) -> int:
         "player_games": count_player_games(root / "data" / "nba.db"),
     }
     result["ok"] = bool(
-        result["app_script"] and result["styles"] and result["frontend"] and result["pages"] >= 12
+        result["app_script"] and result["styles"] and result["frontend"] and result["pages"] >= 15
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")

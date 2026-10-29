@@ -6,7 +6,7 @@ necessário instalar dependências, configurar um servidor ou manter um terminal
 
 ## Abrir o sistema
 
-1. Extraia **todo** o arquivo `NBAAnalyticsLab-1.1.0-Windows-x64.zip`.
+1. Extraia **todo** o arquivo `NBAAnalyticsLab-1.2.0-Windows-x64.zip`.
 2. Entre na pasta `NBAAnalyticsLab` e abra `NBAAnalyticsLab.exe`.
 3. Mantenha a pasta `_internal` ao lado do executável. Ela contém o navegador e as bibliotecas.
 4. Para criar o ícone de inicialização, execute `CRIAR_ATALHO.bat`. Depois abra
@@ -65,14 +65,14 @@ de desenvolvimento configurado, execute `GERAR_EXECUTAVEL.bat`. A saída fica em
 
 ```text
 dist/
-  1.1.0/NBAAnalyticsLab/
+  1.2.0/NBAAnalyticsLab/
     NBAAnalyticsLab.exe
     CRIAR_ATALHO.bat
     _internal/
     LEIA-ME.txt
     package.json
-  NBAAnalyticsLab-1.1.0-Windows-x64.zip
-  NBAAnalyticsLab-1.1.0-Windows-x64.sha256
+  NBAAnalyticsLab-1.2.0-Windows-x64.zip
+  NBAAnalyticsLab-1.2.0-Windows-x64.sha256
 ```
 
 O script usa PyInstaller no modo pasta portátil. Esse formato evita extrair o

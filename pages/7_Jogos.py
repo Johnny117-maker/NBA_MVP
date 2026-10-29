@@ -16,6 +16,7 @@ from src.daily_games import (
     today_et,
 )
 from src.data import team_snapshot
+from src.live_providers import team_code
 from src.model import predict_game
 from src.nba_schedule import SCHEDULE_COLUMNS
 from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
@@ -32,6 +33,7 @@ from src.today_picks import round_highlights
 from src.ui import components, theme
 from src.ui.archive import archived_preview
 from src.ui.formatters import format_date_br
+from src.ui.injuries import annotate_injuries, injury_notice
 from src.ui.insights import matchup_intel
 from src.ui.navigation import page_link
 from src.ui.round_cards import highlights_grid, history_notice
@@ -49,6 +51,7 @@ components.page_header(
     "Os protagonistas primeiro. Descubra quem acompanhar e explore cada confronto da rodada.",
     category="JOGOS DO DIA",
 )
+injury_notice(DEFAULT_DB_PATH)
 
 
 def _manual_schedule(selected_day: date) -> pd.DataFrame:
@@ -413,6 +416,8 @@ with tab_round:
                             )
                             continue
                         table = _highlight_table(team_players, opponent, is_home)
+                        if selected_day >= today_et():
+                            table = annotate_injuries(table, DEFAULT_DB_PATH, team_code(team_name))
                         formats = {
                             "Min": "{:.1f}",
                             "PTS": "{:.1f}",
@@ -429,16 +434,16 @@ with tab_round:
                                 na_rep="—",
                             ),
                             hide_index=True,
-                            use_container_width=True,
+                            width="stretch",
                         )
 
     if not form_table.empty:
         st.caption(
             "Destaques: ranking pelo índice de impacto recente (pontos + 0,7 × rebotes + assistências, "
             "média dos últimos 5 jogos com minutos). 'PTS vs. temporada' compara a forma recente com a "
-            "média da temporada mais recente do jogador. A base não tem dados de lesão ou escalação "
-            "confirmada: um destaque pode estar fora da partida — confira o status oficial antes de "
-            "interpretar. Horários em Brasília e na costa leste (ET)."
+            "média da temporada mais recente do jogador. O boletim de lesões é uma consulta separada; "
+            "ausência de registro não confirma participação, e um destaque pode estar fora. "
+            "Horários em Brasília e na costa leste (ET)."
         )
 
 with tab_matchup:
