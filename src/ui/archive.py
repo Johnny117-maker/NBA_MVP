@@ -48,19 +48,19 @@ def archived_preview(path: str | Path, day: str, key: str, eligible_only: bool =
 
 
 @st.fragment(run_every=30)
-def archive_panel(path: str | Path, day: str) -> None:
-    snapshots = read_snapshots(path, day)
+def archive_panel(path: str | Path, day: str, origin: str = "preferred") -> None:
+    snapshots = read_snapshots(path, day, origin=origin)
     if not snapshots:
         st.info(
-            "Ainda não há fotografias pré-jogo para esta data. O monitor salva os destaques quando encontra "
-            "um jogo agendado e histórico suficiente, antes do início. Datas passadas não são reconstruídas."
+            "Ainda não há fotografias pré-jogo importadas para esta data. Consulte o arquivo automático "
+            "do GitHub ou aguarde a sincronização. Datas passadas não são reconstruídas."
         )
         return
-    table = snapshot_table(path, day)
+    table = snapshot_table(path, day, origin=origin)
     counts = len({(r["game_key"], r["player_id"]) for r in table.to_dict("records")})
     resolved = table.loc[table["actual"].notna()]
     metrics = st.columns(3)
-    metrics[0].metric("Jogos com previsão salva", len(snapshots))
+    metrics[0].metric("Jogos com previsão salva", len({snapshot["game_key"] for snapshot in snapshots}))
     metrics[1].metric("Destaques registrados", counts)
     metrics[2].metric("Projeções com resultado", len(resolved))
     mode = st.segmented_control(
@@ -78,6 +78,14 @@ def archive_panel(path: str | Path, day: str) -> None:
                 st.subheader(f"{snapshot['away']} @ {snapshot['home']}")
                 stamp = pd.Timestamp(snapshot["captured_at"]).tz_convert("America/Sao_Paulo")
                 st.caption(f"Registrado em {stamp:%d/%m/%Y às %H:%M:%S} · horário de Brasília")
+                st.caption(
+                    "Origem: "
+                    + snapshot.get("origin", "Local")
+                    + " · "
+                    + snapshot.get("selection_scope", "Destaques da rodada")
+                )
+                if snapshot.get("automation") and snapshot["automation"].get("run_url"):
+                    st.link_button("Ver execução que gerou esta previsão", snapshot["automation"]["run_url"])
                 rows = []
                 for player in snapshot["players"]:
                     rows.append(
@@ -96,6 +104,13 @@ def archive_panel(path: str | Path, day: str) -> None:
                         }
                     )
                 st.dataframe(pd.DataFrame(rows), hide_index=True, alt="Previsões originais dos destaques")
+                if pick := snapshot.get("team_pick"):
+                    prediction = pick["prediction"]
+                    st.markdown(f"**Palpite do confronto:** {pick['favorite']} · {pick['probability']:.0%}")
+                    st.caption(
+                        f"Placar previsto: {prediction['away_score']:.0f} × {prediction['home_score']:.0f} "
+                        "· visitante × mandante"
+                    )
                 st.caption("Seleção baseada na forma recente; escalações e participação não confirmadas.")
     elif mode == "Previsão × resultado":
         stat = st.segmented_control(
@@ -169,9 +184,9 @@ def archive_panel(path: str | Path, day: str) -> None:
 
 def request_archive_refresh(path: str | Path) -> None:
     st.caption(
-        "O monitor registra a primeira previsão de cada jogo do dia NBA (fuso de Nova York). "
-        "Os arquivos ficam no computador, mesmo depois de fechar o projeto. "
-        "Para registrar novos dias automaticamente, mantenha o servidor em execução."
+        "O GitHub registra a primeira previsão de cada jogo do dia NBA (fuso de Nova York), "
+        "mesmo com o computador desligado. Ao abrir o sistema, o histórico remoto é importado "
+        "e complementa as capturas locais."
     )
     if st.button("Verificar registros do dia", icon=":material/sync:"):
         service = ensure_auto_sync(path)

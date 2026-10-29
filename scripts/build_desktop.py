@@ -124,6 +124,8 @@ def package_distribution(target: Path, initial: dict) -> None:
         "Seus dados ficam em %LOCALAPPDATA%\\NBAAnalyticsLab, separados da pasta do programa.\n"
         "Ao atualizar, substitua a pasta do programa; os dados pessoais serão preservados.\n"
         "Fechar a janela encerra a coleta. Minimizar mantém o sistema funcionando.\n\n"
+        "Os palpites diários continuam sendo gerados no GitHub com o computador desligado.\n"
+        "Consulte Histórico diário para sincronizar os registros remotos com sua conta GitHub.\n\n"
         "Menu Sistema: pasta dos dados, logs, recarregar e sair.\n"
         "Licenças das bibliotecas: diretórios .dist-info dentro de _internal.\n"
     )

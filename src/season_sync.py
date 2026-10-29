@@ -146,9 +146,10 @@ def parse_crosswalk(frame: pd.DataFrame) -> dict[str, int]:
 
 
 class SeasonSync:
-    def __init__(self, db_path: str | Path, keys: ApiKeys | None = None):
+    def __init__(self, db_path: str | Path, keys: ApiKeys | None = None, *, archive_analysis: bool = True):
         self.db_path = Path(db_path).resolve()
         self.client = FeedClient(self.db_path, keys)
+        self.archive_analysis = archive_analysis
         self.owner = f"{os.getpid()}:{uuid.uuid4().hex}"
         self.stop_event = threading.Event()
         self.wake_event = threading.Event()
@@ -166,6 +167,9 @@ class SeasonSync:
             from .injuries import start_injury_sync
 
             start_injury_sync(self.db_path, self.stop_event)
+            from .remote_archive import start_remote_archive_sync
+
+            start_remote_archive_sync(self.db_path, self.stop_event)
             atexit.register(self.stop)
         return self
 
@@ -300,6 +304,9 @@ class SeasonSync:
             status["errors"] = status.get("last_errors", [])
         status["changed_games"] = changed
         status["rejected_games"] = rejected[:10]
+        if not self.archive_analysis:
+            set_state(self.db_path, "status", status)
+            return status
         try:
             from .analysis_archive import run_daily_analysis
             from .research_feeds import collect_rim_daily

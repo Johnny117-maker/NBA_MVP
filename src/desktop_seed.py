@@ -20,6 +20,7 @@ def build_seed(
     player_limit: int | None = None,
     shot_limit: int | None = None,
     start_season: str = "2021-22",
+    include_history: bool = True,
 ) -> dict:
     if target.exists():
         raise FileExistsError("A base inicial de destino já existe; use uma nova pasta de compilação.")
@@ -98,7 +99,7 @@ def build_seed(
                 status["live_available"] = False
                 set_state(target, "status", status)
     archive = source.with_name("nba_history.sqlite")
-    if archive.exists():
+    if archive.exists() and include_history:
         with sqlite3.connect(archive.resolve().as_uri() + "?mode=ro", uri=True) as original:
             with sqlite3.connect(target.with_name("nba_history.sqlite")) as output:
                 original.backup(output)

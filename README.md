@@ -2,6 +2,12 @@
 
 Aplicativo de análise da NBA com histórico local, atualização da temporada, projeções de jogadores e comparação entre previsões e resultados.
 
+## Gravação diária automática — versão 1.3.0
+
+O GitHub Actions gera e salva os palpites a cada duas horas, mesmo com o PC desligado.
+O **Histórico diário** importa as capturas com SHA-256 e preserva os registros locais.
+Consulte [configuração, cobertura e limites](docs/PALPITES_AUTOMATICOS_GITHUB.md).
+
 ## Defesa e disponibilidade — versão 1.2.0
 
 A versão 1.2.1 exclui lesionados e atletas em dúvida de **Palpites de hoje**,
@@ -16,7 +22,7 @@ Consulte os critérios, fontes e limites em [Índice defensivo e lesões](docs/I
 
 ## Executável para Windows
 
-Extraia o pacote `NBAAnalyticsLab-1.2.1-Windows-x64.zip` inteiro e abra
+Extraia o pacote `NBAAnalyticsLab-1.3.0-Windows-x64.zip` inteiro e abra
 `NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
 janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
 externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para

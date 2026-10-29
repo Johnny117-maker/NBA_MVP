@@ -88,6 +88,28 @@ def pregame():
 CAPTURE = datetime(2026, 10, 28, 16, tzinfo=UTC)
 
 
+def test_automatic_scope_records_all_eligible_players_and_excludes_injuries(tmp_path, research_history):
+    path = tmp_path / "nba.db"
+    init_db(path)
+    set_state(
+        path,
+        "injury_snapshot",
+        {
+            "source": "fixture",
+            "rows": [
+                {"player": "Test Player 1", "team": "BOS", "status": "Fora"},
+            ],
+        },
+    )
+    assert (
+        create_daily_snapshots(path, [pregame()], research_history, now=CAPTURE, players_per_team=None) == 1
+    )
+    snapshot = read_snapshots(path)[0]
+    assert len(snapshot["players"]) == 19
+    assert "Test Player 1" not in {player["name"] for player in snapshot["players"]}
+    assert snapshot["selection_scope"] == "Todos os elegíveis"
+
+
 def test_new_snapshots_exclude_injuries_before_top_three_without_rewriting_old_snapshots(
     tmp_path, research_history
 ):

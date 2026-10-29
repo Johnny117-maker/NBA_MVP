@@ -1,0 +1,53 @@
+name: Salvar palpites diarios
+
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-picks-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NBA_AUTO_SYNC: '0'
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NBA_AUTOMATION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Chave diaria do cache
+        id: day
+        run: echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .daily-runtime/data
+            .daily-runtime/models
+          key: nba-daily-v1-${{ runner.os }}-${{ steps.day.outputs.value }}
+          restore-keys: nba-daily-v1-${{ runner.os }}-
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt
+      - name: Gerar e preservar antes das partidas
+        run: python scripts/generate_daily_archive.py --db .daily-runtime/data/nba.db --output .daily-runtime/report
+      - name: Relatorio da execucao
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: palpites-${{ steps.day.outputs.value }}-${{ github.run_id }}
+          path: .daily-runtime/report
+          if-no-files-found: warn
+          retention-days: 30

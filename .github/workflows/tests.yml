@@ -2,6 +2,8 @@ name: Testes automatizados
 
 on:
   push:
+    branches-ignore:
+      - codex/daily-archive
   pull_request:
   workflow_dispatch:
 

@@ -49,6 +49,7 @@ Thumbs.db
 
 # Builds
 build/
+.daily-runtime/
 dist/
 *.egg-info/
 

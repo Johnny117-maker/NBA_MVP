@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 
 import pandas as pd
@@ -10,6 +10,32 @@ import pandas as pd
 from .daily_games import games_for_date, team_highlights, team_rest_days
 from .data import team_game_history, team_snapshot
 from .model import GamePrediction, ModelBundle, predict_game
+
+
+def daily_team_picks(db_path, games, selected_day: date) -> dict:
+    from .data import load_real_games
+    from .model import train_models
+
+    history = load_real_games(db_path)
+    history = history.loc[pd.to_datetime(history.game_date).dt.date < selected_day]
+    bundle = train_models(history)
+    result = {}
+    for game in games:
+        row = pd.Series({"home_team_name": game.home, "away_team_name": game.away})
+        from .nba_teams import TEAM_ABBREVIATION_TO_NAME
+
+        row["home_team_name"] = TEAM_ABBREVIATION_TO_NAME.get(game.home, game.home)
+        row["away_team_name"] = TEAM_ABBREVIATION_TO_NAME.get(game.away, game.away)
+        try:
+            pick = build_matchup_pick(bundle, history, row, selected_day)
+            result[game.key] = {
+                **asdict(pick),
+                "last_game_date": pick.last_game_date.isoformat(),
+                "confidence": pick.confidence,
+            }
+        except (ValueError, KeyError):
+            continue
+    return result
 
 
 def upcoming_games(schedule: pd.DataFrame, selected_day: date, now: pd.Timestamp) -> pd.DataFrame:

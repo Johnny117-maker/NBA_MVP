@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from .entity_ids import normalized_name
 from .injuries import filter_pick_players, injury_snapshot
 from .live_store import read_live_games
 from .live_types import EASTERN, LiveGame, utc_now
@@ -67,7 +68,7 @@ def _json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False, separators=(",", ":"))
 
 
-def archive_snapshot(path: str | Path, payload: dict) -> bool:
+def archive_snapshot(path: str | Path, payload: dict, *, remote: bool = False) -> bool:
     captured = pd.Timestamp(payload["captured_at"])
     kickoff = pd.Timestamp(payload["kickoff"])
     day = payload["day"]
@@ -91,13 +92,26 @@ def archive_snapshot(path: str | Path, payload: dict) -> bool:
     with connect_archive(path) as connection:
         cursor = connection.execute(
             "INSERT OR IGNORE INTO daily_snapshots VALUES (?,?,?,?,?,?,?)",
-            (digest[:24], payload["game_key"], day, captured.isoformat(), kickoff.isoformat(), body, digest),
+            (
+                digest[:24],
+                ("github:" if remote else "") + payload["game_key"],
+                day,
+                captured.isoformat(),
+                kickoff.isoformat(),
+                body,
+                digest,
+            ),
         )
         return cursor.rowcount > 0
 
 
 def read_snapshots(
-    path: str | Path, day: str | None = None, *, for_resolution: bool = False, limit: int | None = None
+    path: str | Path,
+    day: str | None = None,
+    *,
+    for_resolution: bool = False,
+    limit: int | None = None,
+    origin: str = "preferred",
 ) -> list[dict]:
     if not archive_path(path).exists():
         return []
@@ -111,10 +125,22 @@ def read_snapshots(
             "WHERE snapshot_id=daily_snapshots.id)<json_array_length(payload,'$.players'))"
         )
         parameters.append((utc_now().astimezone(EASTERN).date() - timedelta(days=14)).isoformat())
-    query = "SELECT id,payload,sha256 FROM daily_snapshots "
+    if origin not in {"preferred", "local", "github", "all"}:
+        raise ValueError("Origem do histórico inválida.")
+    if origin == "local":
+        conditions.append("game_key NOT LIKE 'github:%'")
+    elif origin == "github":
+        conditions.append("game_key LIKE 'github:%'")
+    query = "SELECT id,payload,sha256,game_key FROM daily_snapshots "
     if conditions:
         query += "WHERE " + " AND ".join(conditions) + " "
-    query += "ORDER BY day DESC,kickoff,game_key"
+    query += (
+        "ORDER BY CASE WHEN (SELECT COUNT(DISTINCT player_id) FROM snapshot_outcomes "
+        "WHERE snapshot_id=daily_snapshots.id)<json_array_length(payload,'$.players') "
+        "THEN 0 ELSE 1 END,day DESC,kickoff,game_key"
+        if for_resolution
+        else "ORDER BY day DESC,kickoff,game_key"
+    )
     if limit is not None:
         query += f" LIMIT {max(1, int(limit))}"
     with connect_archive(path) as connection:
@@ -123,10 +149,24 @@ def read_snapshots(
             parameters,
         ).fetchall()
     results = []
-    for key, body, digest in rows:
+    for key, body, digest, storage_key in rows:
         if hashlib.sha256(body.encode()).hexdigest() != digest:
             raise ValueError("A integridade de uma fotografia diária não pôde ser confirmada.")
-        results.append({**json.loads(body), "id": key, "sha256": digest})
+        results.append(
+            {
+                **json.loads(body),
+                "id": key,
+                "sha256": digest,
+                "origin": "GitHub" if storage_key.startswith("github:") else "Local",
+            }
+        )
+    if origin == "preferred":
+        remote_games = {snapshot["game_key"] for snapshot in results if snapshot["origin"] == "GitHub"}
+        results = [
+            snapshot
+            for snapshot in results
+            if snapshot["origin"] == "GitHub" or snapshot["game_key"] not in remote_games
+        ]
     return results
 
 
@@ -146,7 +186,10 @@ def shooting_context(rows: pd.DataFrame) -> dict:
 
 
 def highlighted_players(
-    history: pd.DataFrame, game: LiveGame, injuries: pd.DataFrame | None = None
+    history: pd.DataFrame,
+    game: LiveGame,
+    injuries: pd.DataFrame | None = None,
+    top_n: int | None = 3,
 ) -> pd.DataFrame:
     before = history.loc[history["game_date"].lt(pd.Timestamp(game.day))]
     candidates = []
@@ -155,12 +198,12 @@ def highlighted_players(
         if (
             latest["team"] not in {game.home, game.away}
             or latest["season"] != game.season
-            or (pd.Timestamp(game.day) - latest["game_date"]).days > 14
+            or (pd.Timestamp(game.day) - latest["game_date"]).days > (45 if top_n is None else 14)
             or len(rows) < 3
         ):
             continue
         recent = rows.tail(5)
-        if float(recent["minutes"].mean()) < 15:
+        if float(recent["minutes"].mean()) < (10 if top_n is None else 15):
             continue
         candidates.append(
             {
@@ -175,16 +218,20 @@ def highlighted_players(
         table = filter_pick_players(table, injuries)
     if table.empty:
         return table
-    return table.sort_values("impact", ascending=False).groupby("team", sort=False).head(3)
+    ranked = table.sort_values("impact", ascending=False)
+    return ranked if top_n is None else ranked.groupby("team", sort=False).head(top_n)
 
 
 def _future_rows(
-    history: pd.DataFrame, games: list[LiveGame], injuries: pd.DataFrame | None = None
+    history: pd.DataFrame,
+    games: list[LiveGame],
+    injuries: pd.DataFrame | None = None,
+    top_n: int | None = 3,
 ) -> tuple[pd.DataFrame, dict]:
     rows = []
     selections = {}
     for game in games:
-        chosen = highlighted_players(history, game, injuries)
+        chosen = highlighted_players(history, game, injuries, top_n)
         if chosen.empty or set(chosen["team"]) != {game.home, game.away}:
             continue
         selections[game.key] = chosen
@@ -210,6 +257,11 @@ def create_daily_snapshots(
     history: pd.DataFrame,
     bundle: PropsBundle | None = None,
     now: datetime | None = None,
+    *,
+    players_per_team: int | None = 3,
+    team_picks: dict | None = None,
+    capture_context: dict | None = None,
+    include_other_phases: bool = False,
 ) -> int:
     moment = now or utc_now()
     selected_day = moment.astimezone(EASTERN).date().isoformat()
@@ -218,7 +270,7 @@ def create_daily_snapshots(
     eligible = [
         g
         for g in games
-        if g.regular_season
+        if (g.regular_season or include_other_phases)
         and g.state == "pre"
         and g.key not in existing
         and g.kickoff
@@ -228,7 +280,7 @@ def create_daily_snapshots(
     if not eligible or history.empty:
         return 0
     injuries, _ = injury_snapshot(path)
-    future, selections = _future_rows(history, eligible, injuries)
+    future, selections = _future_rows(history, eligible, injuries, players_per_team)
     if future.empty:
         return 0
     table = feature_table(history, future)
@@ -280,6 +332,11 @@ def create_daily_snapshots(
                 "status": "Somente Bayes; XGBoost indisponível",
             },
             "players": players,
+            "selection_scope": "Todos os elegíveis"
+            if players_per_team is None
+            else f"Top {players_per_team} por equipe",
+            "team_pick": (team_picks or {}).get(game.key),
+            "automation": capture_context,
             "line_source": "Referência estatística; não é uma linha de casa de apostas",
         }
         added += int(archive_snapshot(path, payload))
@@ -287,7 +344,7 @@ def create_daily_snapshots(
 
 
 def resolve_snapshots(path: str | Path) -> int:
-    snapshots = read_snapshots(path, for_resolution=True, limit=200)
+    snapshots = read_snapshots(path, for_resolution=True, limit=200, origin="all")
     if not snapshots or not Path(path).exists():
         return 0
     added = 0
@@ -305,7 +362,8 @@ def resolve_snapshots(path: str | Path) -> int:
             if game is None:
                 continue
             all_rows = pd.read_sql_query(
-                "SELECT player_id,team,minutes,pts,reb,ast FROM player_game_stats WHERE game_id=?",
+                "SELECT player_id,player_name,team,minutes,pts,reb,ast "
+                "FROM player_game_stats WHERE game_id=?",
                 history,
                 params=(game[0],),
             )
@@ -322,6 +380,16 @@ def resolve_snapshots(path: str | Path) -> int:
                 ).fetchone()
                 canonical = int(alias[0]) if alias else pid
                 actual = all_rows.loc[all_rows["player_id"].eq(canonical)]
+                if snapshot.get("origin") == "GitHub" and pid < 0:
+                    # IDs negativos podem ter outra ordem em outro computador.
+                    matches = all_rows.loc[
+                        all_rows["player_name"]
+                        .astype(str)
+                        .map(normalized_name)
+                        .eq(normalized_name(player["name"]))
+                        & all_rows["team"].eq(player["team"])
+                    ]
+                    actual = matches if len(matches) == 1 else all_rows.iloc[:0]
                 if actual.empty and not complete:
                     continue
                 participated = not actual.empty and float(actual.iloc[0]["minutes"]) > 0
@@ -347,9 +415,9 @@ def resolve_snapshots(path: str | Path) -> int:
     return added
 
 
-def snapshot_table(path: str | Path, day: str) -> pd.DataFrame:
+def snapshot_table(path: str | Path, day: str, *, origin: str = "preferred") -> pd.DataFrame:
     rows = []
-    snapshots = read_snapshots(path, day)
+    snapshots = read_snapshots(path, day, origin=origin)
     if not snapshots:
         return pd.DataFrame()
     with connect_archive(path) as connection:
@@ -366,6 +434,7 @@ def snapshot_table(path: str | Path, day: str) -> pd.DataFrame:
                     rows.append(
                         {
                             "snapshot_id": snapshot["id"],
+                            "origin": snapshot.get("origin", "Local"),
                             "game_key": snapshot["game_key"],
                             "captured_at": snapshot["captured_at"],
                             "matchup": f"{snapshot['away']} @ {snapshot['home']}",
@@ -448,6 +517,9 @@ def run_daily_analysis(path: str | Path, *, now: datetime | None = None) -> dict
     pending -= {s["game_key"] for s in read_snapshots(path, day)}
     result: dict = {"new_snapshots": 0, "resolved": resolve_snapshots(path)}
     if pending:
+        _, availability = injury_snapshot(path)
+        if not availability.get("source"):
+            return {**result, "status": "Aguardando boletim de lesões válido"}
         history = load_research_history(path, day)
         if history.empty:
             return {**result, "status": "Aguardando histórico de jogadores"}
@@ -458,7 +530,21 @@ def run_daily_analysis(path: str | Path, *, now: datetime | None = None) -> dict
         except (ImportError, ValueError) as error:
             result["model_status"] = str(error)
             logging.getLogger(__name__).warning("Modelo de props: %s", error)
-        result["new_snapshots"] = create_daily_snapshots(path, games, history, bundle, now)
+        from .today_picks import daily_team_picks
+
+        try:
+            teams = daily_team_picks(path, games, moment.astimezone(EASTERN).date())
+        except ValueError:
+            teams = {}
+        result["new_snapshots"] = create_daily_snapshots(
+            path,
+            games,
+            history,
+            bundle,
+            now,
+            players_per_team=None,
+            team_picks=teams,
+        )
     output = Path(path).parent / "analyses" / day
     for snapshot in read_snapshots(path, day):
         output.mkdir(parents=True, exist_ok=True)
