@@ -101,6 +101,30 @@ cruzamento usa nome normalizado e equipe; IDs ESPN permanecem separados dos NBA.
 Ausência na lista não confirma participação. Retornos são estimativas da fonte.
 Os modelos não recebem ajustes automáticos de probabilidade a partir do boletim.
 
+### Elegibilidade em Palpites de hoje — versão 1.2.1
+
+Jogadores presentes no boletim com lesão, suspensão ou dúvida de participação são
+retirados antes do ranking dos destaques. A regra é conservadora: inclui dia a
+dia, questionável, improvável, provável e status não classificado. Um registro
+explicitamente disponível pode voltar à seleção. Não se altera o valor das
+projeções dos demais jogadores.
+
+O cruzamento usa o nome completo normalizado, sem busca parcial e sem confundir
+IDs ESPN com NBA. A exclusão também cobre transferências ainda não refletidas
+na equipe histórica. Um nome completo idêntico é excluído conservadoramente.
+
+Os próximos atletas elegíveis ocupam as vagas no ranking. O boletim é lido fora
+dos caches de modelos e conferido novamente durante a geração. A página verifica
+mudanças a cada trinta segundos para atualizar a seleção. Sem nenhum boletim
+válido recebido, os palpites individuais ficam suspensos; os palpites dos times
+continuam acessíveis. Um boletim defasado mantém os impedimentos conhecidos,
+com o aviso de referência antiga. Ausência na lista não confirma escalação.
+
+A prévia de previsões salvas dentro de Palpites de hoje aplica o mesmo filtro.
+O histórico original continua imutável e permanece completo na tela Histórico
+diário. Novos registros pré-jogo excluem as lesões conhecidas antes de selecionar
+os destaques, preservando o histórico usado no treinamento.
+
 Fontes: [boletim oficial NBA](https://official.nba.com/nba-injury-report-2026-27-season/),
 [ESPN](https://www.espn.com/nba/injuries),
 [acervo de lesões](https://github.com/sportsdataverse/sportsdataverse-data/releases/tag/espn_nba_injuries).

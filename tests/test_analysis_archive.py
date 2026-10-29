@@ -14,11 +14,13 @@ from src.analysis_archive import (
     archive_snapshot,
     connect_archive,
     create_daily_snapshots,
+    highlighted_players,
     read_snapshots,
     resolve_snapshots,
     snapshot_html,
     snapshot_table,
 )
+from src.live_store import set_state
 from src.live_types import LiveGame
 from src.player_metrics import add_efficiency_metrics
 from src.prop_training import FEATURES, feature_table, project_props, train_props
@@ -84,6 +86,33 @@ def pregame():
 
 
 CAPTURE = datetime(2026, 10, 28, 16, tzinfo=UTC)
+
+
+def test_new_snapshots_exclude_injuries_before_top_three_without_rewriting_old_snapshots(
+    tmp_path, research_history
+):
+    old_path = tmp_path / "old.db"
+    init_db(old_path)
+    assert create_daily_snapshots(old_path, [pregame()], research_history, now=CAPTURE) == 1
+    original = read_snapshots(old_path)
+    player = highlighted_players(research_history, pregame()).iloc[0]
+    bulletin = {
+        "source": "ESPN test",
+        "source_updated": CAPTURE.isoformat(),
+        "rows": [
+            {"player": player.player_name, "team": player.team, "status": "Fora"},
+        ],
+    }
+    set_state(old_path, "injury_snapshot", bulletin)
+    assert create_daily_snapshots(old_path, [pregame()], research_history, now=CAPTURE) == 0
+    assert read_snapshots(old_path) == original
+    new_path = tmp_path / "new.db"
+    init_db(new_path)
+    set_state(new_path, "injury_snapshot", bulletin)
+    assert create_daily_snapshots(new_path, [pregame()], research_history, now=CAPTURE) == 1
+    players = read_snapshots(new_path)[0]["players"]
+    assert len(players) == 6
+    assert player.player_name not in {entry["name"] for entry in players}
 
 
 def test_first_pregame_snapshot_is_frozen_and_ticks_do_not_change_history(tmp_path, research_history):

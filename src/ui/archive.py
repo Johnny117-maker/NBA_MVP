@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from src.analysis_archive import read_snapshots, snapshot_html, snapshot_table
+from src.injuries import current_pick_players
 from src.live_types import EASTERN, utc_now
 from src.prop_model import PROP_LABELS
 from src.sync_runtime import ensure_auto_sync
@@ -18,13 +19,19 @@ from .navigation import page_link
 
 
 @st.fragment(run_every=30)
-def archived_preview(path: str | Path, day: str, key: str) -> None:
+def archived_preview(path: str | Path, day: str, key: str, eligible_only: bool = False) -> None:
     snapshots = read_snapshots(path, day)
     if not snapshots:
         return
+    players = [(snapshot, player) for snapshot in snapshots for player in snapshot["players"]]
+    if eligible_only and players:
+        pool = pd.DataFrame([{"player_name": player["name"]} for _, player in players])
+        eligible = set(current_pick_players(path, pool).index)
+        players = [pair for index, pair in enumerate(players) if index in eligible]
+    if not players:
+        return
     with st.container(border=True):
         st.subheader("O que previmos antes dos jogos")
-        players = [(snapshot, player) for snapshot in snapshots for player in snapshot["players"]]
         players.sort(key=lambda pair: pair[1]["stats"]["pts"]["projected"], reverse=True)
         for column, (snapshot, player) in zip(st.columns(3), players[:3], strict=False):
             with column:
@@ -32,7 +39,10 @@ def archived_preview(path: str | Path, day: str, key: str) -> None:
                 st.metric("Pontos previstos", format_decimal_br(player["stats"]["pts"]["projected"]))
                 stamp = pd.Timestamp(snapshot["captured_at"]).tz_convert("America/Sao_Paulo")
                 st.caption(f"{snapshot['away']} @ {snapshot['home']} · salvo às {stamp:%H:%M}")
-        st.caption("Projeções originais preservadas. Participação dos atletas não confirmada.")
+        st.caption(
+            "Projeções originais preservadas. Participação dos atletas não confirmada."
+            + (" Nesta prévia, lesões e dúvidas do boletim atual foram filtradas." if eligible_only else "")
+        )
         with st.container(key=key):
             page_link("archive", "Abrir histórico e comparar resultados")
 

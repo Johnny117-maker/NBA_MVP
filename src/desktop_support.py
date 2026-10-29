@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 
 APP_NAME = "NBA Analytics Lab"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 
 def resource_root() -> Path:

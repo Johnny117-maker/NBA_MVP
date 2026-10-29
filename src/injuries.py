@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from .entity_ids import normalized_name
 from .history_sources import CATALOG_URL, PublicAsset, download_asset
 from .history_store import history_root, read_assets
 from .live_providers import ESPN_BASE, FeedClient, ProviderError, team_code
@@ -25,6 +26,7 @@ STATUS = {
     "suspended": "Suspenso",
     "injured reserve": "Reserva por lesão",
     "active": "Disponível",
+    "available": "Disponível",
 }
 COLUMNS = [
     "athlete_id",
@@ -144,6 +146,31 @@ def injury_snapshot(db_path: str | Path) -> tuple[pd.DataFrame, dict]:
         or (utc_now() - source_date).total_seconds() > (21600 if state.get("daily_snapshot") else 900)
     )
     return pd.DataFrame(snapshot.get("rows", []), columns=COLUMNS), state
+
+
+def filter_pick_players(
+    players: pd.DataFrame, injuries: pd.DataFrame, *, name_column="player_name"
+) -> pd.DataFrame:
+    """Retira registros de lesão/dúvida antes do ranking, sem comparar IDs ESPN com NBA.
+
+    O nome completo normalizado também cobre atletas cuja equipe histórica ainda
+    não reflete uma transferência. Não usa iniciais, busca parcial ou fuzzy match.
+    """
+    if players.empty or injuries.empty:
+        return players.copy()
+    blocked = {
+        normalized_name(str(row.player)) for row in injuries.itertuples() if str(row.status) != "Disponível"
+    }
+    names = players[name_column].astype(str).map(normalized_name)
+    return players.loc[~names.isin(blocked)].copy()
+
+
+def current_pick_players(db_path: str | Path, players: pd.DataFrame) -> pd.DataFrame:
+    rows, state = injury_snapshot(db_path)
+    # Sem boletim recebido, não apresenta uma seleção como verificada por lesões.
+    if not state.get("source"):
+        return players.iloc[:0].copy()
+    return filter_pick_players(players, rows)
 
 
 def refresh_injuries(db_path: str | Path, *, force: bool = False, client=None) -> dict:

@@ -9,6 +9,17 @@ from src.injuries import injury_snapshot
 from src.ui.navigation import page_link
 
 
+@st.fragment(run_every=30)
+def watch_pick_injuries(path: str | Path) -> None:
+    rows, state = injury_snapshot(path)
+    version = (state.get("source"), tuple(sorted(zip(rows.player, rows.status, strict=True))))
+    key = "_pick_injury_version:" + str(Path(path).resolve())
+    previous = st.session_state.get(key)
+    st.session_state[key] = version
+    if previous is not None and previous != version:
+        st.rerun()
+
+
 @st.fragment(run_every=60)
 def injury_notice(path: str | Path) -> None:
     rows, state = injury_snapshot(path)

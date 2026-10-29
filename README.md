@@ -4,6 +4,9 @@ Aplicativo de análise da NBA com histórico local, atualização da temporada, 
 
 ## Defesa e disponibilidade — versão 1.2.0
 
+A versão 1.2.1 exclui lesionados e atletas em dúvida de **Palpites de hoje**,
+antes do ranking e da geração, com nova conferência quando o boletim muda.
+
 - Índice defensivo de 0 a 100 com pesos e amostra mínima ajustáveis.
 - Mapas de arremessos cedidos, comparação por região e evolução da defesa.
 - Visão do marcador: produção dos atacantes e referência contra outros defensores.
@@ -13,7 +16,7 @@ Consulte os critérios, fontes e limites em [Índice defensivo e lesões](docs/I
 
 ## Executável para Windows
 
-Extraia o pacote `NBAAnalyticsLab-1.2.0-Windows-x64.zip` inteiro e abra
+Extraia o pacote `NBAAnalyticsLab-1.2.1-Windows-x64.zip` inteiro e abra
 `NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
 janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
 externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para

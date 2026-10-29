@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from .injuries import filter_pick_players, injury_snapshot
 from .live_store import read_live_games
 from .live_types import EASTERN, LiveGame, utc_now
 from .nba_teams import TEAM_ABBREVIATION_TO_NAME
@@ -144,7 +145,9 @@ def shooting_context(rows: pd.DataFrame) -> dict:
     }
 
 
-def highlighted_players(history: pd.DataFrame, game: LiveGame) -> pd.DataFrame:
+def highlighted_players(
+    history: pd.DataFrame, game: LiveGame, injuries: pd.DataFrame | None = None
+) -> pd.DataFrame:
     before = history.loc[history["game_date"].lt(pd.Timestamp(game.day))]
     candidates = []
     for pid, rows in before.groupby("player_id", sort=False):
@@ -168,16 +171,20 @@ def highlighted_players(history: pd.DataFrame, game: LiveGame) -> pd.DataFrame:
             }
         )
     table = pd.DataFrame(candidates)
+    if injuries is not None:
+        table = filter_pick_players(table, injuries)
     if table.empty:
         return table
     return table.sort_values("impact", ascending=False).groupby("team", sort=False).head(3)
 
 
-def _future_rows(history: pd.DataFrame, games: list[LiveGame]) -> tuple[pd.DataFrame, dict]:
+def _future_rows(
+    history: pd.DataFrame, games: list[LiveGame], injuries: pd.DataFrame | None = None
+) -> tuple[pd.DataFrame, dict]:
     rows = []
     selections = {}
     for game in games:
-        chosen = highlighted_players(history, game)
+        chosen = highlighted_players(history, game, injuries)
         if chosen.empty or set(chosen["team"]) != {game.home, game.away}:
             continue
         selections[game.key] = chosen
@@ -220,7 +227,8 @@ def create_daily_snapshots(
     ]
     if not eligible or history.empty:
         return 0
-    future, selections = _future_rows(history, eligible)
+    injuries, _ = injury_snapshot(path)
+    future, selections = _future_rows(history, eligible, injuries)
     if future.empty:
         return 0
     table = feature_table(history, future)

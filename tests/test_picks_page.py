@@ -4,13 +4,25 @@ import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 from src.daily_games import today_et
+from src.live_store import set_state
 from src.nba_schedule import SCHEDULE_COLUMNS
 
 
 @pytest.fixture(autouse=True)
-def _offline_calendar(monkeypatch, tmp_path):
+def _offline_calendar(monkeypatch, tmp_path, app_db):
     st.cache_data.clear()
     st.cache_resource.clear()
+    set_state(
+        app_db,
+        "injury_snapshot",
+        {
+            "source": "ESPN test",
+            "source_updated": pd.Timestamp.now(tz="UTC").isoformat(),
+            "source_as_of": today_et().isoformat(),
+            "rows": [],
+            "daily_snapshot": False,
+        },
+    )
     row = dict.fromkeys(SCHEDULE_COLUMNS)
     row.update(
         game_id="PICK1",
@@ -38,6 +50,99 @@ def test_picks_show_today_and_player_preview_without_training_player_models(app_
     assert any("round-player" in block.value for block in app.markdown)
     assert any(button.label == "Gerar palpites de jogadores" for button in app.button)
     assert any("histórico" in warning.value.casefold() for warning in app.warning)
+
+
+def _first_pick(app_db):
+    from src.nba_schedule import fetch_nba_schedule
+    from src.round_context import _form_table
+    from src.today_picks import round_highlights
+
+    form = _form_table(str(app_db), app_db.stat().st_mtime, "historical-fallback", (), today_et())
+    return round_highlights(form, fetch_nba_schedule(), top_n=1).iloc[0]
+
+
+def _mark_injured(path, player):
+    set_state(
+        path,
+        "injury_snapshot",
+        {
+            "source": "ESPN test",
+            "source_updated": pd.Timestamp.now(tz="UTC").isoformat(),
+            "rows": [{"player": player.player_name, "team": player.team, "status": "Fora"}],
+        },
+    )
+
+
+def test_picks_remove_injured_from_preview_archive_and_projection_after_bulletin_change(app_db, monkeypatch):
+    player = _first_pick(app_db)
+    calls = []
+    monkeypatch.setattr("src.round_context._project_player", lambda *args: calls.append(args[2]))
+    monkeypatch.setattr(
+        "src.ui.archive.read_snapshots",
+        lambda *args: [
+            {
+                "captured_at": pd.Timestamp.now(tz="UTC").isoformat(),
+                "away": "BOS",
+                "home": "NYK",
+                "players": [
+                    {"name": player.player_name, "team": player.team, "stats": {"pts": {"projected": 30}}}
+                ],
+            }
+        ],
+    )
+    app = AppTest.from_file("../pages/8_Palpites.py").run(timeout=30)
+    assert not app.exception
+    assert any(player.player_name in block.value for block in app.markdown)
+    _mark_injured(app_db, player)
+    # Mantém os caches da forma e da sessão: só o boletim muda.
+    app.run(timeout=30)
+    assert not app.exception
+    assert not any(player.player_name in block.value for block in app.markdown)
+    next(button for button in app.button if button.label == "Gerar palpites de jogadores").click().run(
+        timeout=30
+    )
+    assert not app.exception
+    assert int(player.player_id) not in calls
+    assert not any(player.player_name in block.value for block in app.markdown)
+    set_state(
+        app_db,
+        "injury_snapshot",
+        {
+            "source": "ESPN test",
+            "source_updated": pd.Timestamp.now(tz="UTC").isoformat(),
+            "rows": [{"player": player.player_name, "team": player.team, "status": "Disponível"}],
+        },
+    )
+    app.run(timeout=30)
+    assert not app.exception
+    assert any(player.player_name in block.value for block in app.markdown)
+
+
+def test_picks_recheck_availability_changed_during_projection(app_db, monkeypatch):
+    player = _first_pick(app_db)
+
+    def projection(*args):
+        if args[2] == int(player.player_id):
+            _mark_injured(app_db, player)
+        return None
+
+    monkeypatch.setattr("src.round_context._project_player", projection)
+    app = AppTest.from_file("../pages/8_Palpites.py").run(timeout=30)
+    next(button for button in app.button if button.label == "Gerar palpites de jogadores").click().run(
+        timeout=30
+    )
+    assert not app.exception
+    assert not any(player.player_name in block.value for block in app.markdown)
+
+
+def test_missing_bulletin_suspends_only_individual_picks(app_db, monkeypatch):
+    set_state(app_db, "injury_snapshot", {})
+    monkeypatch.setattr("src.round_context._project_player", lambda *args: pytest.fail("Sem boletim válido"))
+    app = AppTest.from_file("../pages/8_Palpites.py").run(timeout=30)
+    assert not app.exception
+    assert not any(button.label == "Gerar palpites de jogadores" for button in app.button)
+    assert any("aguardam um boletim" in warning.value for warning in app.warning)
+    assert any("today_team_picks" in container.key for container in app.get("container") if container.key)
 
 
 def test_picks_generate_player_projections_after_request(app_db):

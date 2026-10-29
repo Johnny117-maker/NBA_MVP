@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from src.daily_games import games_for_date, today_et
+from src.injuries import current_pick_players, injury_snapshot
 from src.round_context import _form_table, _load_schedule, _project_player, _team_model_context
 from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH
 from src.store import DEFAULT_DB_PATH, count_player_games
@@ -11,6 +12,7 @@ from src.today_picks import build_matchup_pick, round_highlights, upcoming_games
 from src.ui import components, theme
 from src.ui.archive import archived_preview
 from src.ui.formatters import format_date_br
+from src.ui.injuries import injury_notice, watch_pick_injuries
 from src.ui.navigation import page_link
 from src.ui.round_cards import highlights_grid, history_notice, matchup_strip
 
@@ -23,7 +25,9 @@ components.page_header(
 )
 
 today = today_et()
-archived_preview(DEFAULT_DB_PATH, today.isoformat(), "picks_archive")
+watch_pick_injuries(DEFAULT_DB_PATH)
+injury_notice(DEFAULT_DB_PATH)
+archived_preview(DEFAULT_DB_PATH, today.isoformat(), "picks_archive", eligible_only=True)
 day_column, refresh_column = st.columns([3, 1])
 with day_column:
     st.markdown(f"**{format_date_br(today)} · calendário NBA (ET)**")
@@ -63,7 +67,8 @@ with st.expander("Fontes e critérios desta seleção"):
     st.caption(
         "O dia segue o fuso da costa leste dos EUA. O arquivo público tem atualização periódica. "
         "Só entram jogos agendados com início futuro, ou horário ainda não informado. "
-        "Elencos e lesões não são confirmados; as equipes dos atletas vêm do histórico local."
+        "Lesões e dúvidas registradas no boletim são excluídas antes da seleção dos jogadores. "
+        "As equipes dos atletas vêm do histórico local; a ausência no boletim não confirma escalação."
     )
     if games["schedule_source"].fillna("").str.startswith("SportsDataverse").any():
         st.markdown(
@@ -182,13 +187,21 @@ with tab_players, st.container(key="today_player_picks"):
         "Os protagonistas da rodada", "Projeções de pontos, rebotes e assistências, caso o atleta participe."
     )
     per_team = st.selectbox("Destaques por equipe para projetar", [1, 2, 3])
-    candidates = round_highlights(form, games, top_n=per_team)
-    if candidates.empty:
-        st.info(
-            "Sem jogadores elegíveis para estes jogos. "
-            "Atualize as estatísticas para gerar palpites individuais."
+    eligible_form = current_pick_players(DEFAULT_DB_PATH, form)
+    candidates = round_highlights(eligible_form, games, top_n=per_team)
+    _, availability = injury_snapshot(DEFAULT_DB_PATH)
+    st.caption(
+        "Fora dos palpites: atletas com lesão, suspensão ou dúvida de participação no boletim, "
+        "inclusive status provável. A seleção é refeita quando o boletim muda."
+    )
+    if not availability.get("source"):
+        st.warning(
+            "Palpites individuais aguardam um boletim de lesões válido. "
+            "Os palpites dos confrontos continuam disponíveis."
         )
-        page_link("data", "Coletar estatísticas de jogadores")
+    if candidates.empty:
+        st.info("Sem jogadores elegíveis após conferir histórico e disponibilidade para estes jogos.")
+        page_link("injuries", "Conferir o boletim de lesões")
     else:
         st.caption(
             f"{len(candidates)} atletas selecionados por impacto recente. "
@@ -208,6 +221,9 @@ with tab_players, st.container(key="today_player_picks"):
                     candidates.iloc[start : start + 2].iterrows(),
                     strict=False,
                 ):
+                    # Reconfere fora dos caches, inclusive durante uma geração demorada.
+                    if current_pick_players(DEFAULT_DB_PATH, player.to_frame().T).empty:
+                        st.rerun()
                     with column, st.container(border=True):
                         st.caption(str(player["matchup"]))
                         st.markdown(f"### {player['player_name']}")
@@ -240,6 +256,8 @@ with tab_players, st.container(key="today_player_picks"):
                                 "pesadas ou reinicie o servidor antes de tentar novamente."
                             )
                             st.stop()
+                        if current_pick_players(DEFAULT_DB_PATH, player.to_frame().T).empty:
+                            st.rerun()
                         if projection is None:
                             st.info("Não foi possível gerar uma projeção com o histórico disponível.")
                             continue
