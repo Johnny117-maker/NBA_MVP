@@ -104,15 +104,30 @@ season = cols[0].selectbox(
     "Temporada", options, index=options.index(available[0]) if available else 0, key="matchups_season"
 )
 with connect_history(DEFAULT_DB_PATH) as connection:
-    known_phases = {row[0] for row in connection.execute(
-        "SELECT phase FROM team_boxes WHERE season=? UNION SELECT phase FROM player_matchups WHERE season=?",
-        (season,season))}
-phase_options = [item for item in ("Temporada regular","Playoffs","Play-in","Pré-temporada",
-                                   "Final da NBA Cup","Pós-temporada") if item in known_phases]
+    known_phases = {
+        row[0]
+        for row in connection.execute(
+            "SELECT phase FROM team_boxes WHERE season=? "
+            "UNION SELECT phase FROM player_matchups WHERE season=?",
+            (season, season),
+        )
+    }
+phase_options = [
+    item
+    for item in (
+        "Temporada regular",
+        "Playoffs",
+        "Play-in",
+        "Pré-temporada",
+        "Final da NBA Cup",
+        "Pós-temporada",
+    )
+    if item in known_phases
+]
 phase_options = phase_options or ["Temporada regular"]
 if st.session_state.get("matchups_phase") not in phase_options:
-    st.session_state.pop("matchups_phase",None)
-phase = cols[1].selectbox("Fase",phase_options,key="matchups_phase")
+    st.session_state.pop("matchups_phase", None)
+phase = cols[1].selectbox("Fase", phase_options, key="matchups_phase")
 mode = cols[2].selectbox("Analisar", ["Jogador", "Partida"], key="matchups_mode")
 with connect_history(DEFAULT_DB_PATH) as connection:
     coverage = connection.execute(
@@ -318,9 +333,12 @@ else:
         "Os esquemas zona, drop ou blitz não são inferidos destes números."
     )
     with st.expander("Como os perfis são definidos"):
-        st.write("Garrafão: pontos no garrafão cedidos por 100 posses estimadas. "
-                 "Perímetro: percentis de 3PA cedidas por 100 posses e 3P% cedido. "
-                 "Eficiência geral: DRtg estimado. As referências de todas as equipes usam datas anteriores ao jogo.")
+        st.write(
+            "Garrafão: pontos no garrafão cedidos por 100 posses estimadas. "
+            "Perímetro: percentis de 3PA cedidas por 100 posses e 3P% cedido. "
+            "Eficiência geral: DRtg estimado. "
+            "As referências de todas as equipes usam datas anteriores ao jogo."
+        )
     if fit.empty:
         st.info("Ainda não há histórico pré-jogo suficiente para esta análise.")
         st.stop()

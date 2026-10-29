@@ -74,6 +74,7 @@ def _diagnose(root: Path, resources: Path, output: Path) -> int:
         "xgboost",
         "nba_api",
         "PySide6",
+        "pyarrow",
     ):
         module = importlib.import_module(name)
         versions[name] = str(getattr(module, "__version__", "incluído"))
@@ -86,6 +87,9 @@ def _diagnose(root: Path, resources: Path, output: Path) -> int:
         "src.ui.archive",
         "src.research_feeds",
         "src.shot_quality",
+        "src.team_defense",
+        "src.player_matchups",
+        "src.player_defense_fit",
         "PySide6.QtWebEngineWidgets",
     ):
         importlib.import_module(name)
@@ -142,6 +146,7 @@ def _run_window(root: Path, resources: Path) -> int:
     if not lock.tryLock(100):
         QMessageBox.information(None, APP_NAME, "O sistema já está aberto para este usuário.")
         return 0
+
     class AppPage(QWebEnginePage):
         def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
             if url.scheme() in {"about", "data", "blob"}:
