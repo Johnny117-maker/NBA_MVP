@@ -3,11 +3,13 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from src.analysis_archive import archive_path
 from src.daily_games import games_for_date, today_et
 from src.injuries import current_pick_players, injury_snapshot
 from src.round_context import _form_table, _load_schedule, _project_player, _team_model_context
 from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH
 from src.store import DEFAULT_DB_PATH, count_player_games
+from src.sync_runtime import watch_history_version
 from src.today_picks import build_matchup_pick, round_highlights, upcoming_games
 from src.ui import components, theme
 from src.ui.formatters import format_date_br
@@ -25,6 +27,7 @@ components.page_header(
 )
 
 today = today_et()
+watch_history_version(str(archive_path(DEFAULT_DB_PATH)))
 watch_pick_injuries(DEFAULT_DB_PATH)
 injury_notice(DEFAULT_DB_PATH)
 day_column, refresh_column = st.columns([3, 1])
