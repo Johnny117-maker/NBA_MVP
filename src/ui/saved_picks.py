@@ -9,6 +9,7 @@ from src.analysis_archive import read_snapshots
 from src.injuries import current_pick_players
 from src.live_types import utc_now
 from src.ui.navigation import page_link
+from src.ui.pick_detail import pick_detail
 
 
 def saved_picks_panel(path: str | Path, day: str, games: pd.DataFrame) -> bool:
@@ -16,10 +17,12 @@ def saved_picks_panel(path: str | Path, day: str, games: pd.DataFrame) -> bool:
         f"{day}:{row.home_team_tricode}:{row.away_team_tricode}" for row in games.itertuples(index=False)
     }
     rows = []
+    details = {}
     for snapshot in read_snapshots(path, day):
         if snapshot["game_key"] not in allowed or pd.Timestamp(snapshot["kickoff"]) <= utc_now():
             continue
         for player in snapshot["players"]:
+            details[(f"{snapshot['away']} × {snapshot['home']}", player["name"])] = (snapshot, player)
             rows.append(
                 {
                     "player_name": player["name"],
@@ -49,6 +52,16 @@ def saved_picks_panel(path: str | Path, day: str, games: pd.DataFrame) -> bool:
         hide_index=True,
         alt="Pontos, rebotes e assistências previstos para os jogadores disponíveis",
     )
+    if st.toggle("Explicar um palpite e comparar uma linha", key="explain_saved_pick"):
+        choices = [(row.Jogo, row.Jogador) for row in table.itertuples(index=False)]
+        chosen = st.selectbox(
+            "Qual jogador?",
+            choices,
+            format_func=lambda pair: pair[1] + " · " + pair[0],
+            key="explain_saved_player",
+        )
+        snapshot, player = details[chosen]
+        pick_detail(snapshot, player, key="saved_detail")
     with st.expander("Como ler estas projeções"):
         st.write(
             "Pontos, rebotes e assistências mostram a produção final estimada caso o atleta participe. "

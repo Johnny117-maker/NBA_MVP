@@ -294,6 +294,8 @@ def create_daily_snapshots(
             continue
         players = []
         for row in table.loc[table["game_id"].eq(game.key)].itertuples(index=False):
+            from .prop_explanations import capture_factors
+
             values = pd.Series(row._asdict())
             player_history = history.loc[history["player_id"].eq(row.player_id)]
             projection = project_props(values, bundle)
@@ -307,6 +309,7 @@ def create_daily_snapshots(
                     "participation": "Participação não confirmada; seleção pelo histórico recente",
                     "usage_pct_estimate": float(values["usage_10"]) if pd.notna(values["usage_10"]) else None,
                     "context": shooting_context(player_history),
+                    "factors": capture_factors(values),
                     **projection,
                 }
             )

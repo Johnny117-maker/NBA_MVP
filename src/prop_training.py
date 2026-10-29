@@ -321,6 +321,7 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
             "base_projected": base,
             "feedback_id": feedback.get("id"),
             "feedback_correction": central - base,
+            "dispersion_shape": effective_shape,
             "low": float(distribution.ppf(0.1)),
             "high": float(distribution.ppf(0.9)),
             "line": line,
