@@ -52,6 +52,7 @@ components.page_header(
     category="JOGOS DO DIA",
 )
 injury_notice(DEFAULT_DB_PATH)
+page_link("match_center", "Abrir a central de uma partida")
 
 
 def _manual_schedule(selected_day: date) -> pd.DataFrame:

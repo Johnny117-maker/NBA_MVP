@@ -46,7 +46,7 @@ def today_overview(path: str | Path) -> None:
         st.dataframe(pd.DataFrame(preview), hide_index=True, alt="Jogos de hoje, horários e situação")
     with st.container(horizontal=True):
         page_link("picks", "Ver palpites de hoje")
-        page_link("games", "Analisar um jogo")
+        page_link("match_center", "Analisar um jogo")
         page_link("archive", "Conferir previsões e resultados")
     learning_status(path)
     data_quality_panel(path)

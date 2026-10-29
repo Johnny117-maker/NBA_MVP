@@ -24,6 +24,15 @@ class Page:
 PAGES = (
     Page("overview", "app.py", "Início", ":material/home:", "EXPLORAR", "Sua rodada em um só lugar.", "/"),
     Page(
+        "match_center",
+        "pages/15_Central_Partida.py",
+        "Central da partida",
+        ":material/sports_basketball:",
+        "EXPLORAR",
+        "Jogadores, defesa, disponibilidade e placar reunidos.",
+        "/Central_Partida",
+    ),
+    Page(
         "opportunities",
         "pages/9_Oportunidades.py",
         "Ao vivo",
@@ -189,7 +198,15 @@ def sidebar_navigation(active_page: str) -> None:
             with st.container(key=f"{prefix}_{page_id}"):
                 page_link(page_id)
         groups = {
-            "Analisar jogadores e times": ("players", "teams", "defense", "matchups", "shots", "season"),
+            "Analisar jogadores e times": (
+                "match_center",
+                "players",
+                "teams",
+                "defense",
+                "matchups",
+                "shots",
+                "season",
+            ),
             "Resultados e modelo": ("performance", "quality", "research"),
             "Dados e disponibilidade": ("injuries", "data"),
         }
