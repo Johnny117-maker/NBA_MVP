@@ -16,7 +16,7 @@ binaries += [(str(file), ".") for file in qt_dir.glob("*140*.dll")]
 for package in ("streamlit", "xgboost", "nba_api", "PySide6", "PySide6_Addons", "PySide6_Essentials",
                 "shiboken6", "scikit-learn", "numpy", "scipy", "pandas", "plotly", "certifi", "pyarrow"):
     datas += copy_metadata(package)
-for folder in ("pages", "src", ".streamlit", "docs", "reports", "desktop/assets"):
+for folder in ("pages", "src", ".streamlit", "docs", "desktop/assets"):
     for file in (root / folder).rglob("*"):
         if not file.is_file() or "__pycache__" in file.parts:
             continue

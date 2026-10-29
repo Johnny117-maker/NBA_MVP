@@ -104,6 +104,12 @@ def package_distribution(target: Path, initial: dict) -> None:
 
     if not (target / "NBAAnalyticsLab.exe").is_file():
         raise FileNotFoundError("Compile o executável antes de montar o pacote.")
+    # Também remove relatórios de compilações anteriores antes de reempacotar.
+    reports = (target / "_internal" / "reports").resolve()
+    if not reports.is_relative_to((ROOT / "dist").resolve()):
+        raise ValueError("O pacote deve permanecer na pasta dist do projeto.")
+    if reports.is_dir():
+        shutil.rmtree(reports)
     shutil.copyfile(ROOT / "CRIAR_ATALHO.bat", target / "CRIAR_ATALHO.bat")
     for relative in ("README.md", "docs/EXECUTAVEL_WINDOWS.md"):
         shutil.copyfile(ROOT / relative, target / "_internal" / relative)

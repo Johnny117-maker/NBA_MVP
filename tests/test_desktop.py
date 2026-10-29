@@ -6,6 +6,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import zipfile
 
 import pytest
 
@@ -20,6 +21,31 @@ from src.desktop_support import (
     server_command,
 )
 from src.live_store import cache_put, connect_state, state_path
+
+
+def test_distribution_excludes_generated_reports_without_touching_source(monkeypatch, tmp_path):
+    from scripts import build_desktop
+
+    monkeypatch.setattr(build_desktop, "ROOT", tmp_path)
+    target = tmp_path / "dist" / "NBAAnalyticsLab"
+    (target / "_internal" / "docs").mkdir(parents=True)
+    (target / "NBAAnalyticsLab.exe").write_bytes(b"test-executable")
+    reports = target / "_internal" / "reports"
+    reports.mkdir()
+    (reports / "daily_analysis.json").write_text("personal-report")
+    original = tmp_path / "reports" / "daily_analysis.json"
+    original.parent.mkdir()
+    original.write_text("personal-report")
+    (tmp_path / "docs").mkdir()
+    for name in ("CRIAR_ATALHO.bat", "README.md", "docs/EXECUTAVEL_WINDOWS.md"):
+        (tmp_path / name).write_text("public-instructions")
+    build_desktop.package_distribution(target, {})
+    manifest = json.loads((tmp_path / "dist/latest_build.json").read_text())
+    with zipfile.ZipFile(manifest["zip"]) as archive:
+        assert not any("/reports/" in name for name in archive.namelist())
+        assert "NBAAnalyticsLab/NBAAnalyticsLab.exe" in archive.namelist()
+    assert original.read_text() == "personal-report"
+    assert not reports.exists()
 
 
 def test_desktop_state_is_independent_of_cwd_and_installation(monkeypatch, tmp_path):
