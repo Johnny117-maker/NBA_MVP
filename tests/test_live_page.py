@@ -69,6 +69,8 @@ def test_opportunity_screen_and_live_line_calculator_use_current_observations(ap
     monkeypatch.setattr("src.ui.live.load_api_keys", lambda: ApiKeys())
     app = AppTest.from_file("../app.py").run(timeout=45)
     assert not app.exception
+    app.toggle(key="home_live_opportunities").set_value(True).run(timeout=45)
+    assert not app.exception
     assert any("Oportunidades da rodada" in heading.value for heading in app.subheader)
     app.switch_page("pages/9_Oportunidades.py").run(timeout=45)
     assert not app.exception

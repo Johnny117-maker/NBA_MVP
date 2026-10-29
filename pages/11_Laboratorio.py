@@ -11,6 +11,7 @@ from src.research_metrics import fit_rapm, off_ball_gravity
 from src.shot_quality import expected_points, train_location_quality
 from src.store import DEFAULT_DB_PATH
 from src.ui import components, theme
+from src.ui.learning import learning_status
 
 st.set_page_config(
     page_title="Laboratório — NBA Analytics Lab", page_icon=":material/science:", layout="wide"
@@ -23,13 +24,22 @@ components.page_header(
 )
 mode = st.segmented_control(
     "Explorar modelos",
-    ["Player props", "Métricas e fontes", "RAPM", "Qualidade do arremesso", "Gravity"],
+    [
+        "Player props",
+        "Aprendizado automático",
+        "Métricas e fontes",
+        "RAPM",
+        "Qualidade do arremesso",
+        "Gravity",
+    ],
     default="Player props",
     required=True,
 )
 today = utc_now().astimezone(EASTERN).date()
 model_dir = DEFAULT_DB_PATH.parent.parent / "models" / "research"
-if mode == "Player props":
+if mode == "Aprendizado automático":
+    learning_status(DEFAULT_DB_PATH, detailed=True)
+elif mode == "Player props":
     st.subheader("Bayes + XGBoost")
     st.caption(
         "Gamma-Poisson estima PTS, REB e AST; Beta-Binomial estabiliza conversões de arremesso. "

@@ -263,6 +263,14 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
         ml = float(bundle.predict(row.to_frame().T, stat)[0]) if bundle else None
         weight = float(bundle.manifest["weights"][stat]) if bundle else 0.0
         central = (1 - weight) * bayes + weight * ml if ml is not None else bayes
+        base = central
+        feedback = bundle.manifest.get("feedback", {}) if bundle else {}
+        adjustment = feedback.get("stats", {}).get(stat, {})
+        if adjustment.get("status") == "Aplicado":
+            if adjustment.get("weight") is not None and ml is not None:
+                adapted_weight = float(adjustment["weight"])
+                central = (1 - adapted_weight) * bayes + adapted_weight * ml
+            central = max(0.0, central + float(adjustment["correction"]))
         shape = float(bundle.manifest["dispersion"][stat]) if bundle else 4.0
         # Inclui incerteza posterior da taxa e sobredispersão por partida.
         posterior_shape = float(row[f"{stat}_alpha"])
@@ -274,6 +282,9 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
             "xgboost": ml,
             "ml_weight": weight,
             "projected": central,
+            "base_projected": base,
+            "feedback_id": feedback.get("id"),
+            "feedback_correction": central - base,
             "low": float(distribution.ppf(0.1)),
             "high": float(distribution.ppf(0.9)),
             "line": line,

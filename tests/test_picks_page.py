@@ -46,10 +46,70 @@ def test_picks_show_today_and_player_preview_without_training_player_models(app_
     monkeypatch.setattr("src.round_context.train_player_models", unexpected)
     app = AppTest.from_file("../pages/8_Palpites.py").run(timeout=30)
     assert not app.exception
-    assert app.tabs[0].label == "Palpites de jogadores"
+    assert app.segmented_control(key="pick_view").value == "Jogadores"
     assert any("round-player" in block.value for block in app.markdown)
     assert any(button.label == "Gerar palpites de jogadores" for button in app.button)
     assert any("histórico" in warning.value.casefold() for warning in app.warning)
+
+
+def test_saved_picks_are_ready_without_loading_or_training_other_models(app_db, monkeypatch, tmp_path):
+    import sqlite3
+
+    from src.analysis_archive import archive_snapshot
+    from src.live_store import get_state
+    from src.round_context import _form_table as load_form
+
+    bulletin = get_state(app_db, "injury_snapshot", {})
+    original, isolated = sqlite3.connect(app_db), sqlite3.connect(tmp_path / "nba.db")
+    try:
+        original.backup(isolated)
+    finally:
+        original.close()
+        isolated.close()
+    app_db = tmp_path / "nba.db"
+    monkeypatch.setattr("src.store.DEFAULT_DB_PATH", app_db)
+    set_state(app_db, "injury_snapshot", bulletin)
+    day = today_et().isoformat()
+    player = _first_pick(app_db)
+    now = pd.Timestamp.now(tz="UTC")
+    archive_snapshot(
+        app_db,
+        dict(
+            game_key=f"{day}:NYK:BOS",
+            day=day,
+            state="pre",
+            home="NYK",
+            away="BOS",
+            captured_at=now.isoformat(),
+            kickoff=(now + pd.Timedelta(hours=3)).isoformat(),
+            history_end="2024-12-01",
+            model={"train_end": "2024-12-01"},
+            players=[
+                dict(
+                    player_id=int(player.player_id),
+                    name=player.player_name,
+                    team=player.team,
+                    stats={stat: {"projected": 20.0} for stat in ("pts", "reb", "ast")},
+                )
+            ],
+        ),
+    )
+
+    def unnecessary(*args, **kwargs):
+        raise AssertionError("Projeções salvas não exigem recálculo.")
+
+    monkeypatch.setattr("src.round_context._form_table", unnecessary)
+    monkeypatch.setattr("src.round_context._team_model_context", unnecessary)
+    app = AppTest.from_file("../pages/8_Palpites.py").run(timeout=30)
+    assert not app.exception
+    assert any("Pontos" in frame.value.columns for frame in app.dataframe)
+    assert not any(button.label == "Gerar palpites de jogadores" for button in app.button)
+    _mark_injured(app_db, player)
+    monkeypatch.setattr("src.round_context._form_table", load_form)
+    app.run(timeout=30)
+    assert not app.exception
+    assert not any(frame.value.astype(str).eq(player.player_name).any().any() for frame in app.dataframe)
+    assert not any(player.player_name in block.value for block in app.markdown)
 
 
 def _first_pick(app_db):
@@ -142,7 +202,9 @@ def test_missing_bulletin_suspends_only_individual_picks(app_db, monkeypatch):
     assert not app.exception
     assert not any(button.label == "Gerar palpites de jogadores" for button in app.button)
     assert any("aguardam um boletim" in warning.value for warning in app.warning)
-    assert any("today_team_picks" in container.key for container in app.get("container") if container.key)
+    app.segmented_control(key="pick_view").set_value("Confrontos").run(timeout=30)
+    assert not app.exception
+    assert any("Preferências do modelo" in block.value for block in app.markdown)
 
 
 def test_picks_generate_player_projections_after_request(app_db):

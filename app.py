@@ -15,6 +15,7 @@ from src.store import (
 )
 from src.ui import components, theme
 from src.ui.formatters import format_int_br
+from src.ui.home import today_overview
 from src.ui.insights import latest_season_games, player_card, ranking_list, team_form_table
 from src.ui.live import opportunities_panel
 from src.ui.navigation import page_link
@@ -29,13 +30,18 @@ st.set_page_config(
 theme.inject_base_style("overview")
 
 components.page_header(
-    "O jogo começa nos dados.",
-    "Explore confrontos, descubra padrões e acompanhe suas projeções. Escolha uma análise para começar.",
-    category="VISÃO GERAL",
-    hero=True,
+    "Hoje na NBA",
+    "Veja a rodada, consulte os palpites e acompanhe os resultados.",
+    category="INÍCIO",
 )
 
-opportunities_panel(DEFAULT_DB_PATH, compact=True)
+today_overview(DEFAULT_DB_PATH)
+if st.toggle("Mostrar oportunidades de pontos, rebotes e assistências", key="home_live_opportunities"):
+    opportunities_panel(DEFAULT_DB_PATH, compact=True)
+
+if not st.toggle("Explorar estatísticas da temporada", key="home_season_details"):
+    st.caption("Jogadores, times, defesa e análises avançadas estão no menu lateral.")
+    st.stop()
 
 real_data_available = DEFAULT_DB_PATH.exists() and count_games(DEFAULT_DB_PATH) > 0
 last_updated = components.db_last_updated(DEFAULT_DB_PATH) if real_data_available else None
@@ -71,6 +77,7 @@ if real_data_available:
             page_link("data", "Gerenciar dados")
 
 if real_data_available:
+
     @st.cache_data(show_spinner=False, max_entries=1)
     def _dashboard_data(path: str, version: int):
         from pathlib import Path
@@ -92,12 +99,15 @@ if real_data_available:
         else:
             for start in range(0, len(leaders), 2):
                 for column, (_, athlete) in zip(
-                    st.columns(2), leaders.iloc[start:start + 2].iterrows(), strict=False
+                    st.columns(2), leaders.iloc[start : start + 2].iterrows(), strict=False
                 ):
                     with column:
                         player_card(
-                            str(athlete["player_name"]), str(athlete["team"]),
-                            float(athlete["pts"]), float(athlete["reb"]), float(athlete["ast"]),
+                            str(athlete["player_name"]),
+                            str(athlete["team"]),
+                            float(athlete["pts"]),
+                            float(athlete["reb"]),
+                            float(athlete["ast"]),
                             detail=f"{athlete['season']} · {athlete['games']} jogos",
                         )
             page_link("players", "Explorar jogadores")

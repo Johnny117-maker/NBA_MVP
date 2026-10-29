@@ -59,11 +59,8 @@ def tool_card(page_id: str) -> None:
 
     page = PAGE_BY_ID[page_id]
     with st.container(border=True):
-        st.markdown(
-            f'<div class="tool-card"><div class="tool-icon">{page.icon}</div>'
-            f"<h3>{escape(page.label)}</h3><p>{escape(page.description)}</p></div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"{page.icon} **{page.label}**")
+        st.caption(page.description)
         page_link(page_id, label=f"Abrir {page.label.lower()}")
 
 

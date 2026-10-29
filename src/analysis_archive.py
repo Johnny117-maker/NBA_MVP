@@ -283,6 +283,10 @@ def create_daily_snapshots(
     future, selections = _future_rows(history, eligible, injuries, players_per_team)
     if future.empty:
         return 0
+    if bundle is not None:
+        from .prop_feedback import with_prop_feedback
+
+        bundle = with_prop_feedback(bundle, path, selected_day)
     table = feature_table(history, future)
     added = 0
     for game in eligible:
@@ -516,6 +520,9 @@ def run_daily_analysis(path: str | Path, *, now: datetime | None = None) -> dict
     pending = {g.key for g in games if g.state == "pre" and g.kickoff and pd.Timestamp(g.kickoff) > moment}
     pending -= {s["game_key"] for s in read_snapshots(path, day)}
     result: dict = {"new_snapshots": 0, "resolved": resolve_snapshots(path)}
+    from .prop_feedback import refresh_prop_feedback
+
+    result["learning"] = refresh_prop_feedback(path, day)["status"]
     if pending:
         _, availability = injury_snapshot(path)
         if not availability.get("source"):

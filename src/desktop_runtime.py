@@ -95,6 +95,7 @@ def _diagnose(root: Path, resources: Path, output: Path) -> int:
         "src.injuries",
         "src.remote_archive",
         "src.daily_automation",
+        "src.prop_feedback",
         "src.ui.defenders",
         "PySide6.QtWebEngineWidgets",
     ):

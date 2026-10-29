@@ -232,6 +232,11 @@ def sync_remote_archive(db_path: str | Path, *, client=None, day: str | None = N
         manifest = client.read_json(item["path"], ref=revision)
         if digest(manifest) != item["sha256"]:
             raise ArchiveError("Manifesto remoto não corresponde ao hash publicado.")
+        learning = manifest.get("report", {}).get("learning")
+        if learning:
+            known = get_state(db_path, "remote_learning_status", {})
+            if learning.get("before_day", "") >= known.get("before_day", ""):
+                set_state(db_path, "remote_learning_status", learning)
         completed = True
         for entry in manifest["files"]:
             if state["files"].get(entry["path"]) == entry["sha256"]:

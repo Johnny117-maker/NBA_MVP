@@ -1,5 +1,16 @@
 # NBA Analytics Lab
 
+## Interface simples e aprendizado pelos resultados (1.4.0)
+
+A abertura prioriza a rodada de hoje. O menu destaca cinco caminhos: Início, Jogos,
+Palpites, Ao vivo e Histórico. Projeções já salvas aparecem prontas, sem exigir outro
+cálculo. As ferramentas detalhadas continuam acessíveis em grupos no menu lateral.
+
+Após os jogos, o sistema compara as previsões originais com os resultados confirmados.
+O XGBoost treina novamente com dados novos, e uma camada de feedback testa ajustes da
+combinação Bayes/ML em datas posteriores. Ajustes sem melhoria ficam de fora. Consulte
+**Laboratório → Aprendizado automático** e [as regras e ideias de UX](docs/UX_E_APRENDIZADO.md).
+
 Aplicativo de análise da NBA com histórico local, atualização da temporada, projeções de jogadores e comparação entre previsões e resultados.
 
 ## Gravação diária automática — versão 1.3.0
@@ -22,7 +33,7 @@ Consulte os critérios, fontes e limites em [Índice defensivo e lesões](docs/I
 
 ## Executável para Windows
 
-Extraia o pacote `NBAAnalyticsLab-1.3.0-Windows-x64.zip` inteiro e abra
+Extraia o pacote `NBAAnalyticsLab-1.4.0-Windows-x64.zip` inteiro e abra
 `NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
 janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
 externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para

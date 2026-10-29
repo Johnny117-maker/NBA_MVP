@@ -10,24 +10,23 @@ from src.schedule_storage import DEFAULT_SCHEDULE_CACHE_PATH
 from src.store import DEFAULT_DB_PATH, count_player_games
 from src.today_picks import build_matchup_pick, round_highlights, upcoming_games
 from src.ui import components, theme
-from src.ui.archive import archived_preview
 from src.ui.formatters import format_date_br
 from src.ui.injuries import injury_notice, watch_pick_injuries
 from src.ui.navigation import page_link
 from src.ui.round_cards import highlights_grid, history_notice, matchup_strip
+from src.ui.saved_picks import saved_picks_panel
 
 st.set_page_config(page_title="Palpites de Hoje — NBA Analytics Lab", page_icon="✨", layout="wide")
 theme.inject_base_style("picks")
 components.page_header(
-    "Os nomes e as tendências de hoje.",
-    "Escolha os atletas para acompanhar e consulte as projeções dos confrontos que ainda vão começar.",
+    "Palpites de hoje",
+    "Veja a produção prevista dos jogadores e o favorito de cada confronto.",
     category="PALPITES DE HOJE",
 )
 
 today = today_et()
 watch_pick_injuries(DEFAULT_DB_PATH)
 injury_notice(DEFAULT_DB_PATH)
-archived_preview(DEFAULT_DB_PATH, today.isoformat(), "picks_archive", eligible_only=True)
 day_column, refresh_column = st.columns([3, 1])
 with day_column:
     st.markdown(f"**{format_date_br(today)} · calendário NBA (ET)**")
@@ -78,19 +77,6 @@ with st.expander("Fontes e critérios desta seleção"):
 
 db_path = str(DEFAULT_DB_PATH)
 version = DEFAULT_DB_PATH.stat().st_mtime if DEFAULT_DB_PATH.exists() else 0.0
-form = pd.DataFrame()
-if DEFAULT_DB_PATH.exists() and count_player_games(DEFAULT_DB_PATH):
-    try:
-        form = _form_table(db_path, version, "historical-fallback", (), today)
-    except (ValueError, FileNotFoundError, KeyError):
-        st.info("Histórico de jogadores indisponível. Os palpites dos times continuam acessíveis.")
-history_notice(form, today)
-
-try:
-    bundle, team_history = _team_model_context(db_path, version, today)
-except (ValueError, FileNotFoundError, KeyError):
-    bundle, team_history = None, pd.DataFrame()
-
 components.metric_row(
     [
         {"label": "Jogos para analisar", "value": str(len(games))},
@@ -101,9 +87,15 @@ components.metric_row(
         {"label": "Data dos palpites", "value": format_date_br(today)},
     ]
 )
-tab_players, tab_teams = st.tabs(["Palpites de jogadores", "Palpites dos confrontos"])
+mode = st.segmented_control(
+    "Ver palpites de", ["Jogadores", "Confrontos"], default="Jogadores", required=True, key="pick_view"
+)
 
-with tab_teams, st.container(key="today_team_picks"):
+if mode == "Confrontos":
+    try:
+        bundle, team_history = _team_model_context(db_path, version, today)
+    except (ValueError, FileNotFoundError, KeyError):
+        bundle, team_history = None, pd.DataFrame()
     components.section_header(
         "Preferências do modelo", "Vencedor estimado, placar central e fatores do confronto."
     )
@@ -182,7 +174,17 @@ with tab_teams, st.container(key="today_team_picks"):
             "Probabilidades experimentais do modelo de Times. A maior probabilidade não garante o resultado."
         )
 
-with tab_players, st.container(key="today_player_picks"):
+if mode == "Jogadores":
+    if saved_picks_panel(DEFAULT_DB_PATH, today.isoformat(), games):
+        if not st.toggle("Calcular outros jogadores", key="picks_extra_players"):
+            st.stop()
+    form = pd.DataFrame()
+    if DEFAULT_DB_PATH.exists() and count_player_games(DEFAULT_DB_PATH):
+        try:
+            form = _form_table(db_path, version, "historical-fallback", (), today)
+        except (ValueError, FileNotFoundError, KeyError):
+            st.info("Histórico de jogadores indisponível. Os palpites dos times continuam acessíveis.")
+    history_notice(form, today)
     components.section_header(
         "Os protagonistas da rodada", "Projeções de pontos, rebotes e assistências, caso o atleta participe."
     )

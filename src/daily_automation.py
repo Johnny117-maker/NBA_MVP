@@ -16,6 +16,7 @@ from .analysis_archive import create_daily_snapshots, read_snapshots, resolve_sn
 from .injuries import injury_snapshot, refresh_injuries
 from .live_store import read_live_games
 from .live_types import EASTERN, utc_now
+from .prop_feedback import refresh_prop_feedback
 from .prop_training import ensure_props_bundle, load_research_history
 from .remote_archive import SEED_TAG, ArchiveError, GitHubArchive, publish_day, sync_remote_archive
 from .season_sync import SeasonSync
@@ -77,11 +78,13 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
     day = moment.astimezone(EASTERN).date().isoformat()
     errors = []
     try:
-        sync_remote_archive(db_path, client=client, day=day)
+        sync_remote_archive(db_path, client=client, max_files=240)
     except ArchiveError as error:
         errors.append(str(error))
     # Coleta sem registrar previsões antes de preparar a captura completa.
     sync = SeasonSync(db_path, archive_analysis=False).run_once()
+    resolve_snapshots(db_path)
+    learning = refresh_prop_feedback(db_path, day)
     refresh_injuries(db_path, force=True)
     _, availability = injury_snapshot(db_path)
     games = read_live_games(db_path, day)
@@ -152,6 +155,7 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
         run_url=os.environ.get("NBA_AUTOMATION_RUN_URL", ""),
         injury_source=availability.get("source"),
         injury_reference=availability.get("source_as_of"),
+        learning=learning,
         status="complete" if games and not missing else "no_games" if not games else "incomplete",
     )
     if not games and not sync.get("live_available") and sync.get("errors"):

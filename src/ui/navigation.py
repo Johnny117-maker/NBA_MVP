@@ -22,11 +22,11 @@ class Page:
 
 
 PAGES = (
-    Page("overview", "app.py", "Visão geral", "🏠", "EXPLORAR", "O ponto de partida das suas análises.", "/"),
+    Page("overview", "app.py", "Início", ":material/home:", "EXPLORAR", "Sua rodada em um só lugar.", "/"),
     Page(
         "opportunities",
         "pages/9_Oportunidades.py",
-        "Over / Under ao vivo",
+        "Ao vivo",
         ":material/monitoring:",
         "EXPLORAR",
         "Forma atual, probabilidades condicionais e acompanhamento dos jogos.",
@@ -36,7 +36,7 @@ PAGES = (
         "games",
         "pages/7_Jogos.py",
         "Jogos do dia",
-        "📅",
+        ":material/calendar_today:",
         "EXPLORAR",
         "Confrontos e destaques da rodada.",
         "/Jogos",
@@ -45,7 +45,7 @@ PAGES = (
         "picks",
         "pages/8_Palpites.py",
         "Palpites de hoje",
-        "✨",
+        ":material/auto_awesome:",
         "EXPLORAR",
         "Tendências dos confrontos e projeções dos destaques de hoje.",
         "/Palpites",
@@ -182,12 +182,21 @@ def sidebar_navigation(active_page: str) -> None:
             "<div><strong>NBA ANALYTICS</strong><span>LAB · ESTATÍSTICA EM JOGO</span></div></div>",
             unsafe_allow_html=True,
         )
-        for group in ("EXPLORAR", "ACOMPANHAR", "GERENCIAR"):
-            st.markdown(f'<p class="nav-group">{group}</p>', unsafe_allow_html=True)
-            for page in PAGES:
-                if page.group == group:
-                    prefix = "nav_active" if page.id == active_page else "nav_item"
-                    with st.container(key=f"{prefix}_{page.id}"):
-                        page_link(page.id)
-        st.divider()
-        st.caption("Estimativas experimentais. Consulte a fonte, a data e a linha de cada análise.")
+        primary = ("overview", "games", "picks", "opportunities", "archive")
+        st.caption("SUA RODADA")
+        for page_id in primary:
+            prefix = "nav_active" if page_id == active_page else "nav_item"
+            with st.container(key=f"{prefix}_{page_id}"):
+                page_link(page_id)
+        groups = {
+            "Analisar jogadores e times": ("players", "teams", "defense", "matchups", "shots", "season"),
+            "Resultados e modelo": ("performance", "quality", "research"),
+            "Dados e disponibilidade": ("injuries", "data"),
+        }
+        for label, identifiers in groups.items():
+            with st.expander(label, expanded=active_page in identifiers):
+                for page_id in identifiers:
+                    prefix = "nav_active" if page_id == active_page else "nav_item"
+                    with st.container(key=f"{prefix}_{page_id}"):
+                        page_link(page_id)
+        st.caption("Projeção é uma estimativa. Confira participação, fonte e horário.")
