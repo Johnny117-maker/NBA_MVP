@@ -20,6 +20,7 @@ from src.store import (
     upsert_player_games,
 )
 from src.ui import components, states, theme
+from src.ui.data_quality import data_quality_panel
 from src.ui.formatters import format_int_br
 from src.ui.live import sync_status
 
@@ -41,6 +42,7 @@ components.page_header(
 )
 
 init_db(DEFAULT_DB_PATH)
+data_quality_panel(DEFAULT_DB_PATH, detailed=True)
 
 with st.container(border=True):
     st.subheader("Temporada atual: atualização automática")

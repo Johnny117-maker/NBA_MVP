@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from src.data_quality import bulletin_quality
 from src.injuries import injury_snapshot
 from src.ui.navigation import page_link
 
@@ -12,7 +13,11 @@ from src.ui.navigation import page_link
 @st.fragment(run_every=30)
 def watch_pick_injuries(path: str | Path) -> None:
     rows, state = injury_snapshot(path)
-    version = (state.get("source"), tuple(sorted(zip(rows.player, rows.status, strict=True))))
+    version = (
+        state.get("source"),
+        bulletin_quality(state)["level"],
+        tuple(sorted(zip(rows.player, rows.status, strict=True))),
+    )
     key = "_pick_injury_version:" + str(Path(path).resolve())
     previous = st.session_state.get(key)
     st.session_state[key] = version

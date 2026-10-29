@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 
 from .analysis_archive import create_daily_snapshots, read_snapshots, resolve_snapshots, snapshot_html
+from .data_quality import bulletin_quality, bulletin_usable
 from .injuries import injury_snapshot, refresh_injuries
 from .live_store import read_live_games
 from .live_types import EASTERN, utc_now
@@ -98,7 +99,7 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
         and pd.Timestamp(game.kickoff) > moment
     ]
     generated = 0
-    if pending and availability.get("source"):
+    if pending and bulletin_usable(availability):
         history = load_research_history(db_path, day)
         if not history.empty:
             try:
@@ -155,6 +156,7 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
         run_url=os.environ.get("NBA_AUTOMATION_RUN_URL", ""),
         injury_source=availability.get("source"),
         injury_reference=availability.get("source_as_of"),
+        data_quality=bulletin_quality(availability),
         learning=learning,
         status="complete" if games and not missing else "no_games" if not games else "incomplete",
     )

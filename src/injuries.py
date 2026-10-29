@@ -166,11 +166,24 @@ def filter_pick_players(
 
 
 def current_pick_players(db_path: str | Path, players: pd.DataFrame) -> pd.DataFrame:
+    from .data_quality import bulletin_usable
+
     rows, state = injury_snapshot(db_path)
     # Sem boletim recebido, não apresenta uma seleção como verificada por lesões.
-    if not state.get("source"):
+    if not bulletin_usable(state):
         return players.iloc[:0].copy()
     return filter_pick_players(players, rows)
+
+
+def filter_candidate_rows(db_path: str | Path, candidates: list[dict]) -> list[dict]:
+    pre = pd.DataFrame([row for row in candidates if row.get("state") == "pre"])
+    if pre.empty:
+        return list(candidates)
+    eligible = current_pick_players(db_path, pre)
+    keys = set(zip(eligible.get("game_key", []), eligible.get("player_id", []), strict=True))
+    return [
+        row for row in candidates if row.get("state") != "pre" or (row["game_key"], row["player_id"]) in keys
+    ]
 
 
 def refresh_injuries(db_path: str | Path, *, force: bool = False, client=None) -> dict:

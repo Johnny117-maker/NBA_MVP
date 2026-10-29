@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from .data_quality import bulletin_quality, bulletin_usable
 from .entity_ids import normalized_name
 from .injuries import filter_pick_players, injury_snapshot
 from .live_store import read_live_games
@@ -279,7 +280,9 @@ def create_daily_snapshots(
     ]
     if not eligible or history.empty:
         return 0
-    injuries, _ = injury_snapshot(path)
+    injuries, availability = injury_snapshot(path)
+    if availability.get("source") and not bulletin_usable(availability, moment):
+        return 0
     future, selections = _future_rows(history, eligible, injuries, players_per_team)
     if future.empty:
         return 0
@@ -329,6 +332,7 @@ def create_daily_snapshots(
             "captured_at": captured.isoformat(),
             "source": game.source,
             "source_fetched_at": game.fetched_at,
+            "data_quality": bulletin_quality(availability, moment),
             "schedule_archive": game.archive,
             "history_end": history["game_date"].max().date().isoformat(),
             "model": bundle.manifest
@@ -529,7 +533,7 @@ def run_daily_analysis(path: str | Path, *, now: datetime | None = None) -> dict
     result["learning"] = refresh_prop_feedback(path, day)["status"]
     if pending:
         _, availability = injury_snapshot(path)
-        if not availability.get("source"):
+        if not bulletin_usable(availability, moment):
             return {**result, "status": "Aguardando boletim de lesões válido"}
         history = load_research_history(path, day)
         if history.empty:

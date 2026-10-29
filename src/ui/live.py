@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from src.analysis_archive import apply_frozen_pregame_props
+from src.injuries import filter_candidate_rows
 from src.live_providers import ApiKeys, FeedClient, ProviderError
 from src.live_store import get_state, read_live_games, set_state
 from src.live_types import EASTERN, LiveGame, current_season, utc_now
@@ -384,6 +385,7 @@ def opportunities_panel(path: str | Path, compact: bool = False) -> None:
     candidates = apply_frozen_pregame_props(
         path, current_candidates(history, games, utc_now()), utc_now().astimezone(EASTERN).date().isoformat()
     )
+    candidates = filter_candidate_rows(path, candidates)
     rows = [
         row
         for row in candidates

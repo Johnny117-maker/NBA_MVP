@@ -8,6 +8,7 @@ import streamlit as st
 from src.analysis_archive import read_snapshots
 from src.live_store import get_state, read_live_games
 from src.live_types import EASTERN, utc_now
+from src.ui.data_quality import data_quality_panel
 from src.ui.learning import learning_status
 from src.ui.navigation import page_link
 
@@ -48,3 +49,4 @@ def today_overview(path: str | Path) -> None:
         page_link("games", "Analisar um jogo")
         page_link("archive", "Conferir previsões e resultados")
     learning_status(path)
+    data_quality_panel(path)

@@ -12,6 +12,7 @@ from src.store import DEFAULT_DB_PATH, count_player_games
 from src.sync_runtime import watch_history_version
 from src.today_picks import build_matchup_pick, round_highlights, upcoming_games
 from src.ui import components, theme
+from src.ui.data_quality import data_quality_panel
 from src.ui.formatters import format_date_br
 from src.ui.injuries import injury_notice, watch_pick_injuries
 from src.ui.navigation import page_link
@@ -30,6 +31,7 @@ today = today_et()
 watch_history_version(str(archive_path(DEFAULT_DB_PATH)))
 watch_pick_injuries(DEFAULT_DB_PATH)
 injury_notice(DEFAULT_DB_PATH)
+data_quality_panel(DEFAULT_DB_PATH)
 day_column, refresh_column = st.columns([3, 1])
 with day_column:
     st.markdown(f"**{format_date_br(today)} · calendário NBA (ET)**")
