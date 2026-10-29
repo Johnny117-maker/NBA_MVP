@@ -52,6 +52,28 @@ Atletas transferidos podem ter registros em várias equipes na mesma fase.
 
 ## Lesões e disponibilidade
 
+### Conexões em outra rede ou computador
+
+As recusas observadas nesta rede não desativam NBA, ESPN ou endpoints de tracking.
+A versão 1.2.0 mantém as consultas diretas e as alternativas. Em outro computador,
+o sistema usa o perfil local daquele usuário e tenta as mesmas fontes, sem exigir
+alteração do código por causa das falhas observadas aqui.
+
+Os intervalos entre tentativas são temporários: placares NBA/ESPN voltam a ser
+consultados após cinco minutos de espera por falha; lesões tentam primeiro a ESPN
+a cada ciclo de cinco minutos. Quando a fonte direta responde novamente, seus
+dados recentes substituem a alternativa mais antiga. Matchups pendentes voltam
+a ser tentados nos lotes seguintes da atualização do acervo, a cada seis horas,
+e podem ser consultados manualmente na tela da partida. Tracking direto também
+continua disponível pelos botões de consulta.
+
+As frequências de atualização, os limites de chamadas e os avisos de dados
+defasados permanecem ativos. O sistema precisa estar aberto e conectado para
+realizar consultas automáticas. Uma recusa de conexão descreve aquela tentativa;
+não determina que o serviço será inacessível em todas as redes.
+
+### Fontes e atualização do boletim
+
 **Lesões e disponibilidade** mantém jogador, equipe, situação, motivo informado,
 data da informação, retorno estimado e nota original da fonte. O monitor consulta
 a cada cinco minutos enquanto o sistema está aberto; a tela relê o boletim a cada
