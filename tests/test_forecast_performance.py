@@ -121,7 +121,7 @@ def test_performance_ui_opens_all_views_with_pending_and_resolved_records(app_db
     app = AppTest.from_file("../app.py").run(timeout=30)
     app.switch_page("pages/3_Desempenho.py").run(timeout=30)
     assert not app.exception
-    for mode in ("Probabilidades", "Comparar modelos"):
+    for mode in ("Probabilidades", "Minutos", "Comparar modelos"):
         next(item for item in app.segmented_control if item.label == "Analisar").set_value(mode).run(
             timeout=30
         )

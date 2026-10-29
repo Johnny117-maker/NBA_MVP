@@ -60,7 +60,19 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
     table = pd.DataFrame(rows)
     if table.empty:
         return table
-    numeric = ["actual", "projected", "bayes", "xgboost", "base", "low", "high", "line", "over"]
+    numeric = [
+        "actual",
+        "projected",
+        "bayes",
+        "xgboost",
+        "base",
+        "low",
+        "high",
+        "line",
+        "over",
+        "minutes",
+        "actual_minutes",
+    ]
     table[numeric] = table[numeric].apply(pd.to_numeric, errors="coerce")
     table[numeric] = table[numeric].replace([np.inf, -np.inf], np.nan)
     table.loc[table.actual.lt(0), "actual"] = np.nan

@@ -401,6 +401,7 @@ def resolve_snapshots(path: str | Path) -> int:
                     "game_id": game[0],
                     "status": "Jogou" if participated else "Sem participação",
                     "actual": {s: float(actual.iloc[0][s]) for s in STATS} if participated else None,
+                    "minutes": float(actual.iloc[0]["minutes"]) if participated else None,
                 }
                 body = _json(outcome)
                 fingerprint = hashlib.sha256(body.encode()).hexdigest()

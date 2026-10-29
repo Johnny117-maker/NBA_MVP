@@ -60,7 +60,10 @@ def performance_panel(path: str | Path) -> None:
         "Amostras pequenas ainda não comprovam desempenho estável."
     )
     mode = st.segmented_control(
-        "Analisar", ["Resultados", "Probabilidades", "Comparar modelos"], default="Resultados", required=True
+        "Analisar",
+        ["Resultados", "Probabilidades", "Minutos", "Comparar modelos"],
+        default="Resultados",
+        required=True,
     )
     resolved = selected.dropna(subset=["actual", "projected"])
     if mode == "Resultados":
@@ -136,6 +139,27 @@ def performance_panel(path: str | Path) -> None:
             hide_index=True,
             alt="Amostra por faixa de probabilidade",
         )
+    elif mode == "Minutos":
+        sample = selected.dropna(subset=["minutes", "actual_minutes"])
+        if sample.empty:
+            st.info(
+                "Aguardando resultados com minutos registrados. Capturas antigas podem não ter esse campo."
+            )
+        else:
+            st.metric("Erro médio de minutos", f"{(sample.minutes - sample.actual_minutes).abs().mean():.2f}")
+            st.dataframe(
+                sample[["day", "player", "minutes", "actual_minutes"]].rename(
+                    columns={
+                        "day": "Dia",
+                        "player": "Jogador",
+                        "minutes": "Minutos previstos",
+                        "actual_minutes": "Minutos reais",
+                    }
+                ),
+                hide_index=True,
+                alt="Comparação de minutos previstos e registrados para quem participou",
+            )
+        st.caption("A previsão é condicionada à participação. Ausências e minutos não informados ficam fora.")
     else:
         comparison = paired_comparison(selected)
         if comparison.empty:

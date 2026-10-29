@@ -10,6 +10,7 @@ import sqlite3
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ from .daily_games import recent_training_sample
 from .live_types import utc_now
 from .player_metrics import add_efficiency_metrics
 
-VERSION = "props-xgb-bayes-v1"
+VERSION = "props-xgb-bayes-minutes-v2"
 STATS = ("pts", "reb", "ast")
 LEAGUE_RATE_PRIORS = {"pts": 0.5, "reb": 0.22, "ast": 0.11}
 FEATURES = [
@@ -90,6 +91,9 @@ def feature_table(history: pd.DataFrame, future: pd.DataFrame | None = None) -> 
         data[f"minutes_{window}"] = groups["minutes"].transform(
             lambda s, w=window: s.shift(1).rolling(w, min_periods=1).mean()
         )
+    data["minutes_3"] = groups["minutes"].transform(lambda s: s.shift(1).rolling(3, min_periods=1).mean())
+    data["minutes_std10"] = groups["minutes"].transform(lambda s: s.shift(1).rolling(10, min_periods=2).std())
+    data["minutes_trend"] = data["minutes_3"] - data["minutes_10"]
     for source, name in (
         ("true_shooting_pct", "ts"),
         ("usage_pct", "usage"),
@@ -147,6 +151,7 @@ def feature_table(history: pd.DataFrame, future: pd.DataFrame | None = None) -> 
 class PropsBundle:
     models: dict
     manifest: dict
+    minutes_model: Any = None
 
     def predict(self, features: pd.DataFrame, stat: str) -> np.ndarray:
         return np.clip(self.models[stat].predict(features[FEATURES].astype(float)), 0, None)
@@ -195,6 +200,7 @@ def train_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
         "probability_status": "Experimental; avaliação de médias não calibra probabilidades Over/Under",
     }
     models = {}
+    validation_predictions = {}
     for stat in STATS:
         model = XGBRegressor(**config)
         model.fit(fit[FEATURES].astype(float), fit[stat].astype(float))
@@ -210,6 +216,7 @@ def train_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
         pred_ml = np.clip(model.predict(test[FEATURES].astype(float)), 0, None)
         baseline = test[f"{stat}_bayes"].to_numpy()
         projected = (1 - weight) * baseline + weight * pred_ml
+        validation_predictions[stat] = projected
         manifest["weights"][stat] = weight
         manifest["metrics"][stat] = {
             "bayes_mae": float(mean_absolute_error(test[stat], baseline)),
@@ -224,7 +231,22 @@ def train_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
         manifest["dispersion"][stat] = shape
         model.fit(table[FEATURES].astype(float), table[stat].astype(float))
         models[stat] = model
-    return PropsBundle(models, manifest)
+    from .minutes_model import train_minutes
+
+    minutes, minutes_report = train_minutes(
+        fit, calibration, test, table, validation_predictions, estimators=estimators
+    )
+    manifest["minutes_model"] = minutes_report
+    manifest["metrics_basis"] = "Ensemble inclui ajuste de minutos quando validado; Bayes/XGB são referências"
+    if minutes_report["active"]:
+        for stat in STATS:
+            manifest["metrics"][stat]["ensemble_mae_before_minutes"] = manifest["metrics"][stat][
+                "ensemble_mae"
+            ]
+            manifest["metrics"][stat]["ensemble_mae"] = minutes_report["prop_guard"][stat][
+                "minutes_adjusted_mae"
+            ]
+    return PropsBundle(models, manifest, minutes)
 
 
 def ensure_props_bundle(history: pd.DataFrame, root: Path) -> PropsBundle:
@@ -242,7 +264,11 @@ def ensure_props_bundle(history: pd.DataFrame, root: Path) -> PropsBundle:
             model = XGBRegressor()
             model.load_model(directory / f"{stat}.json")
             models[stat] = model
-        return PropsBundle(models, manifest)
+        minutes = None
+        if (directory / "minutes.json").exists():
+            minutes = XGBRegressor()
+            minutes.load_model(directory / "minutes.json")
+        return PropsBundle(models, manifest, minutes)
     bundle = train_props(history)
     bundle.manifest["id"] = model_id
     bundle.manifest["data_hash"] = digest.hexdigest()
@@ -250,6 +276,8 @@ def ensure_props_bundle(history: pd.DataFrame, root: Path) -> PropsBundle:
     temporary.mkdir(parents=True)
     for stat, model in bundle.models.items():
         model.save_model(temporary / f"{stat}.json")
+    if bundle.minutes_model is not None:
+        bundle.minutes_model.save_model(temporary / "minutes.json")
     (temporary / "manifest.json").write_text(json.dumps(bundle.manifest, indent=2), encoding="utf-8")
     root.mkdir(parents=True, exist_ok=True)
     os.replace(temporary, directory)
@@ -257,10 +285,18 @@ def ensure_props_bundle(history: pd.DataFrame, root: Path) -> PropsBundle:
 
 
 def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
-    result: dict = {"minutes": float(row["expected_minutes"]), "stats": {}}
+    from .minutes_model import minutes_ratio, project_minutes
+
+    minutes = project_minutes(
+        row,
+        bundle.minutes_model if bundle else None,
+        bundle.manifest.get("minutes_model", {}) if bundle else {},
+    )
+    ratio = float(minutes_ratio(minutes["projected"], minutes["baseline"]))
+    result: dict = {"minutes": minutes["projected"], "minutes_context": minutes, "stats": {}}
     for stat in STATS:
-        bayes = float(row[f"{stat}_bayes"])
-        ml = float(bundle.predict(row.to_frame().T, stat)[0]) if bundle else None
+        bayes = float(row[f"{stat}_bayes"]) * ratio
+        ml = float(bundle.predict(row.to_frame().T, stat)[0]) * ratio if bundle else None
         weight = float(bundle.manifest["weights"][stat]) if bundle else 0.0
         central = (1 - weight) * bayes + weight * ml if ml is not None else bayes
         base = central
