@@ -15,6 +15,7 @@ from src.store import (
     resolve_team_predictions,
 )
 from src.ui import components, theme
+from src.ui.forecast_performance import performance_panel
 from src.ui.navigation import page_link
 
 st.set_page_config(
@@ -24,6 +25,16 @@ st.set_page_config(
 )
 
 theme.inject_base_style("performance")
+
+view = st.segmented_control(
+    "Origem das previsões",
+    ["Palpites automáticos", "Registros manuais"],
+    default="Palpites automáticos",
+    required=True,
+)
+if view == "Palpites automáticos":
+    performance_panel(DEFAULT_DB_PATH)
+    st.stop()
 
 components.page_header(
     "Da previsão ao resultado.",
@@ -88,7 +99,7 @@ with tab_team_predictions:
             )
             st.dataframe(
                 calibration.style.format({"taxa_real_vitoria_mandante": "{:.1%}"}),
-                use_container_width=True,
+                width="stretch",
             )
             st.caption(
                 "Em uma previsão bem calibrada, o time favorecido a 70% deve vencer "
@@ -122,7 +133,7 @@ with tab_team_predictions:
                 na_rep="—",
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 with tab_player_predictions:
@@ -200,7 +211,7 @@ with tab_player_predictions:
                     na_rep="—",
                 ),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
             )
             st.caption(
                 "A confiança é uma classe heurística de incerteza. Com poucos registros por "
@@ -246,7 +257,7 @@ with tab_player_predictions:
                     na_rep="—",
                 ),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
             )
             st.download_button(
                 "Baixar auditoria das previsões (CSV)",
@@ -303,5 +314,5 @@ with tab_player_predictions:
                 na_rep="—",
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
