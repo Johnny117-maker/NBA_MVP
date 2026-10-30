@@ -37,6 +37,15 @@ def _detail(snapshot, player):
     pick_detail(snapshot, player, key="test_detail")
 
 
+def _switching_detail(snapshot, players):
+    import streamlit as st
+
+    from src.ui.pick_detail import pick_detail
+
+    name = st.selectbox("Jogador", list(players))
+    pick_detail(snapshot, players[name], key="switch_detail")
+
+
 def test_explanation_ui_compares_a_new_line_and_changes_statistics():
     snapshot = dict(
         home="BOS",
@@ -61,3 +70,15 @@ def test_explanation_ui_compares_a_new_line_and_changes_statistics():
     assert any(m.label == "Empate na linha" and m.value != "0.0%" for m in app.metric)
     app.segmented_control[0].set_value("reb").run(timeout=15)
     assert not app.exception
+    other = {
+        **player,
+        "name": "Other Player",
+        "stats": {stat: {**estimate, "line": 29.5} for stat, estimate in player["stats"].items()},
+    }
+    switched = AppTest.from_function(
+        _switching_detail, args=(snapshot, {player["name"]: player, other["name"]: other})
+    ).run()
+    switched.number_input[0].set_value(20.5).run()
+    switched.selectbox[0].select("Other Player").run()
+    assert not switched.exception
+    assert switched.number_input[0].value == 29.5

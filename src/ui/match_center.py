@@ -98,7 +98,8 @@ def match_center(path: str | Path, game: LiveGame, mode: str) -> None:
         if summary.empty:
             st.info("Histórico defensivo ainda indisponível nesta temporada.")
         else:
-            selected = summary.loc[summary.team.isin([game.home, game.away])]
+            selected = summary.loc[summary.team.isin([game.home, game.away])].copy()
+            selected["opp_3p_pct"] = selected["opp_3p_pct"] * 100
             st.dataframe(
                 selected[["team_name", "games", "drtg", "opp_3pa", "opp_3p_pct", "paint_allowed_100"]].rename(
                     columns={
@@ -106,7 +107,7 @@ def match_center(path: str | Path, game: LiveGame, mode: str) -> None:
                         "games": "Jogos",
                         "drtg": "Pontos cedidos / 100 posses",
                         "opp_3pa": "Tentativas de 3 cedidas",
-                        "opp_3p_pct": "Conversão de 3 cedida",
+                        "opp_3p_pct": "Conversão de 3 cedida (%)",
                         "paint_allowed_100": "Pontos no garrafão / 100 posses",
                     }
                 ),

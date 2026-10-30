@@ -7,6 +7,7 @@ from src.prop_explanations import compare_line
 
 
 def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
+    key = f"{key}_{snapshot.get('game_id', '')}_{snapshot['captured_at']}_{player['name']}"
     labels = {"pts": "Pontos", "reb": "Rebotes", "ast": "Assistências"}
     st.subheader(player["name"])
     stamp = pd.Timestamp(snapshot["captured_at"]).tz_convert("America/Sao_Paulo")
