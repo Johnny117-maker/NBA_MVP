@@ -51,13 +51,13 @@ elif mode == "Player props":
     if trained:
         st.caption(
             f"Treino inicial até {trained['fit_end']} · calibração desde {trained['calibration_start']} · "
-            f"teste de {trained['test_start']} a {trained['test_end']} · "
-            f"{trained['test_rows']} observações no teste"
+            f"validação interna de {trained['test_start']} a {trained['test_end']} · "
+            f"{trained['test_rows']} observações no desenvolvimento"
         )
         st.dataframe(
             pd.DataFrame(trained["metrics"]).T.rename_axis("Estatística").reset_index(),
             hide_index=True,
-            alt="Erros no teste temporal separado: Bayes, XGBoost e combinação selecionada na calibração",
+            alt="Erros internos de desenvolvimento: Bayes, XGBoost e combinação selecionada na calibração",
         )
         st.caption(f"Peso de XGBoost escolhido na calibração: {trained['weights']}")
         st.caption(
@@ -65,6 +65,7 @@ elif mode == "Player props":
             "MAE mede a média prevista; não comprova calibração de probabilidades Over/Under."
         )
         st.json(trained, expanded=False)
+        st.caption("A comprovação independente está em Desempenho → Teste histórico independente.")
     else:
         st.info(
             "O monitor treina e arquiva o primeiro modelo quando encontra jogos futuros "

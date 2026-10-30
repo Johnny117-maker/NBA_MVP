@@ -25,6 +25,17 @@ def _load(path: str, version: int, start: str, end: str):
 
 
 def performance_panel(path: str | Path) -> None:
+    from src.ui.validation import validation_panel
+
+    evidence = st.segmented_control(
+        "Origem da evidência",
+        ["Capturas pré-jogo", "Teste histórico independente"],
+        default="Capturas pré-jogo",
+        required=True,
+    )
+    if evidence == "Teste histórico independente":
+        validation_panel(path)
+        return
     st.subheader("O que previmos e o que aconteceu")
     today = utc_now().astimezone(EASTERN).date()
     period = st.segmented_control(
@@ -59,6 +70,8 @@ def performance_panel(path: str | Path) -> None:
         "O erro médio é a diferença absoluta entre previsto e realizado. Ausências ficam fora da conta. "
         "Amostras pequenas ainda não comprovam desempenho estável."
     )
+    if "pre_game_valid" in selected and not selected.pre_game_valid.all():
+        st.warning("Capturas sem proveniência pré-jogo verificável foram excluídas das métricas.")
     mode = st.segmented_control(
         "Analisar",
         ["Resultados", "Probabilidades", "Minutos", "Comparar modelos"],

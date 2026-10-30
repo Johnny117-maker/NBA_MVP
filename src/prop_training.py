@@ -21,7 +21,7 @@ from .daily_games import recent_training_sample
 from .live_types import utc_now
 from .player_metrics import add_efficiency_metrics
 
-VERSION = "props-xgb-bayes-minutes-v2"
+VERSION = "props-xgb-audit-v3"
 STATS = ("pts", "reb", "ast")
 LEAGUE_RATE_PRIORS = {"pts": 0.5, "reb": 0.22, "ast": 0.11}
 FEATURES = [
@@ -157,7 +157,7 @@ class PropsBundle:
         return np.clip(self.models[stat].predict(features[FEATURES].astype(float)), 0, None)
 
 
-def train_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
+def _fit_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
     from xgboost import XGBRegressor
 
     table = feature_table(history)
@@ -247,6 +247,19 @@ def train_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
                 "minutes_adjusted_mae"
             ]
     return PropsBundle(models, manifest, minutes)
+
+
+def train_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
+    from .prop_validation import temporal_audit
+
+    bundle = _fit_props(history, estimators=estimators)
+    report, _ = temporal_audit(history, trainer=lambda prior: _fit_props(prior, estimators=estimators))
+    bundle.manifest["validation"] = report
+    bundle.manifest["metrics_basis"] = (
+        "Métricas internas de desenvolvimento; a evidência independente está em validation. "
+        "O teste externo avalia a política de treino em períodos anteriores ao modelo atual."
+    )
+    return bundle
 
 
 def ensure_props_bundle(history: pd.DataFrame, root: Path) -> PropsBundle:

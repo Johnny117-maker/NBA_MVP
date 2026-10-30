@@ -1,0 +1,304 @@
+{
+  "version": "props-independent-audit-v1",
+  "policy": "props-xgb-audit-v3",
+  "id": "props-independent-audit-v1-86cbac6a761ff25b",
+  "data_hash": "86cbac6a761ff25b12625a610243d5b532337c6840e256498388b2b484957da5",
+  "checked_at": "2026-10-30T14:08:41.929778+00:00",
+  "windows": [
+    {
+      "fold": 1,
+      "train_end": "2026-03-22",
+      "start": "2026-03-23",
+      "end": "2026-04-05",
+      "player_games": 2033,
+      "games": 107,
+      "weights": {
+        "pts": 0.0,
+        "reb": 0.0,
+        "ast": 0.0
+      },
+      "minutes_active": false
+    },
+    {
+      "fold": 2,
+      "train_end": "2026-04-05",
+      "start": "2026-04-06",
+      "end": "2026-10-27",
+      "player_games": 2057,
+      "games": 114,
+      "weights": {
+        "pts": 0.0,
+        "reb": 0.0,
+        "ast": 0.0
+      },
+      "minutes_active": false
+    }
+  ],
+  "stats": {
+    "pts": {
+      "n": 4090,
+      "mae": 5.178254336512712,
+      "bias": 0.28200890862036293,
+      "coverage": 0.7745721271393643,
+      "dates": 28,
+      "games": 221,
+      "reference_mae": 5.210103038770521,
+      "improvement": {
+        "mean": 0.0318487022578092,
+        "low": 0.006324702069733787,
+        "high": 0.058923937813808405,
+        "games": 221
+      },
+      "status": "Sem vantagem demonstrada",
+      "probability": {
+        "n": 4090,
+        "brier": 0.24702263878139105,
+        "log_loss": 0.6871997680275814
+      },
+      "probability_gain_vs_50": {
+        "mean": 0.002977361218608937,
+        "low": 0.0004615642117779082,
+        "high": 0.005327036712676717,
+        "games": 221
+      },
+      "reference_probability_brier": 0.24690278944507946,
+      "probability_gain_vs_reference": {
+        "mean": -0.00011984933631156883,
+        "low": -0.0009789201348020342,
+        "high": 0.000695757952075533,
+        "games": 221
+      },
+      "brier_skill": -0.00048541102585741847,
+      "calibration": [
+        {
+          "bucket": 3,
+          "n": 227,
+          "predicted": 0.3869269200840667,
+          "observed": 0.4185022026431718,
+          "low": 0.35620522056026527,
+          "high": 0.48351171087670275
+        },
+        {
+          "bucket": 4,
+          "n": 3850,
+          "predicted": 0.43982075802855597,
+          "observed": 0.44467532467532467,
+          "low": 0.42904105591919967,
+          "high": 0.4604198913081072
+        },
+        {
+          "bucket": 5,
+          "n": 13,
+          "predicted": 0.5062025507763717,
+          "observed": 0.5384615384615384,
+          "low": 0.2914343243183205,
+          "high": 0.7679424569851186
+        }
+      ],
+      "by_season": [
+        {
+          "season": "2025-26",
+          "n": 3012,
+          "mae": 5.100527098570272,
+          "bias": -0.26571900125115694,
+          "coverage": 0.7822045152722443
+        },
+        {
+          "season": "2026-27",
+          "n": 1078,
+          "mae": 5.395429142340751,
+          "bias": 1.812395239356001,
+          "coverage": 0.7532467532467533
+        }
+      ]
+    },
+    "reb": {
+      "n": 4090,
+      "mae": 2.0432476459657787,
+      "bias": 0.10655797407126859,
+      "coverage": 0.8743276283618582,
+      "dates": 28,
+      "games": 221,
+      "reference_mae": 2.045960045795009,
+      "improvement": {
+        "mean": 0.002712399829230611,
+        "low": -0.007857009801243082,
+        "high": 0.012902867495961774,
+        "games": 221
+      },
+      "status": "Sem vantagem demonstrada",
+      "probability": {
+        "n": 4090,
+        "brier": 0.24483858625971644,
+        "log_loss": 0.682776650833629
+      },
+      "probability_gain_vs_50": {
+        "mean": 0.0051614137402835585,
+        "low": 0.002603567125684274,
+        "high": 0.007475762426422832,
+        "games": 221
+      },
+      "reference_probability_brier": 0.24609227558122782,
+      "probability_gain_vs_reference": {
+        "mean": 0.0012536893215114413,
+        "low": -0.00028821052095731646,
+        "high": 0.002791437930438128,
+        "games": 221
+      },
+      "brier_skill": 0.005094387129991662,
+      "calibration": [
+        {
+          "bucket": 2,
+          "n": 12,
+          "predicted": 0.2865239047453183,
+          "observed": 0.75,
+          "low": 0.46768966087934005,
+          "high": 0.9110599603710386
+        },
+        {
+          "bucket": 3,
+          "n": 837,
+          "predicted": 0.37392852048098424,
+          "observed": 0.3847072879330944,
+          "low": 0.3523442669952165,
+          "high": 0.4181237973821883
+        },
+        {
+          "bucket": 4,
+          "n": 2740,
+          "predicted": 0.4491540602555978,
+          "observed": 0.4416058394160584,
+          "low": 0.42310661685255296,
+          "high": 0.46026857506814695
+        },
+        {
+          "bucket": 5,
+          "n": 501,
+          "predicted": 0.5184025749895461,
+          "observed": 0.49500998003992014,
+          "low": 0.45143383873582454,
+          "high": 0.5386620646128693
+        }
+      ],
+      "by_season": [
+        {
+          "season": "2025-26",
+          "n": 3012,
+          "mae": 2.03245780856258,
+          "bias": 0.006097260923683461,
+          "coverage": 0.8748339973439575
+        },
+        {
+          "season": "2026-27",
+          "n": 1078,
+          "mae": 2.0733951322908566,
+          "bias": 0.38725154364504083,
+          "coverage": 0.87291280148423
+        }
+      ]
+    },
+    "ast": {
+      "n": 4090,
+      "mae": 1.5192398645095317,
+      "bias": 0.02944186910980531,
+      "coverage": 0.902200488997555,
+      "dates": 28,
+      "games": 221,
+      "reference_mae": 1.5302770015911824,
+      "improvement": {
+        "mean": 0.011037137081650578,
+        "low": 0.003918306822539691,
+        "high": 0.018603417310296137,
+        "games": 221
+      },
+      "status": "Sem vantagem demonstrada",
+      "probability": {
+        "n": 4090,
+        "brier": 0.24264000893285995,
+        "log_loss": 0.6784521705985503
+      },
+      "probability_gain_vs_50": {
+        "mean": 0.007359991067140043,
+        "low": 0.0038214495170420322,
+        "high": 0.010775870520621596,
+        "games": 221
+      },
+      "reference_probability_brier": 0.24526571026157118,
+      "probability_gain_vs_reference": {
+        "mean": 0.0026257013287111887,
+        "low": 0.0006295169246804863,
+        "high": 0.004791306431588953,
+        "games": 221
+      },
+      "brier_skill": 0.01070553778557537,
+      "calibration": [
+        {
+          "bucket": 1,
+          "n": 2,
+          "predicted": 0.18532776180213828,
+          "observed": 0.5,
+          "low": 0.09452865480086614,
+          "high": 0.9054713451991339
+        },
+        {
+          "bucket": 2,
+          "n": 157,
+          "predicted": 0.28041532676197434,
+          "observed": 0.3630573248407643,
+          "low": 0.29193806448572185,
+          "high": 0.44071816375373857
+        },
+        {
+          "bucket": 3,
+          "n": 1188,
+          "predicted": 0.36268034567254354,
+          "observed": 0.37542087542087543,
+          "low": 0.3483279096339148,
+          "high": 0.4033169398158778
+        },
+        {
+          "bucket": 4,
+          "n": 2007,
+          "predicted": 0.447293469270826,
+          "observed": 0.43946188340807174,
+          "low": 0.4178836950294947,
+          "high": 0.46127138113364
+        },
+        {
+          "bucket": 5,
+          "n": 736,
+          "predicted": 0.5314717967358579,
+          "observed": 0.5108695652173914,
+          "low": 0.4747922229447545,
+          "high": 0.5468340278635268
+        }
+      ],
+      "by_season": [
+        {
+          "season": "2025-26",
+          "n": 3012,
+          "mae": 1.5184490555954686,
+          "bias": -0.10673534101880369,
+          "coverage": 0.900066401062417
+        },
+        {
+          "season": "2026-27",
+          "n": 1078,
+          "mae": 1.5214494344994753,
+          "bias": 0.409929584237236,
+          "coverage": 0.9081632653061225
+        }
+      ]
+    }
+  },
+  "status": "Teste histórico independente concluído",
+  "independent": true,
+  "scope": "Histórico reconstruído; não é captura pré-jogo nem teste de odds de casas",
+  "protocol": "Treino e seleção terminam antes de cada janela externa; modelo congelado nessa janela. A forma usa somente partidas anteriores a cada previsão. Avaliação condicionada à participação.",
+  "uncertainty": "Bootstrap pareado por partida, 1.000 reamostragens, IC de 95%. A dependência entre partidas do mesmo atleta pode permanecer.",
+  "limits": "Sem boletins históricos de lesões, escalações confirmadas ou linhas de casas. Resultados agregados não comprovam qualidade para um atleta específico ou lucro.",
+  "start": "2026-03-23",
+  "end": "2026-10-27",
+  "player_games": 4090,
+  "cases_sha256": "2acdc66d6e40d1c8eb1e3938058439bd1db279571bd9550abb1bad69584879e6"
+}

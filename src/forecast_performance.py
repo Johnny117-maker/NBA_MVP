@@ -12,6 +12,22 @@ from .analysis_archive import archive_path, connect_archive, read_snapshots
 from .prop_training import STATS
 
 
+def capture_integrity(snapshot: dict) -> tuple[bool, str]:
+    try:
+        captured, kickoff = pd.Timestamp(snapshot["captured_at"]), pd.Timestamp(snapshot["kickoff"])
+        day = pd.Timestamp(snapshot["day"]).normalize()
+        cutoffs = [snapshot.get("history_end"), snapshot.get("model", {}).get("train_end")]
+        if captured.tzinfo is None or kickoff.tzinfo is None or pd.isna(captured) or pd.isna(kickoff):
+            return False, "Horário pré-jogo não verificável"
+        if captured >= kickoff or snapshot.get("state") != "pre":
+            return False, "Captura fora do pré-jogo"
+        if not cutoffs[0] or any(value and pd.Timestamp(value).normalize() >= day for value in cutoffs):
+            return False, "Corte de dados não é anterior ao jogo"
+        return True, "Pré-jogo verificável"
+    except (ValueError, TypeError, KeyError):
+        return False, "Proveniência incompleta"
+
+
 def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
     if start > end or not archive_path(path).exists():
         return pd.DataFrame()
@@ -27,9 +43,10 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
     outcomes = {(sid, pid): json.loads(body) for sid, pid, body in results}
     rows = []
     for snapshot in snapshots:
+        eligible, provenance = capture_integrity(snapshot)
         for player in snapshot["players"]:
             outcome = outcomes.get((snapshot["id"], player["player_id"]), {})
-            played = outcome.get("status") == "Jogou"
+            played = outcome.get("status") == "Jogou" and eligible
             for stat in STATS:
                 estimate = player["stats"].get(stat, {})
                 if "projected" not in estimate:
@@ -43,7 +60,8 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
                     team=player["team"],
                     stat=stat,
                     model=snapshot["model"].get("id", "Sem identificação"),
-                    status=outcome.get("status", "Aguardando resultado"),
+                    status=outcome.get("status", "Aguardando resultado") if eligible else provenance,
+                    pre_game_valid=eligible,
                     actual=actual,
                     projected=estimate["projected"],
                     bayes=estimate.get("bayes"),
@@ -54,7 +72,7 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
                     line=estimate.get("line"),
                     over=estimate.get("over"),
                     minutes=player.get("minutes"),
-                    actual_minutes=outcome.get("minutes"),
+                    actual_minutes=outcome.get("minutes") if eligible else None,
                 )
                 rows.append(row)
     table = pd.DataFrame(rows)

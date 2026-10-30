@@ -7,6 +7,7 @@ from streamlit.testing.v1 import AppTest
 from src.analysis_archive import archive_snapshot, connect_archive, read_snapshots
 from src.forecast_performance import (
     calibration_bins,
+    capture_integrity,
     paired_comparison,
     performance_rows,
     probability_metrics,
@@ -39,6 +40,19 @@ def example():
             for pid in (1, 2, 3)
         ],
     )
+
+
+def test_proof_rejects_late_captures_and_same_day_training():
+    snapshot = example()
+    assert capture_integrity(snapshot)[0]
+    snapshot["captured_at"] = snapshot["kickoff"]
+    assert not capture_integrity(snapshot)[0]
+    snapshot = example()
+    snapshot["model"]["train_end"] = snapshot["day"]
+    assert not capture_integrity(snapshot)[0]
+    snapshot = example()
+    snapshot["captured_at"] = "2026-10-02T13:00:00"
+    assert not capture_integrity(snapshot)[0]
 
 
 def test_results_use_latest_correction_prefer_remote_and_exclude_dnp(tmp_path):
