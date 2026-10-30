@@ -6,7 +6,7 @@ necessário instalar dependências, configurar um servidor ou manter um terminal
 
 ## Abrir o sistema
 
-1. Extraia **todo** o arquivo `NBAAnalyticsLab-1.4.0-Windows-x64.zip`.
+1. Extraia **todo** o arquivo `NBAAnalyticsLab-1.5.0-Windows-x64.zip`.
 2. Entre na pasta `NBAAnalyticsLab` e abra `NBAAnalyticsLab.exe`.
 3. Mantenha a pasta `_internal` ao lado do executável. Ela contém o navegador e as bibliotecas.
 4. Para criar o ícone de inicialização, execute `CRIAR_ATALHO.bat`. Depois abra
@@ -41,10 +41,18 @@ Para atualizar o programa, feche a janela e extraia a nova versão em uma pasta 
 O perfil do usuário é reutilizado; a base inicial nunca substitui arquivos existentes.
 Para fazer backup, feche o sistema e copie a pasta inteira do perfil.
 
+Quem já possui a base pode usar o pacote `NBAAnalyticsLab-1.5.0-program-Windows-x64.zip`.
+Ele contém somente o programa e suas bibliotecas. A partir desta versão, a tela
+**Sistema e atualizações** busca a última versão estável, confere o SHA-256 e prepara
+o programa numa pasta separada. Depois, atualize o atalho pela tela e reabra o sistema.
+A versão anterior e os dados são preservados. Para a primeira instalação, use o ZIP completo.
+
 O processamento e a atualização automática funcionam **enquanto o sistema estiver
 aberto**. Minimizar mantém o trabalho ativo. Fechar a janela encerra o processo
 interno, sem deixar um servidor externo funcionando. O programa não coleta jogos
-quando o computador está desligado.
+quando o computador está desligado. Os palpites diários são gerados separadamente
+pelo GitHub Actions a cada duas horas e podem ser importados em **Histórico diário**
+com autenticação GitHub. Essa tarefa não depende da janela estar aberta.
 
 O servidor interno usa uma porta livre acessível somente em `127.0.0.1`. Ele atende
 à janela do aplicativo no próprio computador. O encerramento exige um token da
@@ -65,14 +73,16 @@ de desenvolvimento configurado, execute `GERAR_EXECUTAVEL.bat`. A saída fica em
 
 ```text
 dist/
-  1.3.0/NBAAnalyticsLab/
+  1.5.0/NBAAnalyticsLab/
     NBAAnalyticsLab.exe
     CRIAR_ATALHO.bat
     _internal/
     LEIA-ME.txt
     package.json
-  NBAAnalyticsLab-1.4.0-Windows-x64.zip
-  NBAAnalyticsLab-1.4.0-Windows-x64.sha256
+  NBAAnalyticsLab-1.5.0-Windows-x64.zip
+  NBAAnalyticsLab-1.5.0-Windows-x64.sha256
+  NBAAnalyticsLab-1.5.0-program-Windows-x64.zip
+  NBAAnalyticsLab-1.5.0-program-Windows-x64.sha256
 ```
 
 O script usa PyInstaller no modo pasta portátil. Esse formato evita extrair o

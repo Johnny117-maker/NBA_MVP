@@ -1,5 +1,16 @@
 # NBA Analytics Lab
 
+## Resultados, central da partida e atualização do programa (1.5.0)
+
+Compare os palpites originais com os resultados, consulte a calibração das probabilidades
+e acompanhe placar, disponibilidade e defesa na **Central da partida**. Cada palpite
+pode ser explicado e comparado com outra linha sem alterar o registro pré-jogo.
+O modelo de minutos só é ativado quando supera a referência na validação temporal.
+Boletins de lesões vencidos suspendem novos palpites individuais.
+
+**Sistema e atualizações** prepara pacotes menores, sem repetir a base histórica,
+e preserva a versão anterior. [Critérios, resultados e funcionamento](docs/MELHORIAS_1_5.md).
+
 ## Interface simples e aprendizado pelos resultados (1.4.0)
 
 A abertura prioriza a rodada de hoje. O menu destaca cinco caminhos: Início, Jogos,
@@ -33,7 +44,7 @@ Consulte os critérios, fontes e limites em [Índice defensivo e lesões](docs/I
 
 ## Executável para Windows
 
-Extraia o pacote `NBAAnalyticsLab-1.4.0-Windows-x64.zip` inteiro e abra
+Extraia o pacote `NBAAnalyticsLab-1.5.0-Windows-x64.zip` inteiro e abra
 `NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
 janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
 externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para
@@ -61,7 +72,8 @@ pela NBA. [Fontes, definições e coleta](docs/DEFESA_MARCACOES_E_ACERVO.md).
 
 O monitor preserva as primeiras projeções pré-jogo dos destaques de cada equipe, com PTS,
 REB, AST, intervalos, horário e versão do modelo. Abra **Histórico diário** para consultar,
-imprimir e comparar com os resultados. O servidor precisa estar aberto para registrar novos dias.
+imprimir e comparar com os resultados. O GitHub Actions registra novos dias mesmo com o
+computador desligado; o aplicativo importa essas capturas quando aberto e autenticado.
 
 O **Laboratório de modelos** reúne treino temporal de XGBoost, estimativas bayesianas,
 TS%/USG%/AST Ratio/TOV Ratio, xP por localização e ferramentas para RAPM, Gravity e importação

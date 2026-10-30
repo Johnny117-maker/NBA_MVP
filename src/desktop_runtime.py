@@ -96,6 +96,7 @@ def _diagnose(root: Path, resources: Path, output: Path) -> int:
         "src.remote_archive",
         "src.daily_automation",
         "src.prop_feedback",
+        "src.desktop_updates",
         "src.ui.defenders",
         "PySide6.QtWebEngineWidgets",
     ):
@@ -165,6 +166,9 @@ def _run_window(root: Path, resources: Path) -> int:
             return not is_main_frame
 
     class Window(QMainWindow):
+        port: int
+        url: str
+
         def __init__(self):
             super().__init__()
             self.setWindowTitle(APP_NAME)
@@ -197,6 +201,7 @@ def _run_window(root: Path, resources: Path) -> int:
             menu = self.menuBar().addMenu("Sistema")
             for label, callback in (
                 ("Recarregar tela", self.view.reload),
+                ("Buscar atualização", lambda: self.view.setUrl(QUrl(self.url + "/Sistema"))),
                 ("Abrir pasta dos dados", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(root)))),
                 ("Abrir logs", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(root / "logs")))),
                 ("Sobre", self.about),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import socket
@@ -11,7 +12,7 @@ import uuid
 from pathlib import Path
 
 APP_NAME = "NBA Analytics Lab"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 
 
 def resource_root() -> Path:
@@ -26,6 +27,13 @@ def default_user_root() -> Path:
 def initialize_user_data(root: Path, resources: Path) -> None:
     """A semente só preenche arquivos ausentes; uma atualização nunca substitui a base pessoal."""
     root = root.resolve()
+    manifest = resources.parent / "package.json"
+    if manifest.is_file():
+        package = json.loads(manifest.read_text(encoding="utf-8"))
+        if package.get("requires_existing_data") and not (root / "data/nba.db").is_file():
+            raise RuntimeError(
+                "Este é um pacote de atualização. Use o pacote completo para a primeira instalação."
+            )
     for directory in ("data", "models", "reports", "logs", ".streamlit"):
         (root / directory).mkdir(parents=True, exist_ok=True)
     files = [

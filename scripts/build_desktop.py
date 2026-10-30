@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import uuid
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -151,6 +152,7 @@ def package_distribution(target: Path, initial: dict) -> None:
     with archive.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     archive.with_suffix(".sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii")
+    program = package_program_update(target, manifest)
     print(
         json.dumps(
             {
@@ -158,6 +160,8 @@ def package_distribution(target: Path, initial: dict) -> None:
                 "zip": str(archive),
                 "zip_bytes": archive.stat().st_size,
                 "sha256": digest,
+                "program_zip": program["zip"],
+                "program_sha256": program["sha256"],
             },
             indent=2,
         ),
@@ -170,11 +174,47 @@ def package_distribution(target: Path, initial: dict) -> None:
                 "executable": str(target / "NBAAnalyticsLab.exe"),
                 "zip": str(archive),
                 "sha256": digest,
+                "program_zip": program["zip"],
+                "program_sha256": program["sha256"],
             },
             indent=2,
         ),
         encoding="utf-8",
     )
+
+
+def package_program_update(target: Path, manifest: dict) -> dict:
+    """O mesmo programa compilado, sem redistribuir a base histórica."""
+    version = manifest["version"]
+    archive = ROOT / "dist" / f"NBAAnalyticsLab-{version}-program-Windows-x64.zip"
+    package = {**manifest, "seed": {}, "requires_existing_data": True}
+    print("Compactando atualização do programa sem a base histórica...", flush=True)
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+        for path in sorted(target.rglob("*")):
+            relative = path.relative_to(target)
+            if not path.is_file() or relative.parts[:2] == ("_internal", "seed"):
+                continue
+            name = "NBAAnalyticsLab/" + relative.as_posix()
+            if relative.as_posix() == "package.json":
+                output.writestr(name, json.dumps(package, indent=2))
+            elif relative.as_posix() == "LEIA-ME.txt":
+                output.writestr(
+                    name,
+                    "NBA ANALYTICS LAB - ATUALIZACAO DO PROGRAMA\n\n"
+                    "Requer uma base existente em %LOCALAPPDATA%\\NBAAnalyticsLab.\n"
+                    "Para a primeira instalacao, use o pacote completo.\n"
+                    "Extraia em uma pasta nova; mantenha a versao anterior para voltar se necessario.\n"
+                    "Execute CRIAR_ATALHO.bat, feche a versao atual e abra pelo icone.\n"
+                    "Seus dados e registros pessoais permanecem no perfil do usuario.\n",
+                )
+            else:
+                output.write(path, name)
+    with archive.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    archive.with_suffix(".sha256").write_text(f"{digest}  {archive.name}\n", encoding="ascii")
+    result = {"zip": str(archive), "zip_bytes": archive.stat().st_size, "sha256": digest}
+    print(json.dumps(result, indent=2), flush=True)
+    return result
 
 
 if __name__ == "__main__":

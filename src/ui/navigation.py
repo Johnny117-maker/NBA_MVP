@@ -167,6 +167,15 @@ PAGES = (
         "Mantenha a base de análise atualizada.",
         "/Dados_Atualizacoes",
     ),
+    Page(
+        "system",
+        "pages/16_Sistema.py",
+        "Sistema e atualizações",
+        ":material/system_update:",
+        "GERENCIAR",
+        "Atualize o programa e preserve a versão anterior e seus dados.",
+        "/Sistema",
+    ),
 )
 PAGE_BY_ID = {page.id: page for page in PAGES}
 
@@ -208,7 +217,7 @@ def sidebar_navigation(active_page: str) -> None:
                 "season",
             ),
             "Resultados e modelo": ("performance", "quality", "research"),
-            "Dados e disponibilidade": ("injuries", "data"),
+            "Dados e disponibilidade": ("injuries", "data", "system"),
         }
         for label, identifiers in groups.items():
             with st.expander(label, expanded=active_page in identifiers):
