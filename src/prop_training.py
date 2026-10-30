@@ -311,6 +311,7 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
         bayes = float(row[f"{stat}_bayes"]) * ratio
         ml = float(bundle.predict(row.to_frame().T, stat)[0]) * ratio if bundle else None
         weight = float(bundle.manifest["weights"][stat]) if bundle else 0.0
+        applied_weight = weight
         central = (1 - weight) * bayes + weight * ml if ml is not None else bayes
         base = central
         feedback = bundle.manifest.get("feedback", {}) if bundle else {}
@@ -318,8 +319,12 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
         if adjustment.get("status") == "Aplicado":
             if adjustment.get("weight") is not None and ml is not None:
                 adapted_weight = float(adjustment["weight"])
+                applied_weight = adapted_weight
                 central = (1 - adapted_weight) * bayes + adapted_weight * ml
+            blend = central
             central = max(0.0, central + float(adjustment["correction"]))
+        else:
+            blend = central
         shape = float(bundle.manifest["dispersion"][stat]) if bundle else 4.0
         # Inclui incerteza posterior da taxa e sobredispersão por partida.
         posterior_shape = float(row[f"{stat}_alpha"])
@@ -329,7 +334,9 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
         result["stats"][stat] = {
             "bayes": bayes,
             "xgboost": ml,
-            "ml_weight": weight,
+            "ml_weight": applied_weight,
+            "base_ml_weight": weight,
+            "residual_correction": central - blend,
             "projected": central,
             "base_projected": base,
             "feedback_id": feedback.get("id"),

@@ -312,7 +312,7 @@ def create_daily_snapshots(
                     "participation": "Participação não confirmada; seleção pelo histórico recente",
                     "usage_pct_estimate": float(values["usage_10"]) if pd.notna(values["usage_10"]) else None,
                     "context": shooting_context(player_history),
-                    "factors": capture_factors(values),
+                    "factors": capture_factors(values, player_history),
                     **projection,
                 }
             )

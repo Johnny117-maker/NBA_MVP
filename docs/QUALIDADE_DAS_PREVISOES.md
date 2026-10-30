@@ -34,7 +34,25 @@ de prever participação. As linhas são referências estatísticas do sistema, 
 reais de casas. Não há backtest de lucro, boletins históricos de lesões nem escalações
 confirmadas nesse teste.
 
-## Reprodução
+## Como ler cada palpite
+
+A explicação mostra o limite exato de contagem: na linha 20,5, Over é 21 ou mais
+e Under é 20 ou menos; na linha 20, há empate em exatamente 20. A frequência dos
+dez jogos anteriores e a média da temporada são contexto, não probabilidades novas.
+Somente jogos anteriores e do próprio atleta entram nesse contexto preservado.
+
+As novas capturas registram o peso efetivamente usado de Bayes e XGBoost e a
+correção posterior pelos resultados. A soma das parcelas reproduz a projeção.
+Essa conta explica a combinação dos modelos, sem atribuir efeito causal a descanso,
+defesa ou outra variável. Capturas antigas sem esses campos indicam a limitação.
+Quando o peso do XGBoost é zero, a explicação informa que ele não participa do valor.
+
+O erro do método no teste agregado não é uma comprovação para o jogador individual.
+A disponibilidade, o marcador e eventuais restrições de minutos ainda dependem de
+informações confirmadas. O total cedido pela equipe adversária não é a previsão
+individual do atleta.
+
+## Reprodução do teste
 
 ```powershell
 .venv\Scripts\python.exe scripts\validate_player_props.py --db data\nba.db --before-day 2026-10-30 --output reports\validation\props_validation.json

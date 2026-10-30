@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from src.prop_explanations import capture_factors, compare_line
+from src.prop_explanations import capture_factors, compare_line, line_context
 
 
 def test_manual_lines_handle_integer_push_and_preserve_the_original():
@@ -29,6 +29,24 @@ def test_factors_are_observations_and_do_not_serialize_missing_values_as_nan():
     assert facts["opponent_allowed"]["pts"] is None
     assert "causal" in facts["note"]
     json.dumps(facts, allow_nan=False)
+
+
+def test_player_context_excludes_other_players_and_future_results():
+    history = pd.DataFrame(
+        [
+            dict(player_id=1, game_date="2026-10-29", season="2026-27", pts=10, reb=5, ast=3, minutes=30),
+            dict(player_id=1, game_date="2026-10-31", season="2026-27", pts=99, reb=99, ast=99, minutes=48),
+            dict(player_id=2, game_date="2026-10-29", season="2026-27", pts=99, reb=99, ast=99, minutes=48),
+        ]
+    )
+    facts = capture_factors(pd.Series(dict(player_id=1, game_date="2026-10-30", season="2026-27")), history)
+    assert facts["season"]["games"] == 1 and facts["season"]["means"]["pts"] == 10
+    player = {"factors": facts}
+    half = line_context(player, "pts", 10.5)
+    assert half["over_min"] == 11 and half["under_max"] == 10 and half["recent_under"] == 1
+    whole = line_context(player, "pts", 10)
+    assert whole["over_min"] == 11 and whole["under_max"] == 9 and whole["recent_push"] == 1
+    assert line_context({}, "pts", 20.5)["sample"] == 0
 
 
 def _detail(snapshot, player):

@@ -122,5 +122,10 @@ def test_adjustments_affect_only_new_projections_and_recompute_intervals():
         assert estimate["projected"] == 20
         assert estimate["base_projected"] == 15
         assert estimate["feedback_id"] == "feedback-test"
+        from src.prop_explanations import projection_components
+
+        assert estimate["ml_weight"] == 1.0
+        assert estimate["base_ml_weight"] == 0.5
+        assert sum(part["Parcela"] for part in projection_components(estimate)) == pytest.approx(20)
         assert estimate["over"] + estimate["under"] == pytest.approx(1)
         assert estimate["low"] <= estimate["projected"] <= estimate["high"]
