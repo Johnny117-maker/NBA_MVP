@@ -185,7 +185,7 @@ def activate_shortcut(executable: str) -> None:
         raise UpdateError("Não foi possível localizar a versão e seu criador de atalho.")
     options: dict = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
     result = subprocess.run(
-        ["cmd", "/c", str(script), "--no-pause"],
+        ["cmd", "/d", "/c", "CRIAR_ATALHO.bat", "--no-pause"],
         cwd=target.parent,
         capture_output=True,
         timeout=45,
