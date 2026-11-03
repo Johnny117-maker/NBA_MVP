@@ -85,6 +85,7 @@ def test_only_confirmed_prior_games_are_used_without_duplicates_or_dnp_zeros(tmp
         for snapshot in originals:
             for pid in (1, 2):
                 outcome = dict(
+                    confirmed_final=True,
                     status="Jogou" if pid == 1 else "Sem participação",
                     actual={stat: 20 for stat in STATS} if pid == 1 else None,
                 )

@@ -262,6 +262,10 @@ def sync_remote_archive(db_path: str | Path, *, client=None, day: str | None = N
         available_days=sorted(index["days"], reverse=True),
         error=None,
     )
+    from .result_archive import sync_results
+
+    results = sync_results(db_path, client, revision, max_files=max_files)
+    result["results_imported"] = results["imported"]
     set_state(db_path, "remote_archive_status", result)
     return result
 

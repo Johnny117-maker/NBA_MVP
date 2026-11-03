@@ -16,7 +16,7 @@ from .live_store import get_state, set_state
 from .live_types import EASTERN, utc_now
 from .prop_training import STATS, PropsBundle
 
-VERSION = "props-feedback-v1"
+VERSION = "props-feedback-v2"
 MIN_ROWS = 120
 MIN_DATES = 8
 MAX_CORRECTION = {"pts": 3.0, "reb": 1.5, "ast": 1.5}
@@ -47,7 +47,11 @@ def feedback_rows(path: str | Path, before_day: str) -> pd.DataFrame:
                 if result is None or pd.Timestamp(result[1]) > now:
                     continue
                 outcome = json.loads(result[0])
-                if outcome.get("status") != "Jogou" or not outcome.get("actual"):
+                if (
+                    outcome.get("status") != "Jogou"
+                    or not outcome.get("actual")
+                    or not outcome.get("confirmed_final")
+                ):
                     continue
                 for stat in STATS:
                     estimate = player["stats"].get(stat, {})
@@ -57,7 +61,9 @@ def feedback_rows(path: str | Path, before_day: str) -> pd.DataFrame:
                         continue
                     ml = estimate.get("xgboost")
                     weight = float(estimate.get("ml_weight", 0)) if ml is not None else 0.0
-                    base = (1 - weight) * float(bayes) + weight * float(ml or 0)
+                    base = float(
+                        estimate.get("base_projected", (1 - weight) * float(bayes) + weight * float(ml or 0))
+                    )
                     rows.append(
                         dict(
                             day=snapshot["day"],

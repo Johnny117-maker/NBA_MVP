@@ -20,6 +20,7 @@ from .live_types import EASTERN, utc_now
 from .prop_feedback import refresh_prop_feedback
 from .prop_training import ensure_props_bundle, load_research_history
 from .remote_archive import SEED_TAG, ArchiveError, GitHubArchive, publish_day, sync_remote_archive
+from .result_archive import pending_result_days, publish_results
 from .season_sync import SeasonSync
 from .today_picks import daily_team_picks
 
@@ -84,7 +85,7 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
         errors.append(str(error))
     # Coleta sem registrar previsões antes de preparar a captura completa.
     sync = SeasonSync(db_path, archive_analysis=False).run_once()
-    resolve_snapshots(db_path)
+    resolved = resolve_snapshots(db_path, allow_remote_corrections=True)
     learning = refresh_prop_feedback(db_path, day)
     refresh_injuries(db_path, force=True)
     _, availability = injury_snapshot(db_path)
@@ -158,17 +159,22 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
         injury_reference=availability.get("source_as_of"),
         data_quality=bulletin_quality(availability),
         learning=learning,
+        results_added=resolved,
+        result_days_pending=pending_result_days(db_path, day, limit=30),
         status="complete" if games and not missing else "no_games" if not games else "incomplete",
     )
     if not games and not sync.get("live_available") and sync.get("errors"):
         report["status"] = "source_unavailable"
     publication = publish_day(client, day, snapshots, report)
     report["publication"] = publication
+    try:
+        report["result_publication"] = publish_results(client, db_path)
+    except ArchiveError as error:
+        report["errors"].append(str(error))
     output.mkdir(parents=True, exist_ok=True)
     (output / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     for snapshot in snapshots:
         (output / f"{snapshot['away']}_at_{snapshot['home']}.html").write_text(
             snapshot_html(snapshot), encoding="utf-8"
         )
-    resolve_snapshots(db_path)
     return report

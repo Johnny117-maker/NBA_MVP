@@ -15,8 +15,8 @@ from src.remote_archive import ArchiveError, import_envelope, sync_remote_archiv
 def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
     with st.expander("Arquivo automático do GitHub", expanded=False):
         st.caption(
-            "O GitHub grava previsões mesmo com este computador desligado. "
-            "O histórico local é sincronizado a cada 15 minutos com o sistema aberto."
+            "O GitHub grava previsões e busca os resultados mesmo com este computador desligado. "
+            "Previsões e resultados confirmados são sincronizados a cada 15 minutos com o sistema aberto."
         )
         status = get_state(path, "remote_archive_status", {})
         if status.get("checked_at"):
@@ -24,11 +24,14 @@ def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
             st.caption(f"Última sincronização local: {stamp:%d/%m/%Y %H:%M} · Brasília")
         if status.get("error"):
             st.info(status["error"])
-        if st.button("Sincronizar previsões salvas no GitHub", key="sync_remote_picks"):
+        if st.button("Sincronizar previsões e resultados", key="sync_remote_picks"):
             try:
                 with st.spinner("Importando o arquivo diário…"):
                     result = sync_remote_archive(path, day=day)
-                st.success(f"{result['imported']} registros novos importados. Originais locais preservados.")
+                st.success(
+                    f"{result['imported']} previsões e {result.get('results_imported', 0)} resultados "
+                    "novos importados. Originais locais preservados."
+                )
             except ArchiveError as error:
                 st.warning(str(error))
         st.link_button(
@@ -53,6 +56,7 @@ def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
         if files and st.button("Importar arquivos selecionados", key="import_remote_archive_files"):
             try:
                 count = 0
+                result_documents = []
                 for file in files:
                     if file.size > 50_000_000:
                         raise ArchiveError("Arquivo maior que 50 MB.")
@@ -69,7 +73,16 @@ def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
                             documents = [json.loads(archive.read(item)) for item in entries]
                     else:
                         documents = [json.loads(file.getvalue())]
-                    count += sum(int(import_envelope(path, item)) for item in documents)
-                st.success(f"{count} registros importados. Nenhuma previsão local foi substituída.")
+                    for item in documents:
+                        if "records" in item.get("payload", {}):
+                            result_documents.append(item)
+                        else:
+                            count += int(import_envelope(path, item))
+                from src.result_archive import import_results
+
+                results = sum(import_results(path, item) for item in result_documents)
+                st.success(
+                    f"{count} previsões e {results} resultados importados. Capturas originais preservadas."
+                )
             except (ArchiveError, ValueError, KeyError, zipfile.BadZipFile):
                 st.warning("Arquivo não importado por completo. Confira formato, tamanho e SHA-256.")

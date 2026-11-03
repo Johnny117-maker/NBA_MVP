@@ -247,8 +247,15 @@ class SeasonSync:
                 set_state(self.db_path, "archive_next", now.timestamp() + 300)
 
         days = [day]
+        from .result_archive import result_days_to_refresh
+
+        for pending_day in result_days_to_refresh(self.db_path, day.isoformat()):
+            days.append(date.fromisoformat(pending_day))
         previous = read_live_games(self.db_path, (day - timedelta(days=1)).isoformat())
-        if any(g.state in {"live", "pre"} and g.kickoff for g in previous):
+        if (
+            any(g.state in {"live", "pre"} and g.kickoff for g in previous)
+            and day - timedelta(days=1) not in days
+        ):
             days.append(day - timedelta(days=1))
         live_ok = False
         providers = ["NBA", "ESPN"]
@@ -303,6 +310,7 @@ class SeasonSync:
         elif not live_ok:
             status["errors"] = status.get("last_errors", [])
         status["changed_games"] = changed
+        status["result_days_checked"] = [selected.isoformat() for selected in days]
         status["rejected_games"] = rejected[:10]
         if not self.archive_analysis:
             set_state(self.db_path, "status", status)
