@@ -311,7 +311,7 @@ with tab_stars:
     if candidates.empty:
         st.info("Nenhum jogador elegível nestes confrontos. Colete estatísticas em Dados e atualizações.")
     else:
-        search_column, order_column, role_column, limit_column = st.columns([2, 1, 1, 0.6])
+        search_column, order_column, role_column, limit_column = st.columns([2, 1, 1, 0.9])
         with search_column:
             athlete_search = st.text_input("Buscar jogador de destaque", placeholder="Nome do atleta…")
         with order_column:
@@ -338,7 +338,16 @@ with tab_stars:
             candidates = candidates[candidates["tag"].str.contains(role, regex=False)]
         candidates = candidates.sort_values(order_options[order], ascending=False)
         with limit_column:
-            visible = st.selectbox("Exibir", ["6", "12", "Todos"])
+            visible = st.selectbox(
+                "Atletas na lista",
+                ["6", "12", "24", "Todos"],
+                index=3,
+                key="daily_highlights_limit_v2",
+                help=(
+                    "A tela abre mostrando todos os atletas elegíveis. "
+                    "Escolha um limite se preferir uma lista menor."
+                ),
+            )
         shown = candidates if visible == "Todos" else candidates.head(int(visible))
         st.caption(
             f"Exibindo {len(shown)} de {len(candidates)} atletas · histórico anterior à data da rodada."

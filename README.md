@@ -1,5 +1,10 @@
 # NBA Analytics Lab
 
+## Jogos do dia com todos os destaques visíveis (1.6.1)
+
+Em **Jogos do dia**, os destaques agora abrem mostrando todos os atletas elegíveis.
+Use o campo **Atletas na lista** para reduzir a quantidade ou filtre por nome, perfil e estatística.
+
 ## Qualidade, explicação e comparação automática (1.6.0)
 
 O sistema preserva a previsão antes do jogo, busca os resultados das datas pendentes
@@ -59,7 +64,7 @@ Consulte os critérios, fontes e limites em [Índice defensivo e lesões](docs/I
 
 ## Executável para Windows
 
-Extraia o pacote `NBAAnalyticsLab-1.6.0-Windows-x64.zip` inteiro e abra
+Extraia o pacote `NBAAnalyticsLab-1.6.1-Windows-x64.zip` inteiro e abra
 `NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
 janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
 externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para
