@@ -1,5 +1,20 @@
 # NBA Analytics Lab
 
+## Qualidade, explicação e comparação automática (1.6.0)
+
+O sistema preserva a previsão antes do jogo, busca os resultados das datas pendentes
+e compara cada jogador com o que realmente aconteceu. Os resultados confirmados
+também ficam no GitHub e podem ser importados em outro computador; correções geram
+novas versões sem alterar o palpite original.
+[Como funciona o ciclo automático](docs/CICLO_AUTOMATICO_DOS_PALPITES.md).
+
+**Desempenho** separa capturas pré-jogo de teste histórico independente. As explicações
+mostram a linha exata, o histórico preservado e os pesos reais dos modelos.
+Over/Under é avaliado por Brier, log loss e calibração, com empates tratados separadamente.
+O teste disponível avaliou 4.090 jogos de atletas em 221 partidas; os ganhos de erro
+ficaram abaixo do critério de vantagem prática. As probabilidades continuam experimentais.
+[Protocolo, resultados e reprodução](docs/QUALIDADE_DAS_PREVISOES.md).
+
 ## Resultados, central da partida e atualização do programa (1.5.0)
 
 Compare os palpites originais com os resultados, consulte a calibração das probabilidades
@@ -44,7 +59,7 @@ Consulte os critérios, fontes e limites em [Índice defensivo e lesões](docs/I
 
 ## Executável para Windows
 
-Extraia o pacote `NBAAnalyticsLab-1.5.0-Windows-x64.zip` inteiro e abra
+Extraia o pacote `NBAAnalyticsLab-1.6.0-Windows-x64.zip` inteiro e abra
 `NBAAnalyticsLab.exe`, mantendo a pasta `_internal` junto dele. O sistema abre em
 janela própria e inclui Python, navegador e bibliotecas. Não precisa de servidor
 externo. Os dados ficam em `%LOCALAPPDATA%\NBAAnalyticsLab`; a internet é usada para
