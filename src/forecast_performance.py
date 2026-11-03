@@ -46,7 +46,11 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
         eligible, provenance = capture_integrity(snapshot)
         for player in snapshot["players"]:
             outcome = outcomes.get((snapshot["id"], player["player_id"]), {})
-            played = outcome.get("status") == "Jogou" and eligible
+            confirmed = bool(outcome.get("confirmed_final"))
+            played = outcome.get("status") == "Jogou" and eligible and confirmed
+            status = outcome.get("status", "Aguardando resultado")
+            if outcome and not confirmed:
+                status = "Aguardando conferência final"
             for stat in STATS:
                 estimate = player["stats"].get(stat, {})
                 if "projected" not in estimate:
@@ -60,7 +64,7 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
                     team=player["team"],
                     stat=stat,
                     model=snapshot["model"].get("id", "Sem identificação"),
-                    status=outcome.get("status", "Aguardando resultado") if eligible else provenance,
+                    status=status if eligible else provenance,
                     pre_game_valid=eligible,
                     actual=actual,
                     projected=estimate["projected"],
@@ -71,8 +75,10 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
                     high=estimate.get("high"),
                     line=estimate.get("line"),
                     over=estimate.get("over"),
+                    under=estimate.get("under"),
+                    reference_over=estimate.get("reference_over"),
                     minutes=player.get("minutes"),
-                    actual_minutes=outcome.get("minutes") if eligible else None,
+                    actual_minutes=outcome.get("minutes") if eligible and confirmed else None,
                 )
                 rows.append(row)
     table = pd.DataFrame(rows)
@@ -88,6 +94,8 @@ def performance_rows(path: str | Path, start: str, end: str) -> pd.DataFrame:
         "high",
         "line",
         "over",
+        "under",
+        "reference_over",
         "minutes",
         "actual_minutes",
     ]
@@ -113,37 +121,54 @@ def quantity_metrics(table: pd.DataFrame) -> dict:
     return dict(n=len(valid), mae=float(error.abs().mean()), bias=float(error.mean()), coverage=coverage)
 
 
-def probability_rows(table: pd.DataFrame) -> pd.DataFrame:
+def probability_rows(table: pd.DataFrame, *, side: str = "over") -> pd.DataFrame:
+    if side not in {"over", "under"}:
+        raise ValueError("Lado deve ser over ou under.")
     if table.empty:
         return table.copy()
     valid = table.dropna(subset=["actual", "line", "over"]).copy()
+    valid["under"] = valid["under"].fillna(1 - valid.over) if "under" in valid else 1 - valid.over
     # Avalia somente linhas de meia unidade: empate/devolução não vira derrota.
-    valid = valid.loc[valid.over.between(0, 1) & valid.line.ge(0) & np.isclose(valid.line % 1, 0.5)].copy()
+    valid = valid.loc[
+        valid.over.between(0, 1)
+        & valid.under.between(0, 1)
+        & np.isclose(valid.over + valid.under, 1)
+        & valid.line.ge(0)
+        & np.isclose(valid.line % 1, 0.5)
+        & valid.actual.ge(0)
+        & np.isclose(valid.actual % 1, 0)
+    ].copy()
     valid["observed_over"] = valid.actual.gt(valid.line).astype(float)
+    valid["forecast_probability"] = valid[side]
+    valid["observed_event"] = valid.observed_over if side == "over" else 1 - valid.observed_over
     return valid
 
 
-def probability_metrics(table: pd.DataFrame) -> dict:
-    valid = probability_rows(table)
+def probability_metrics(table: pd.DataFrame, *, side: str = "over") -> dict:
+    valid = probability_rows(table, side=side)
     if valid.empty:
         return dict(n=0, brier=None, log_loss=None)
-    probability = valid.over.clip(1e-12, 1 - 1e-12)
-    actual = valid.observed_over
+    probability = valid.forecast_probability.clip(1e-12, 1 - 1e-12)
+    actual = valid.observed_event
     return dict(
         n=len(valid),
-        brier=float(((valid.over - actual) ** 2).mean()),
+        brier=float(((valid.forecast_probability - actual) ** 2).mean()),
         log_loss=float(-(actual * np.log(probability) + (1 - actual) * np.log(1 - probability)).mean()),
     )
 
 
-def calibration_bins(table: pd.DataFrame) -> pd.DataFrame:
-    valid = probability_rows(table)
+def calibration_bins(table: pd.DataFrame, *, side: str = "over") -> pd.DataFrame:
+    valid = probability_rows(table, side=side)
     if valid.empty:
         return pd.DataFrame()
-    valid["bucket"] = np.minimum((valid.over * 10).astype(int), 9)
+    valid["bucket"] = np.minimum((valid.forecast_probability * 10).astype(int), 9)
     grouped = (
         valid.groupby("bucket")
-        .agg(n=("over", "size"), predicted=("over", "mean"), observed=("observed_over", "mean"))
+        .agg(
+            n=("over", "size"),
+            predicted=("forecast_probability", "mean"),
+            observed=("observed_event", "mean"),
+        )
         .reset_index()
     )
     # Intervalo de Wilson de 95% deixa a incerteza da frequência observada explícita.

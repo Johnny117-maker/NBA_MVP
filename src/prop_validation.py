@@ -7,11 +7,11 @@ from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
-from scipy.stats import nbinom
 
 from .forecast_performance import calibration_bins, probability_metrics, quantity_metrics
 from .live_types import utc_now
 from .minutes_model import MINUTE_FEATURES, minutes_ratio
+from .prop_probability import count_distribution
 from .prop_training import STATS, VERSION, PropsBundle, feature_table
 
 AUDIT_VERSION = "props-independent-audit-v1"
@@ -51,8 +51,13 @@ def frozen_predictions(table: pd.DataFrame, bundle: PropsBundle, *, fold: int) -
         ml = bundle.predict(table, stat) * ratio
         weight = bundle.manifest["weights"][stat]
         mean = (1 - weight) * bayes + weight * ml
-        shape = 1 / (1 / bundle.manifest["dispersion"][stat] + 1 / table[f"{stat}_alpha"].to_numpy())
-        distribution = nbinom(shape, shape / (shape + np.maximum(mean, 0.001)))
+        raw_shape = 1 / (1 / bundle.manifest["dispersion"][stat] + 1 / table[f"{stat}_alpha"].to_numpy())
+        scale = bundle.manifest.get("probability_calibration", {}).get(stat, {}).get("scale", 1.0)
+        shape = 1 / (
+            1 / (bundle.manifest["dispersion"][stat] * scale) + 1 / table[f"{stat}_alpha"].to_numpy()
+        )
+        distribution = count_distribution(mean, shape)
+        original = count_distribution(mean, raw_shape)
         line = np.floor(bayes) + 0.5
         records.append(
             pd.DataFrame(
@@ -77,6 +82,8 @@ def frozen_predictions(table: pd.DataFrame, bundle: PropsBundle, *, fold: int) -
                     minutes=minutes,
                     actual_minutes=table.minutes,
                     dispersion_shape=shape,
+                    raw_dispersion_shape=raw_shape,
+                    raw_over=original.sf(np.floor(line)),
                 )
             )
         )
@@ -105,6 +112,9 @@ def evidence_summary(rows: pd.DataFrame) -> dict:
         probability_gain = clustered_interval(0.25 - loss, selected.game)
         reference_loss = (selected.reference_over - selected.actual.gt(selected.line).astype(float)) ** 2
         reference_brier = float(reference_loss.mean())
+        grid = probability_grid(selected)
+        grid_loss = (grid.over - grid.actual.gt(grid.line).astype(float)) ** 2
+        raw_loss = (grid.raw_over - grid.actual.gt(grid.line).astype(float)) ** 2
         result[stat] = dict(
             **metrics,
             dates=int(selected.day.nunique()),
@@ -119,12 +129,36 @@ def evidence_summary(rows: pd.DataFrame) -> dict:
             reference_probability_brier=reference_brier,
             probability_gain_vs_reference=clustered_interval(reference_loss - loss, selected.game),
             brier_skill=1 - float(loss.mean()) / reference_brier if reference_brier > 0 else None,
+            probability_grid=dict(
+                **probability_metrics(grid),
+                original_brier=float(raw_loss.mean()),
+                adjustment_gain=clustered_interval(raw_loss - grid_loss, grid.game),
+                calibration=calibration_bins(grid).to_dict("records"),
+                player_games=len(selected),
+            ),
             calibration=calibration_bins(selected).to_dict("records"),
             by_season=[
                 dict(season=season, **quantity_metrics(group)) for season, group in selected.groupby("season")
             ],
         )
     return result
+
+
+def probability_grid(rows: pd.DataFrame) -> pd.DataFrame:
+    grid = []
+    for offset in (-1, 0, 1):
+        copy = rows.copy()
+        step = np.where(copy.stat.eq("pts"), 5, 2)
+        copy["line"] = np.maximum(0.5, copy.line + offset * step)
+        copy["line_band"] = offset
+        distribution = count_distribution(copy.projected, copy.dispersion_shape)
+        copy["over"] = distribution.sf(np.floor(copy.line))
+        copy["under"] = distribution.cdf(np.floor(copy.line))
+        copy["raw_over"] = count_distribution(copy.projected, copy.raw_dispersion_shape).sf(
+            np.floor(copy.line)
+        )
+        grid.append(copy)
+    return pd.concat(grid, ignore_index=True).drop_duplicates(["game", "player_id", "stat", "line"])
 
 
 def temporal_audit(
@@ -199,6 +233,7 @@ def temporal_audit(
                 games=int(test.game_id.nunique()),
                 weights=bundle.manifest["weights"],
                 minutes_active=bundle.manifest["minutes_model"]["active"],
+                probability_calibration=bundle.manifest.get("probability_calibration", {}),
             )
         )
     rows = pd.concat(records, ignore_index=True) if records else pd.DataFrame()

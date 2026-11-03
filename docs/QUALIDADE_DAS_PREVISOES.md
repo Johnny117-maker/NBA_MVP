@@ -52,10 +52,32 @@ A disponibilidade, o marcador e eventuais restrições de minutos ainda dependem
 informações confirmadas. O total cedido pela equipe adversária não é a previsão
 individual do atleta.
 
-## Reprodução do teste
+## Validação específica de Over e Under
+
+O ajuste de dispersão usa uma grade fixa de multiplicadores e é escolhido somente
+no bloco interno de calibração. Só é habilitado quando reduz Brier em pelo menos
+0,0015 e 1% tanto na calibração quanto em datas internas posteriores, sem piorar
+log loss além de 0,001. Cada bloco precisa ter 400 atletas/jogos e 14 datas.
+Se o ajuste de minutos estiver ativo, essa correção de dispersão aguarda uma
+avaliação conjunta. Correções de média por feedback também não reutilizam uma
+calibração de dispersão incompatível.
+
+As janelas externas ficam fora dessa seleção e mostram o resultado real da política.
+A grade usa a linha de referência, cinco pontos abaixo/acima para PTS e duas unidades
+para REB/AST, sempre em meia unidade. Linhas repetidas são removidas. Várias linhas
+da mesma partida não são observações independentes e não aumentam a quantidade de
+jogos de atletas. Over e Under são complementares nessas linhas: não contam como
+duas evidências. Linhas inteiras têm empate separado e não entram no Brier binário.
+
+O sistema também testa que Over + Under + empate soma um, que aumentar a linha
+reduz a chance de Over e que uma média zero não produz contagem positiva. A linha
+original preserva a probabilidade capturada, mesmo após atualizações do cálculo.
+Probabilidades ao vivo e linhas de casas não estão certificadas por esse teste.
+
+## Comando de reprodução
 
 ```powershell
-.venv\Scripts\python.exe scripts\validate_player_props.py --db data\nba.db --before-day 2026-10-30 --output reports\validation\props_validation.json
+.venv\Scripts\python.exe scripts\validate_player_props.py --db data\nba.db --before-day 2026-11-03 --output reports\validation\props_validation.json
 ```
 
 O JSON informa versão, impressão digital dos dados, cortes temporais, amostra,

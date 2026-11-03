@@ -79,6 +79,15 @@ def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
         st.caption(
             "Esta captura não preservou um teste independente do método. Probabilidade ainda experimental."
         )
+    probability_context = estimate.get("probability_context", {})
+    if probability_context:
+        st.caption("Distribuição usada: " + probability_context["status"] + ".")
+    if line != float(estimate.get("line", line)):
+        st.caption(
+            "A linha foi alterada para consulta. "
+            "Ela pode ter cobertura diferente da grade do teste histórico."
+        )
+    st.caption("A validação pré-jogo não se aplica às probabilidades condicionais de uma partida ao vivo.")
     st.caption("Referência estatística; a comparação não é cotação de casa nem modifica a captura original.")
     st.markdown("**O que sabemos antes do jogo**")
     factors = player.get("factors", {})

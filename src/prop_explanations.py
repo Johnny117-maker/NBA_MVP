@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 
 import pandas as pd
-from scipy.stats import nbinom
+
+from .prop_probability import count_distribution
 
 
 def capture_factors(row: pd.Series, history: pd.DataFrame | None = None) -> dict:
@@ -85,13 +86,15 @@ def compare_line(estimate: dict, line: float) -> dict | None:
     if not math.isfinite(line) or line < 0:
         raise ValueError("A linha deve ser um número não negativo.")
     shape, mean = estimate.get("dispersion_shape"), estimate.get("projected")
+    if (
+        math.isclose(line % 1, 0.5)
+        and math.isclose(line, float(estimate.get("line", -1)))
+        and all(k in estimate for k in ("over", "under"))
+    ):
+        over, under = float(estimate["over"]), float(estimate["under"])
+        if all(math.isfinite(p) and 0 <= p <= 1 for p in (over, under)) and math.isclose(over + under, 1):
+            return dict(over=over, under=under, push=0.0)
     if shape is None or mean is None:
-        if (
-            math.isclose(line % 1, 0.5)
-            and math.isclose(line, float(estimate.get("line", -1)))
-            and all(k in estimate for k in ("over", "under"))
-        ):
-            return dict(over=estimate["over"], under=estimate["under"], push=0.0)
         return None
     if (
         not math.isfinite(float(shape))
@@ -100,7 +103,7 @@ def compare_line(estimate: dict, line: float) -> dict | None:
         or float(mean) < 0
     ):
         return None
-    distribution = nbinom(float(shape), float(shape) / (float(shape) + max(float(mean), 0.001)))
+    distribution = count_distribution(float(mean), float(shape))
     return dict(
         over=float(distribution.sf(math.floor(line))),
         under=float(distribution.cdf(math.ceil(line) - 1)),

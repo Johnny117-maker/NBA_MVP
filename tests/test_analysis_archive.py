@@ -234,12 +234,21 @@ def test_exact_game_results_are_separate_and_corrections_do_not_rewrite_forecast
             "UPDATE player_game_stats SET pts=pts+1 WHERE game_id=? AND player_id=?",
             ("actual-target", first_player),
         )
+    assert resolve_snapshots(path) == 0  # Correção parcial ainda não confere com o placar.
+    side = (
+        "home_points"
+        if actual.loc[actual.player_id.eq(first_player), "team"].iloc[0] == "BOS"
+        else "away_points"
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(f"UPDATE games SET {side}={side}+1 WHERE game_id=?", ("actual-target",))
     assert resolve_snapshots(path) == 1
     with sqlite3.connect(path) as connection:
         connection.execute(
             "UPDATE player_game_stats SET pts=pts-1 WHERE game_id=? AND player_id=?",
             ("actual-target", first_player),
         )
+        connection.execute(f"UPDATE games SET {side}={side}-1 WHERE game_id=?", ("actual-target",))
     assert resolve_snapshots(path) == 1
     table = snapshot_table(path, "2026-10-28")
     assert (

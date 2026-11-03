@@ -58,6 +58,9 @@ def performance_panel(path: str | Path) -> None:
         "Estatística", list(labels), format_func=lambda value: labels[value], default="pts", required=True
     )
     selected = table.loc[table.stat.eq(stat)]
+    model = st.selectbox("Versão da previsão", ["Todas", *sorted(selected.model.unique())])
+    if model != "Todas":
+        selected = selected.loc[selected.model.eq(model)]
     player = st.selectbox("Jogador", ["Todos", *sorted(selected.player.unique())], key="performance_player")
     if player != "Todos":
         selected = selected.loc[selected.player.eq(player)]
@@ -65,7 +68,10 @@ def performance_panel(path: str | Path) -> None:
     columns = st.columns(3)
     columns[0].metric("Resultados comparados", metrics["n"])
     columns[1].metric("Erro médio", f"{metrics['mae']:.2f}" if metrics["mae"] is not None else "—")
-    columns[2].metric("Aguardando resultado", int(selected.status.eq("Aguardando resultado").sum()))
+    columns[2].metric(
+        "Aguardando resultado",
+        int(selected.status.isin(["Aguardando resultado", "Aguardando conferência final"]).sum()),
+    )
     st.caption(
         "O erro médio é a diferença absoluta entre previsto e realizado. Ausências ficam fora da conta. "
         "Amostras pequenas ainda não comprovam desempenho estável."
@@ -107,6 +113,8 @@ def performance_panel(path: str | Path) -> None:
             alt="Previsões salvas e resultados reais da partida exata",
         )
     elif mode == "Probabilidades":
+        side = st.segmented_control("Lado avaliado", ["Over", "Under"], default="Over", required=True).lower()
+        probability = probability_metrics(selected, side=side)
         st.caption(
             "Avaliação da chance de superar a linha estatística original de meia unidade; sem odds de casas."
         )
@@ -117,7 +125,7 @@ def performance_panel(path: str | Path) -> None:
         columns[0].metric("Brier score", f"{probability['brier']:.3f}")
         columns[1].metric("Log loss", f"{probability['log_loss']:.3f}")
         st.caption("Menor é melhor nestas duas métricas; elas também refletem fatores além da calibração.")
-        bins = calibration_bins(selected)
+        bins = calibration_bins(selected, side=side)
         chart = (
             alt.Chart(bins)
             .mark_circle(size=90)
@@ -138,6 +146,9 @@ def performance_panel(path: str | Path) -> None:
         )
         st.caption(
             "A diagonal representa concordância. As barras mostram a incerteza da frequência observada."
+        )
+        st.caption(
+            "Over e Under são complementares nas linhas de meia unidade; a amostra não é contada duas vezes."
         )
         st.dataframe(
             bins.rename(

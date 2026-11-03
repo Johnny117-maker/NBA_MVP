@@ -72,7 +72,13 @@ def test_results_use_latest_correction_prefer_remote_and_exclude_dnp(tmp_path):
                         1,
                         "2026-10-03T03:00:00+00:00",
                         str(actual),
-                        json.dumps(dict(status="Jogou", actual={s: actual for s in ("pts", "reb", "ast")})),
+                        json.dumps(
+                            dict(
+                                confirmed_final=True,
+                                status="Jogou",
+                                actual={s: actual for s in ("pts", "reb", "ast")},
+                            )
+                        ),
                     ),
                 )
             connection.execute(
@@ -127,7 +133,9 @@ def test_performance_ui_opens_all_views_with_pending_and_resolved_records(app_db
                 1,
                 "2026-10-03T03:00:00+00:00",
                 "actual",
-                json.dumps(dict(status="Jogou", actual={s: 20 for s in ("pts", "reb", "ast")})),
+                json.dumps(
+                    dict(confirmed_final=True, status="Jogou", actual={s: 20 for s in ("pts", "reb", "ast")})
+                ),
             ),
         )
     rows = performance_rows(path, "2026-10-01", "2026-10-03")

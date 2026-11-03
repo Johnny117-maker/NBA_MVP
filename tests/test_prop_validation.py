@@ -43,3 +43,18 @@ def test_batch_audit_matches_actual_projection_distribution(research_history):
         for key in ("projected", "over", "under", "low", "high", "dispersion_shape"):
             assert getattr(item, key) == pytest.approx(actual["stats"][item.stat][key], rel=1e-5)
     assert np.isfinite(batch.projected).all()
+
+
+def _validation_page():
+    from src.ui.validation import validation_panel
+
+    validation_panel("data/nba.db")
+
+
+def test_independent_quality_report_opens_without_training_or_network():
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_function(_validation_page).run(timeout=15)
+    assert not app.exception
+    assert len(app.dataframe) >= 3
+    assert app.get("download_button")

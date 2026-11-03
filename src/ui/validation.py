@@ -32,6 +32,36 @@ def validation_report(path: str) -> dict:
     return {}
 
 
+def _probability_evidence(report: dict, labels: dict) -> None:
+    st.subheader("Probabilidades de Over e Under")
+    probability_rows = []
+    for stat, evidence in report["stats"].items():
+        grid = evidence.get("probability_grid", {})
+        probability_rows.append(
+            {
+                "Estatística": labels[stat],
+                "Brier na referência": evidence["probability"]["brier"],
+                "Brier da frequência anterior": evidence.get("reference_probability_brier"),
+                "Ganho mínimo IC95%": evidence.get("probability_gain_vs_reference", {}).get("low"),
+                "Brier na grade de linhas": grid.get("brier"),
+                "Brier da grade sem ajuste": grid.get("original_brier"),
+                "Log loss na grade": grid.get("log_loss"),
+            }
+        )
+    st.dataframe(
+        pd.DataFrame(probability_rows),
+        hide_index=True,
+        alt="Probabilidades comparadas com frequência histórica anterior e com a distribuição original",
+    )
+    st.caption(
+        "Menor Brier e log loss são melhores. A referência de frequência só usa dados anteriores ao teste. "
+        "A grade avalia a linha de referência e ±5 pontos ou ±2 rebotes/assistências; "
+        "são várias linhas dos mesmos jogos, não novos resultados independentes. "
+        "Under é o complemento de Over nessas linhas. "
+        "Isso não valida linhas de casas nem probabilidades ao vivo."
+    )
+
+
 def validation_panel(path: str | Path) -> None:
     st.subheader("Comprovação em dados separados do treino")
     st.caption(
@@ -75,6 +105,7 @@ def validation_panel(path: str | Path) -> None:
         "Resultados históricos não comprovam acerto futuro, lucro "
         "ou qualidade para cada jogador individualmente."
     )
+    _probability_evidence(report, labels)
     with st.expander("Datas, cobertura e reprodução do teste"):
         st.write(report["protocol"])
         st.write(report["uncertainty"])

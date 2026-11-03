@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 def main():
     from src.prop_training import load_research_history
-    from src.prop_validation import temporal_audit
+    from src.prop_validation import probability_grid, temporal_audit
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, required=True)
@@ -27,7 +27,7 @@ def main():
     report, rows = temporal_audit(history)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     cases = args.output.with_suffix(".csv")
-    rows.to_csv(cases, index=False)
+    (probability_grid(rows) if not rows.empty else rows).to_csv(cases, index=False)
     report["cases_sha256"] = hashlib.sha256(cases.read_bytes()).hexdigest()
     args.output.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8"

@@ -14,14 +14,14 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.stats import nbinom
 from sklearn.metrics import mean_absolute_error
 
 from .daily_games import recent_training_sample
 from .live_types import utc_now
 from .player_metrics import add_efficiency_metrics
+from .prop_probability import count_distribution, fit_dispersion
 
-VERSION = "props-xgb-audit-v3"
+VERSION = "props-xgb-audit-probability-v4"
 STATS = ("pts", "reb", "ast")
 LEAGUE_RATE_PRIORS = {"pts": 0.5, "reb": 0.22, "ast": 0.11}
 FEATURES = [
@@ -197,7 +197,9 @@ def _fit_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
         "metrics": {},
         "weights": {},
         "dispersion": {},
-        "probability_status": "Experimental; avaliação de médias não calibra probabilidades Over/Under",
+        "probability_calibration": {},
+        "probability_status": "Probabilidades avaliadas em teste externo histórico; "
+        "continuam experimentais e precisam de confirmação prospectiva",
     }
     models = {}
     validation_predictions = {}
@@ -229,6 +231,9 @@ def _fit_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
         excess = max(0.1, float(np.mean((calibration[stat].to_numpy() - cal_pred) ** 2 - cal_pred)))
         shape = float(np.clip(float(np.mean(cal_pred)) ** 2 / excess, 1, 60))
         manifest["dispersion"][stat] = shape
+        manifest["probability_calibration"][stat] = fit_dispersion(
+            calibration, test, cal_pred, projected, shape, stat
+        )
         model.fit(table[FEATURES].astype(float), table[stat].astype(float))
         models[stat] = model
     from .minutes_model import train_minutes
@@ -240,6 +245,9 @@ def _fit_props(history: pd.DataFrame, *, estimators: int = 120) -> PropsBundle:
     manifest["metrics_basis"] = "Ensemble inclui ajuste de minutos quando validado; Bayes/XGB são referências"
     if minutes_report["active"]:
         for stat in STATS:
+            manifest["probability_calibration"][stat].update(
+                scale=1.0, active=False, status="Aguardando avaliação conjunta com o ajuste de minutos"
+            )
             manifest["metrics"][stat]["ensemble_mae_before_minutes"] = manifest["metrics"][stat][
                 "ensemble_mae"
             ]
@@ -326,10 +334,18 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
         else:
             blend = central
         shape = float(bundle.manifest["dispersion"][stat]) if bundle else 4.0
+        probability_context = (
+            dict(bundle.manifest.get("probability_calibration", {}).get(stat, {})) if bundle else {}
+        )
+        if adjustment.get("status") == "Aplicado":
+            probability_context.update(
+                scale=1.0, active=False, status="Probabilidade experimental após ajuste de média por feedback"
+            )
+        shape *= float(probability_context.get("scale", 1.0))
         # Inclui incerteza posterior da taxa e sobredispersão por partida.
         posterior_shape = float(row[f"{stat}_alpha"])
         effective_shape = 1 / (1 / shape + 1 / posterior_shape)
-        distribution = nbinom(effective_shape, effective_shape / (effective_shape + max(central, 0.001)))
+        distribution = count_distribution(central, effective_shape)
         line = math.floor(bayes) + 0.5
         result["stats"][stat] = {
             "bayes": bayes,
@@ -342,6 +358,8 @@ def project_props(row: pd.Series, bundle: PropsBundle | None = None) -> dict:
             "feedback_id": feedback.get("id"),
             "feedback_correction": central - base,
             "dispersion_shape": effective_shape,
+            "probability_context": probability_context,
+            "reference_over": probability_context.get("reference_over"),
             "low": float(distribution.ppf(0.1)),
             "high": float(distribution.ppf(0.9)),
             "line": line,

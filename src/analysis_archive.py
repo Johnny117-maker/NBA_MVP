@@ -62,6 +62,10 @@ def connect_archive(path: str | Path) -> sqlite3.Connection:
     target.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(target, timeout=20)
     connection.executescript(SCHEMA)
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS remote_result_authority "
+        "(snapshot_id TEXT,player_id INTEGER,imported_at TEXT,PRIMARY KEY(snapshot_id,player_id))"
+    )
     return connection
 
 
@@ -123,7 +127,8 @@ def read_snapshots(
     if for_resolution:
         conditions.append(
             "(day>=? OR (SELECT COUNT(DISTINCT player_id) FROM snapshot_outcomes "
-            "WHERE snapshot_id=daily_snapshots.id)<json_array_length(payload,'$.players'))"
+            "WHERE snapshot_id=daily_snapshots.id AND json_extract(payload,'$.confirmed_final')=1)"
+            "<json_array_length(payload,'$.players'))"
         )
         parameters.append((utc_now().astimezone(EASTERN).date() - timedelta(days=14)).isoformat())
     if origin not in {"preferred", "local", "github", "all"}:
@@ -137,7 +142,8 @@ def read_snapshots(
         query += "WHERE " + " AND ".join(conditions) + " "
     query += (
         "ORDER BY CASE WHEN (SELECT COUNT(DISTINCT player_id) FROM snapshot_outcomes "
-        "WHERE snapshot_id=daily_snapshots.id)<json_array_length(payload,'$.players') "
+        "WHERE snapshot_id=daily_snapshots.id AND json_extract(payload,'$.confirmed_final')=1)"
+        "<json_array_length(payload,'$.players') "
         "THEN 0 ELSE 1 END,day DESC,kickoff,game_key"
         if for_resolution
         else "ORDER BY day DESC,kickoff,game_key"
@@ -354,7 +360,7 @@ def create_daily_snapshots(
     return added
 
 
-def resolve_snapshots(path: str | Path) -> int:
+def resolve_snapshots(path: str | Path, *, allow_remote_corrections: bool = False) -> int:
     snapshots = read_snapshots(path, for_resolution=True, limit=200, origin="all")
     if not snapshots or not Path(path).exists():
         return 0
@@ -384,14 +390,24 @@ def resolve_snapshots(path: str | Path) -> int:
                 and float(team["minutes"].sum()) >= 230
                 for code, score in ((snapshot["home"], game[1]), (snapshot["away"], game[2]))
             )
+            if not complete:
+                continue
             for player in snapshot["players"]:
                 pid = player["player_id"]
+                if (
+                    not allow_remote_corrections
+                    and archive.execute(
+                        "SELECT 1 FROM remote_result_authority WHERE snapshot_id=? AND player_id=?",
+                        (snapshot["id"], pid),
+                    ).fetchone()
+                ):
+                    continue
                 alias = history.execute(
                     "SELECT canonical_id FROM player_id_aliases WHERE alias=?", (pid,)
                 ).fetchone()
                 canonical = int(alias[0]) if alias else pid
                 actual = all_rows.loc[all_rows["player_id"].eq(canonical)]
-                if snapshot.get("origin") == "GitHub" and pid < 0:
+                if actual.empty or (snapshot.get("origin") == "GitHub" and pid < 0):
                     # IDs negativos podem ter outra ordem em outro computador.
                     matches = all_rows.loc[
                         all_rows["player_name"]
@@ -406,6 +422,8 @@ def resolve_snapshots(path: str | Path) -> int:
                 participated = not actual.empty and float(actual.iloc[0]["minutes"]) > 0
                 outcome = {
                     "game_id": game[0],
+                    "confirmed_final": True,
+                    "verification": "Box score completo conferido com placar e minutos das duas equipes",
                     "status": "Jogou" if participated else "Sem participação",
                     "actual": {s: float(actual.iloc[0][s]) for s in STATS} if participated else None,
                     "minutes": float(actual.iloc[0]["minutes"]) if participated else None,

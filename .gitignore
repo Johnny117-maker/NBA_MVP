@@ -63,3 +63,4 @@ outputs/
 
 # Backtests locais gerados por scripts/retrain_models.py
 reports/player_backtest_predictions.csv
+reports/validation/
