@@ -6,6 +6,7 @@ import pandas as pd
 from .data import team_snapshot
 from .model import FEATURE_NAMES, ModelBundle
 from .nba_teams import TEAM_CONFERENCE
+from .team_strength import current_elo_ratings
 
 DEFAULT_REST_DAYS = 2
 DIRECT_PLAYOFF_SEEDS = 6
@@ -38,7 +39,8 @@ def current_standings(known_games: pd.DataFrame) -> pd.DataFrame:
 
 def team_snapshots(known_games: pd.DataFrame, teams: list) -> dict:
     """Um team_snapshot (força congelada no corte) por time."""
-    return {team: team_snapshot(known_games, team) for team in teams}
+    ratings = current_elo_ratings(known_games)
+    return {team: team_snapshot(known_games, team, elo_ratings=ratings) for team in teams}
 
 
 def _matchup_feature_matrix(
@@ -58,16 +60,14 @@ def _matchup_feature_matrix(
 
     home_net, away_net = _get("net_rating")
     home_form, away_form = _get("win_pct")
-    home_off, away_off = _get("off_rating")
-    home_def, away_def = _get("def_rating")
+    home_elo, away_elo = _get("elo")
 
     return pd.DataFrame(
         {
+            "elo_diff": home_elo - away_elo,
             "net_rating_diff": home_net - away_net,
             "form_diff": home_form - away_form,
             "rest_diff": home_rest - away_rest,
-            "off_rating_diff": home_off - away_off,
-            "defensive_edge": away_def - home_def,
         }
     )[FEATURE_NAMES]
 

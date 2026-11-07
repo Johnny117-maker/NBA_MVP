@@ -105,8 +105,8 @@ def build_matchup_pick(
     home, away = str(game["home_team_name"]), str(game["away_team_name"])
     prediction = predict_game(
         bundle,
-        team_snapshot(before, home),
-        team_snapshot(before, away),
+        team_snapshot(before, home, as_of=selected_day),
+        team_snapshot(before, away, as_of=selected_day),
         team_rest_days(before, home, selected_day),
         team_rest_days(before, away, selected_day),
     )

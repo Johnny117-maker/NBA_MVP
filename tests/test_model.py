@@ -1,8 +1,10 @@
 import pandas as pd
 import pytest
+from scipy.stats import norm
 
 from src.data import available_teams, generate_demo_games, load_real_games, team_snapshot
 from src.model import (
+    FEATURE_LABELS,
     FEATURE_NAMES,
     SCORE_FEATURE_NAMES,
     build_score_features,
@@ -57,15 +59,14 @@ def test_simulation_returns_expected_rows(setup_model):
     assert not (result["home_score"] == result["away_score"]).any()
 
 
-def test_score_models_use_absolute_context_while_winner_uses_relative_features(setup_model):
+def test_total_uses_absolute_context_while_winner_uses_relative_features(setup_model):
     games, bundle, teams = setup_model
     assert bundle.win_model.feature_names_in_.tolist() == FEATURE_NAMES
-    assert bundle.home_score_model.feature_names_in_.tolist() == SCORE_FEATURE_NAMES
-    assert bundle.away_score_model.feature_names_in_.tolist() == SCORE_FEATURE_NAMES
+    assert bundle.total_model.feature_names_in_.tolist() == SCORE_FEATURE_NAMES
     home, away = (team_snapshot(games, team) for team in teams[:2])
     baseline = predict_game(bundle, home, away)
     # O mesmo aumento nos dois times preserva as diferenças, mas altera o
-    # nível esperado do placar: limitação que motivou a troca do modelo.
+    # nível esperado do placar: limitação que motivou o modelo do total.
     higher = [dict(snapshot) for snapshot in (home, away)]
     for snapshot in higher:
         for key in ("off_rating", "def_rating", "points_for"):
@@ -73,6 +74,42 @@ def test_score_models_use_absolute_context_while_winner_uses_relative_features(s
     prediction = predict_game(bundle, *higher)
     assert prediction.home_win_probability == pytest.approx(baseline.home_win_probability)
     assert prediction.home_score + prediction.away_score > baseline.home_score + baseline.away_score + 5
+
+
+def test_winner_and_scores_come_from_the_same_margin(setup_model):
+    games, bundle, teams = setup_model
+    prediction = predict_game(bundle, team_snapshot(games, teams[6]), team_snapshot(games, teams[7]))
+    margin = prediction.home_score - prediction.away_score
+    expected = norm.cdf(margin / bundle.win_model.sigma)
+    assert prediction.home_win_probability == pytest.approx(expected)
+    # O favorito nunca perde no placar previsto.
+    assert (margin > 0) == (prediction.home_win_probability > 0.5)
+
+
+def test_stronger_elo_raises_the_win_probability(setup_model):
+    games, bundle, teams = setup_model
+    home, away = (team_snapshot(games, team) for team in teams[:2])
+    weaker, stronger = dict(home, elo=1400.0), dict(home, elo=1600.0)
+    low = predict_game(bundle, weaker, away)
+    high = predict_game(bundle, stronger, away)
+    assert high.home_win_probability > low.home_win_probability
+    assert high.home_score - high.away_score > low.home_score - low.away_score
+
+
+def test_factors_explain_the_margin_in_standard_deviations(setup_model):
+    games, bundle, teams = setup_model
+    home, away = (team_snapshot(games, team) for team in teams[:2])
+    prediction = predict_game(bundle, home, away)
+    assert {label for label, _ in prediction.factors} == set(FEATURE_LABELS.values())
+    magnitudes = [abs(value) for _, value in prediction.factors]
+    assert magnitudes == sorted(magnitudes, reverse=True)
+
+
+def test_training_metrics_include_margin_error(setup_model):
+    _, bundle, _ = setup_model
+    for key in ("accuracy", "log_loss", "brier_score", "home_points_mae", "away_points_mae", "margin_mae"):
+        assert key in bundle.metrics
+    assert bundle.metrics["score_model_version"] == 3
 
 
 def test_score_inputs_do_not_use_the_target_games_points():

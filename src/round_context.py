@@ -145,7 +145,7 @@ def _project_player(
     opponent_def_rating = None
     if team_games is not None:
         try:
-            opponent_def_rating = team_snapshot(team_games, opponent_name)["def_rating"]
+            opponent_def_rating = team_snapshot(team_games, opponent_name, with_elo=False)["def_rating"]
         except (ValueError, KeyError):
             opponent_def_rating = None
     try:

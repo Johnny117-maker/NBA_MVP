@@ -654,7 +654,9 @@ with tab_projection:
                 and selected_opponent in available_opponent_names
             ):
                 try:
-                    opponent_def_rating = team_snapshot(team_games, selected_opponent)["def_rating"]
+                    opponent_def_rating = team_snapshot(
+                        team_games, selected_opponent, with_elo=False
+                    )["def_rating"]
                 except ValueError:
                     opponent_def_rating = None
             if selected_opponent is not None and opponent_def_rating is None:

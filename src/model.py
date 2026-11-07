@@ -4,15 +4,36 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from sklearn.base import clone
-from sklearn.linear_model import LogisticRegression, Ridge
+from scipy.stats import norm
+from sklearn.linear_model import Ridge
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, mean_absolute_error
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from .features import pregame_scoring_averages
+from .team_strength import ELO_BASE, ensure_elo_columns
 
+# Modelo de vencedor e margem: regressão da margem do mandante sobre a força
+# relativa dos times. A probabilidade de vitória vem da mesma margem prevista
+# (distribuição normal), então vencedor e placar nunca se contradizem.
 FEATURE_NAMES = [
+    "elo_diff",
+    "net_rating_diff",
+    "form_diff",
+    "rest_diff",
+]
+
+FEATURE_LABELS = {
+    "elo_diff": "Força do time (Elo)",
+    "net_rating_diff": "Diferença de Net Rating",
+    "form_diff": "Forma recente",
+    "rest_diff": "Dias de descanso",
+}
+
+# Diferenças relativas usadas no modelo do total de pontos (versão anterior do
+# vencedor). O total depende do nível absoluto de ataque e defesa, não só da
+# diferença entre os times.
+_RELATIVE_FEATURES = [
     "net_rating_diff",
     "form_diff",
     "rest_diff",
@@ -20,17 +41,9 @@ FEATURE_NAMES = [
     "defensive_edge",
 ]
 
-FEATURE_LABELS = {
-    "net_rating_diff": "Diferença de Net Rating",
-    "form_diff": "Forma recente",
-    "rest_diff": "Dias de descanso",
-    "off_rating_diff": "Eficiência ofensiva",
-    "defensive_edge": "Eficiência defensiva",
-}
-
-SCORE_MODEL_VERSION = 2
+SCORE_MODEL_VERSION = 3
 SCORE_FEATURE_NAMES = [
-    *FEATURE_NAMES,
+    *_RELATIVE_FEATURES,
     "home_off_rating",
     "away_off_rating",
     "home_def_rating",
@@ -39,15 +52,50 @@ SCORE_FEATURE_NAMES = [
     "away_points_avg10",
 ]
 
+MARGIN_RIDGE_ALPHA = 10.0
+TOTAL_RIDGE_ALPHA = 2.0
+MIN_MARGIN_SIGMA = 8.0
+
+
+class MarginWinModel:
+    """Regressão da margem do mandante; `predict_proba` converte a margem em chance de vitória."""
+
+    def __init__(self, pipeline: Pipeline, sigma: float):
+        self.pipeline = pipeline
+        self.sigma = float(sigma)
+
+    @property
+    def feature_names_in_(self) -> np.ndarray:
+        return np.asarray(FEATURE_NAMES)
+
+    def predict_margin(self, features: pd.DataFrame) -> np.ndarray:
+        return self.pipeline.predict(features[FEATURE_NAMES])
+
+    def predict_proba(self, features: pd.DataFrame) -> np.ndarray:
+        home = norm.cdf(self.predict_margin(features) / self.sigma)
+        return np.column_stack([1.0 - home, home])
+
 
 @dataclass
 class ModelBundle:
-    win_model: Pipeline
-    home_score_model: Pipeline
-    away_score_model: Pipeline
+    win_model: MarginWinModel
+    total_model: Pipeline
     metrics: dict[str, float]
     residual_std_home: float
     residual_std_away: float
+
+    def predict_scores(self, features: pd.DataFrame, score_features: pd.DataFrame) -> pd.DataFrame:
+        """Placar de cada time a partir da margem e do total previstos."""
+        margin = self.win_model.predict_margin(features)
+        total = self.total_model.predict(score_features[SCORE_FEATURE_NAMES])
+        return pd.DataFrame(
+            {
+                "margin": margin,
+                "home_points": (total + margin) / 2.0,
+                "away_points": (total - margin) / 2.0,
+            },
+            index=features.index,
+        )
 
 
 @dataclass(frozen=True)
@@ -64,7 +112,7 @@ class GamePrediction:
     factors: list[tuple[str, float]]
 
 
-def build_features(games: pd.DataFrame) -> pd.DataFrame:
+def _relative_features(games: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "net_rating_diff": games["home_net_rating"] - games["away_net_rating"],
@@ -77,8 +125,15 @@ def build_features(games: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def build_features(games: pd.DataFrame) -> pd.DataFrame:
+    games = ensure_elo_columns(games)
+    features = _relative_features(games)
+    features["elo_diff"] = games["home_elo"] - games["away_elo"]
+    return features[FEATURE_NAMES]
+
+
 def build_score_features(games: pd.DataFrame) -> pd.DataFrame:
-    features = build_features(games)
+    features = _relative_features(games)
     for side in ("home", "away"):
         for rating in ("off_rating", "def_rating"):
             features[f"{side}_{rating}"] = games[f"{side}_{rating}"]
@@ -99,17 +154,14 @@ def temporal_split_index(games: pd.DataFrame) -> int:
     return int(dates.lt(boundary).sum())
 
 
-def _classification_pipeline() -> Pipeline:
-    return Pipeline(
-        [
-            ("scale", StandardScaler()),
-            ("model", LogisticRegression(max_iter=1_000, random_state=42)),
-        ]
-    )
+def _regression_pipeline(alpha: float) -> Pipeline:
+    return Pipeline([("scale", StandardScaler()), ("model", Ridge(alpha=alpha))])
 
 
-def _regression_pipeline() -> Pipeline:
-    return Pipeline([("scale", StandardScaler()), ("model", Ridge(alpha=2.0))])
+def _fit_margin_model(features: pd.DataFrame, margin: pd.Series) -> MarginWinModel:
+    pipeline = _regression_pipeline(MARGIN_RIDGE_ALPHA).fit(features[FEATURE_NAMES], margin)
+    residual = margin.to_numpy() - pipeline.predict(features[FEATURE_NAMES])
+    return MarginWinModel(pipeline, max(float(np.std(residual)), MIN_MARGIN_SIGMA))
 
 
 def train_models(games: pd.DataFrame) -> ModelBundle:
@@ -120,60 +172,46 @@ def train_models(games: pd.DataFrame) -> ModelBundle:
     features = build_features(ordered)
     score_features = build_score_features(ordered)
     home_win = ordered["home_win"].astype(int)
+    margin = ordered["home_points"] - ordered["away_points"]
+    total = ordered["home_points"] + ordered["away_points"]
     split = temporal_split_index(ordered)
 
-    x_train, x_test = features.iloc[:split], features.iloc[split:]
-    y_train, y_test = home_win.iloc[:split], home_win.iloc[split:]
-
-    evaluation_win_model = _classification_pipeline().fit(x_train, y_train)
-    probabilities = evaluation_win_model.predict_proba(x_test)[:, 1]
-    classifications = (probabilities >= 0.5).astype(int)
-
-    evaluation_home_score = _regression_pipeline().fit(
-        score_features.iloc[:split], ordered["home_points"].iloc[:split]
+    evaluation_win = _fit_margin_model(features.iloc[:split], margin.iloc[:split])
+    evaluation_total = _regression_pipeline(TOTAL_RIDGE_ALPHA).fit(
+        score_features.iloc[:split], total.iloc[:split]
     )
-    evaluation_away_score = _regression_pipeline().fit(
-        score_features.iloc[:split], ordered["away_points"].iloc[:split]
-    )
-    predicted_home = evaluation_home_score.predict(score_features.iloc[split:])
-    predicted_away = evaluation_away_score.predict(score_features.iloc[split:])
+    test_features = features.iloc[split:]
+    probabilities = evaluation_win.predict_proba(test_features)[:, 1]
+    test_margin = evaluation_win.predict_margin(test_features)
+    test_total = evaluation_total.predict(score_features.iloc[split:])
+    predicted_home = (test_total + test_margin) / 2.0
+    predicted_away = (test_total - test_margin) / 2.0
+    actual_home = ordered["home_points"].iloc[split:].to_numpy()
+    actual_away = ordered["away_points"].iloc[split:].to_numpy()
+    y_test = home_win.iloc[split:]
 
     metrics = {
         "score_model_version": float(SCORE_MODEL_VERSION),
         "score_feature_count": float(len(SCORE_FEATURE_NAMES)),
-        "accuracy": float(accuracy_score(y_test, classifications)),
+        "accuracy": float(accuracy_score(y_test, (probabilities >= 0.5).astype(int))),
         "log_loss": float(log_loss(y_test, probabilities, labels=[0, 1])),
         "brier_score": float(brier_score_loss(y_test, probabilities)),
-        "home_points_mae": float(
-            mean_absolute_error(ordered["home_points"].iloc[split:], predicted_home)
-        ),
-        "away_points_mae": float(
-            mean_absolute_error(ordered["away_points"].iloc[split:], predicted_away)
-        ),
+        "home_points_mae": float(mean_absolute_error(actual_home, predicted_home)),
+        "away_points_mae": float(mean_absolute_error(actual_away, predicted_away)),
+        "margin_mae": float(mean_absolute_error(actual_home - actual_away, test_margin)),
+        "margin_sigma": float(evaluation_win.sigma),
     }
 
-    residual_std_home = float(
-        np.std(ordered["home_points"].iloc[split:].to_numpy() - predicted_home)
-    )
-    residual_std_away = float(
-        np.std(ordered["away_points"].iloc[split:].to_numpy() - predicted_away)
-    )
-
     return ModelBundle(
-        win_model=clone(evaluation_win_model).fit(features, home_win),
-        home_score_model=clone(evaluation_home_score).fit(
-            score_features, ordered["home_points"]
-        ),
-        away_score_model=clone(evaluation_away_score).fit(
-            score_features, ordered["away_points"]
-        ),
+        win_model=_fit_margin_model(features, margin),
+        total_model=_regression_pipeline(TOTAL_RIDGE_ALPHA).fit(score_features, total),
         metrics=metrics,
-        residual_std_home=max(residual_std_home, 5.0),
-        residual_std_away=max(residual_std_away, 5.0),
+        residual_std_home=max(float(np.std(actual_home - predicted_home)), 5.0),
+        residual_std_away=max(float(np.std(actual_away - predicted_away)), 5.0),
     )
 
 
-def matchup_features(
+def _relative_matchup_features(
     home: dict[str, float],
     away: dict[str, float],
     home_rest_days: int,
@@ -192,12 +230,24 @@ def matchup_features(
     )
 
 
-def _factor_contributions(model: Pipeline, features: pd.DataFrame) -> list[tuple[str, float]]:
-    scaler: StandardScaler = model.named_steps["scale"]
-    classifier: LogisticRegression = model.named_steps["model"]
-    scaled = scaler.transform(features)[0]
-    coefficients = classifier.coef_[0]
-    contributions = scaled * coefficients
+def matchup_features(
+    home: dict[str, float],
+    away: dict[str, float],
+    home_rest_days: int,
+    away_rest_days: int,
+) -> pd.DataFrame:
+    features = _relative_matchup_features(home, away, home_rest_days, away_rest_days)
+    # `elo` vem de `data.team_snapshot`; sem ele os dois times contam como iguais.
+    features["elo_diff"] = home.get("elo", ELO_BASE) - away.get("elo", ELO_BASE)
+    return features[FEATURE_NAMES]
+
+
+def _factor_contributions(model: MarginWinModel, features: pd.DataFrame) -> list[tuple[str, float]]:
+    scaler: StandardScaler = model.pipeline.named_steps["scale"]
+    ridge: Ridge = model.pipeline.named_steps["model"]
+    scaled = scaler.transform(features[FEATURE_NAMES])[0]
+    # Em unidades do argumento da curva normal: a soma é a margem em desvios-padrão.
+    contributions = scaled * ridge.coef_ / model.sigma
     result = [
         (FEATURE_LABELS[name], float(value))
         for name, value in zip(FEATURE_NAMES, contributions, strict=True)
@@ -211,7 +261,7 @@ def matchup_score_features(
     home_rest_days: int,
     away_rest_days: int,
 ) -> pd.DataFrame:
-    features = matchup_features(home, away, home_rest_days, away_rest_days)
+    features = _relative_matchup_features(home, away, home_rest_days, away_rest_days)
     for side, snapshot in (("home", home), ("away", away)):
         for rating in ("off_rating", "def_rating"):
             features[f"{side}_{rating}"] = snapshot[rating]
@@ -229,8 +279,9 @@ def predict_game(
     features = matchup_features(home, away, home_rest_days, away_rest_days)
     score_features = matchup_score_features(home, away, home_rest_days, away_rest_days)
     home_probability = float(bundle.win_model.predict_proba(features)[0, 1])
-    predicted_home = float(bundle.home_score_model.predict(score_features)[0])
-    predicted_away = float(bundle.away_score_model.predict(score_features)[0])
+    scores = bundle.predict_scores(features, score_features).iloc[0]
+    predicted_home = float(scores["home_points"])
+    predicted_away = float(scores["away_points"])
 
     margin = abs(home_probability - 0.5)
     confidence = "Baixa" if margin < 0.08 else "Média" if margin < 0.18 else "Alta"

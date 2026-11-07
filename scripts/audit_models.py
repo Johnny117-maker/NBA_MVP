@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss, mean_absolute_error
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.features import engineer_features  # noqa: E402
 from src.model import (  # noqa: E402
     SCORE_MODEL_VERSION,
+    _relative_features,
     build_features,
     build_score_features,
     train_models,
@@ -96,6 +97,13 @@ def team_audit(connection: sqlite3.Connection, as_of: str) -> tuple[dict, pd.Dat
         bundle = train_models(train)
         x_test = build_features(test)
         probability = bundle.win_model.predict_proba(x_test)[:, 1]
+        # Modelo anterior (logística sobre cinco diferenças), como referência fixa.
+        legacy_train, legacy_test = _relative_features(train), _relative_features(test)
+        legacy_probability = (
+            make_pipeline(StandardScaler(), LogisticRegression(max_iter=1_000, random_state=42))
+            .fit(legacy_train, train["home_win"].astype(int))
+            .predict_proba(legacy_test)[:, 1]
+        )
         home_rate = float(train["home_win"].mean())
         row = {
             "season": season,
@@ -111,6 +119,9 @@ def team_audit(connection: sqlite3.Connection, as_of: str) -> tuple[dict, pd.Dat
                 brier_score_loss(test["home_win"], np.full(len(test), home_rate))
             ),
             "log_loss": float(log_loss(test["home_win"], probability, labels=[0, 1])),
+            "legacy_accuracy": float(accuracy_score(test["home_win"], legacy_probability >= 0.5)),
+            "legacy_brier": float(brier_score_loss(test["home_win"], legacy_probability)),
+            "legacy_log_loss": float(log_loss(test["home_win"], legacy_probability, labels=[0, 1])),
         }
         calibration = pd.DataFrame({"predicted": probability, "actual": test["home_win"].to_numpy()})
         calibration["bucket"] = np.minimum((probability * 10).astype(int), 9)
@@ -123,16 +134,14 @@ def team_audit(connection: sqlite3.Connection, as_of: str) -> tuple[dict, pd.Dat
             }
             for bucket, part in calibration.groupby("bucket")
         ]
-        for side, model in (("home", bundle.home_score_model), ("away", bundle.away_score_model)):
+        scores = bundle.predict_scores(x_test, score_features.loc[test.index])
+        for side in ("home", "away"):
             target = f"{side}_points"
-            predicted = model.predict(score_features.loc[test.index])
+            predicted = scores[target]
             legacy = (
                 make_pipeline(StandardScaler(), Ridge(alpha=2.0))
-                .fit(
-                    build_features(train),
-                    train[target],
-                )
-                .predict(x_test)
+                .fit(legacy_train, train[target])
+                .predict(legacy_test)
             )
             baseline = score_features.loc[test.index, f"{side}_points_avg10"]
             row[f"{side}_mae"] = float(mean_absolute_error(test[target], predicted))

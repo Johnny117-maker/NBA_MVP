@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .team_strength import elo_history
+
 DEFAULT_WIN_PCT = 0.5
 DEFAULT_REST_DAYS = 3
 ROLLING_WINDOW = 10
@@ -33,6 +35,8 @@ _OUTPUT_COLUMNS = [
     "home_points",
     "away_points",
     "home_win",
+    "home_elo",
+    "away_elo",
 ]
 
 
@@ -159,6 +163,8 @@ def engineer_features(
     """
     raw_games = raw_games.copy()
     raw_games["game_date"] = pd.to_datetime(raw_games["game_date"])
+    # Elo de cada time antes do jogo (força acumulada, ajustada pelo adversário).
+    raw_games["home_elo"], raw_games["away_elo"], _, _ = elo_history(raw_games)
 
     long = _add_rolling_features(_team_long_format(raw_games, advanced_stats))
     context_columns = ["game_id", *FEATURE_COLUMNS, "observed_off_rating", "observed_def_rating"]

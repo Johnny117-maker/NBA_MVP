@@ -15,4 +15,4 @@ def test_team_only_records_team_metrics_without_training_other_models(monkeypatc
     retrain_models.main(["--team-only"])
     assert len(records) == 1
     assert records[0][0:2] == ("team", 100)
-    assert records[0][2]["score_model_version"] == 2
+    assert records[0][2]["score_model_version"] == 3

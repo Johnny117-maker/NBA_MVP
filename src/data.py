@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 from io import BytesIO
 from typing import BinaryIO
 
@@ -10,6 +10,7 @@ import pandas as pd
 
 from .features import engineer_features
 from .store import DEFAULT_DB_PATH, read_raw_games, read_team_advanced_stats
+from .team_strength import ELO_BASE, current_elo_ratings
 
 REQUIRED_COLUMNS = {
     "game_date",
@@ -253,7 +254,22 @@ def team_game_history(games: pd.DataFrame, team: str) -> pd.DataFrame:
     return history.sort_values("game_date").reset_index(drop=True)
 
 
-def team_snapshot(games: pd.DataFrame, team: str, window: int = 10) -> dict[str, float]:
+def team_snapshot(
+    games: pd.DataFrame,
+    team: str,
+    window: int = 10,
+    *,
+    as_of: date | None = None,
+    elo_ratings: dict[str, float] | None = None,
+    with_elo: bool = True,
+) -> dict[str, float]:
+    """Estado do time para prever o próximo jogo.
+
+    `elo` é a força acumulada após todos os jogos de `games`. Passe `as_of` (data
+    do jogo previsto) para aplicar a regressão de virada de temporada quando ele
+    é o primeiro do ano, e `elo_ratings` para reaproveitar o cálculo entre vários
+    times. `with_elo=False` evita o cálculo quando só os ratings por jogo importam.
+    """
     history = team_game_history(games, team).tail(window)
     # Na base real, calcule o próximo contexto a partir dos ratings observados,
     # sem fazer uma segunda média sobre médias pré-jogo já defasadas.
@@ -268,7 +284,7 @@ def team_snapshot(games: pd.DataFrame, team: str, window: int = 10) -> dict[str,
         off_rating - def_rating if observed_columns.issubset(games.columns)
         else float(history["net_rating"].mean())
     )
-    return {
+    snapshot = {
         "off_rating": off_rating,
         "def_rating": def_rating,
         "net_rating": net_rating,
@@ -277,3 +293,7 @@ def team_snapshot(games: pd.DataFrame, team: str, window: int = 10) -> dict[str,
         "points_against": float(history["points_against"].mean()),
         "games": float(len(history)),
     }
+    if with_elo:
+        ratings = elo_ratings if elo_ratings is not None else current_elo_ratings(games, as_of=as_of)
+        snapshot["elo"] = float(ratings.get(team, ELO_BASE))
+    return snapshot
