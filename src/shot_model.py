@@ -10,6 +10,7 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from .model import temporal_split_index
 from .player_features import DEFAULT_REST_DAYS, EMA_HALFLIFE_SLOW
 from .shot_features import THREE_POINT_ZONES, ZONE_LABELS_PT, ZONES, add_shot_value, opponent_zone_defense
 
@@ -25,6 +26,60 @@ MIN_RESIDUAL_STD_FG_PCT = 0.03
 # por zona; abaixo disso (zonas raras, ex. "Backcourt") a previsão cai na
 # média da liga (`league_avg_fg_pct`) em vez de um Ridge mal ajustado.
 MIN_GAMES_FOR_EFFICIENCY_MODEL = 10
+
+# Priors fixos usados no início de cada série (primeiro jogo de um jogador ou
+# de um adversário), quando ainda não há jogo anterior para formar a média.
+# São valores aproximados da NBA moderna, escritos aqui e não calculados da
+# base: uma média da base inteira incluiria jogos posteriores ao que está sendo
+# previsto, e o valor mudaria sempre que novos jogos fossem acrescentados (o
+# mesmo princípio de `DEFAULT_RATING` em `features.py`). Só afetam as
+# primeiras linhas de cada série; depois disso a média móvel assume.
+ZONE_SHARE_PRIOR: dict[str, float] = {
+    "Restricted Area": 0.320,
+    "In The Paint (Non-RA)": 0.120,
+    "Mid-Range": 0.130,
+    "Left Corner 3": 0.035,
+    "Right Corner 3": 0.035,
+    "Above the Break 3": 0.358,
+    "Backcourt": 0.002,
+}
+ZONE_FG_PCT_PRIOR: dict[str, float] = {
+    "Restricted Area": 0.650,
+    "In The Paint (Non-RA)": 0.420,
+    "Mid-Range": 0.410,
+    "Left Corner 3": 0.390,
+    "Right Corner 3": 0.390,
+    "Above the Break 3": 0.360,
+    "Backcourt": 0.050,
+}
+
+
+def split_zone_games_by_date(ordered: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Separa ~80% / ~20% mantendo datas completas de um lado só.
+
+    `ordered` precisa estar ordenado por `game_date`. Vários jogadores jogam na
+    mesma data; cortar por posição de linha deixaria a mesma data no treino e
+    no teste. Usa o mesmo critério dos modelos de times
+    (`model.py::temporal_split_index`).
+    """
+    split = temporal_split_index(ordered)
+    return ordered.iloc[:split], ordered.iloc[split:]
+
+
+def walk_forward_boundaries(dates: pd.Series, n_folds: int, min_train_games: int) -> list[int]:
+    """Posições de corte do walk-forward, sem repartir uma data entre dois folds.
+
+    Cada corte intermediário avança até o fim da data da última linha de treino,
+    de modo que o treino nunca fica menor que `min_train_games`. `dates` precisa
+    estar ordenado.
+    """
+    values = pd.to_datetime(dates).dt.normalize().to_numpy()
+    total = len(values)
+    raw = np.linspace(min_train_games, total, n_folds + 1, dtype=int)
+    return [
+        total if cut >= total else int(np.searchsorted(values, values[cut - 1], side="right"))
+        for cut in raw
+    ]
 
 
 @dataclass
@@ -156,12 +211,8 @@ def add_zone_rolling_features(zone_games: pd.DataFrame) -> pd.DataFrame:
     games["rest_days"] = games["rest_days"].fillna(DEFAULT_REST_DAYS).astype(int)
 
     for zone in ZONES:
-        league_avg_share = float(zone_games[f"share_{zone}"].mean())
-        games[f"share_avg10_{zone}"] = games[f"share_avg10_{zone}"].fillna(league_avg_share)
-
-        qualified = zone_games[zone_games[f"attempts_{zone}"] > 0]
-        league_avg_fg_pct = float(qualified[f"fg_pct_{zone}"].mean()) if not qualified.empty else 0.0
-        games[f"fgpct_avg10_{zone}"] = games[f"fgpct_avg10_{zone}"].fillna(league_avg_fg_pct)
+        games[f"share_avg10_{zone}"] = games[f"share_avg10_{zone}"].fillna(ZONE_SHARE_PRIOR[zone])
+        games[f"fgpct_avg10_{zone}"] = games[f"fgpct_avg10_{zone}"].fillna(ZONE_FG_PCT_PRIOR[zone])
 
     return games.sort_values("game_date").reset_index(drop=True)
 
@@ -266,14 +317,12 @@ def add_opponent_zone_defense_features(zone_games: pd.DataFrame, shots: pd.DataF
         direction="backward",
     )
     for zone in ZONES:
-        league_avg_share = float(defense_games[f"share_allowed_{zone}"].mean())
-        league_avg_fg_pct = float(defense_games[f"fg_pct_allowed_{zone}"].mean())
         merged[f"defense_share_allowed_avg_{zone}"] = merged[
             f"defense_share_allowed_avg_{zone}"
-        ].fillna(league_avg_share)
+        ].fillna(ZONE_SHARE_PRIOR[zone])
         merged[f"defense_fgpct_allowed_avg_{zone}"] = merged[
             f"defense_fgpct_allowed_avg_{zone}"
-        ].fillna(league_avg_fg_pct)
+        ].fillna(ZONE_FG_PCT_PRIOR[zone])
     return merged.sort_values("game_date").reset_index(drop=True)
 
 
@@ -302,8 +351,7 @@ def train_zone_models(zone_games_with_features: pd.DataFrame) -> ZoneModelBundle
         )
 
     ordered = zone_games_with_features.sort_values("game_date").reset_index(drop=True)
-    split = max(int(len(ordered) * 0.8), 1)
-    train_rows, test_rows = ordered.iloc[:split], ordered.iloc[split:]
+    train_rows, test_rows = split_zone_games_by_date(ordered)
 
     share_models_eval: dict[str, Pipeline] = {}
     fg_pct_models_eval: dict[str, Pipeline | None] = {}
@@ -550,7 +598,7 @@ def walk_forward_evaluate_zone_models(
             "jogador) para validação walk-forward dos modelos de zona."
         )
 
-    boundaries = np.linspace(min_train_games, len(ordered), n_folds + 1, dtype=int)
+    boundaries = walk_forward_boundaries(ordered["game_date"], n_folds, min_train_games)
     fold_results = []
 
     for fold_index in range(n_folds):

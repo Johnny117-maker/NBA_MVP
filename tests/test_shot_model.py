@@ -6,6 +6,8 @@ import pytest
 
 from src.shot_features import THREE_POINT_ZONES, ZONES
 from src.shot_model import (
+    ZONE_FG_PCT_PRIOR,
+    ZONE_SHARE_PRIOR,
     add_opponent_zone_defense_features,
     add_zone_model_features,
     add_zone_rolling_features,
@@ -14,7 +16,9 @@ from src.shot_model import (
     fill_missing_features_with_league_average,
     live_zone_snapshot,
     predict_zone_distribution,
+    split_zone_games_by_date,
     train_zone_models,
+    walk_forward_boundaries,
     walk_forward_evaluate_zone_models,
 )
 
@@ -194,6 +198,86 @@ def test_opponent_zone_defense_features_use_only_prior_games(synthetic_shots):
         # nenhum valor "no futuro" vaza — checado indiretamente pelo teste de
         # walk-forward abaixo, que é o teste de vazamento mais forte.
         assert first_occurrence[f"defense_share_allowed_avg_{zone}"].notna().all()
+
+
+def _extreme_future_shots(shots: pd.DataFrame) -> pd.DataFrame:
+    """Jogos muito posteriores à base, todos de "Backcourt" e todos convertidos.
+
+    Se qualquer característica de um jogo antigo mudar ao acrescentar isto,
+    ela está consultando o futuro (mesma sonda de `scripts/audit_models.py`).
+    """
+    future = shots.copy()
+    future["game_id"] = "FUT-" + future["game_id"].astype(str)
+    future["game_date"] = future["game_date"] + pd.Timedelta(days=1000)
+    future["shot_zone_basic"] = "Backcourt"
+    future["shot_type"] = "3PT Field Goal"
+    future["shot_made"] = True
+    future["event_type"] = "Made Shot"
+    return future
+
+
+def test_zone_features_of_past_games_ignore_future_games(synthetic_shots):
+    keys = ["player_id", "game_id"]
+    baseline = add_zone_model_features(synthetic_shots).sort_values(keys).reset_index(drop=True)
+
+    extended = add_zone_model_features(
+        pd.concat([synthetic_shots, _extreme_future_shots(synthetic_shots)], ignore_index=True)
+    )
+    original_games = extended[~extended["game_id"].astype(str).str.startswith("FUT-")]
+    original_games = original_games.sort_values(keys).reset_index(drop=True)
+
+    feature_columns = [
+        column
+        for column in baseline.columns
+        if column.startswith(("share_avg10_", "fgpct_avg10_", "defense_"))
+    ]
+    assert feature_columns
+    pd.testing.assert_frame_equal(baseline[feature_columns], original_games[feature_columns])
+
+
+def test_zone_priors_cover_every_zone_and_are_valid_probabilities():
+    assert set(ZONE_SHARE_PRIOR) == set(ZONES)
+    assert set(ZONE_FG_PCT_PRIOR) == set(ZONES)
+    assert sum(ZONE_SHARE_PRIOR.values()) == pytest.approx(1.0)
+    assert all(0.0 < value < 1.0 for value in ZONE_FG_PCT_PRIOR.values())
+
+
+# --- cortes temporais por data completa ------------------------------------
+
+
+def test_zone_train_test_split_never_shares_a_date(zone_games_with_features):
+    ordered = zone_games_with_features.sort_values("game_date").reset_index(drop=True)
+    # Premissa do teste: a base sintética tem várias linhas por data, então um
+    # corte por posição de linha dividiria uma data entre treino e teste.
+    assert ordered["game_date"].duplicated().any()
+
+    train, test = split_zone_games_by_date(ordered)
+
+    assert len(train) > 0
+    assert len(test) > 0
+    assert train["game_date"].max() < test["game_date"].min()
+
+
+def test_walk_forward_boundaries_never_split_a_date(zone_games_with_features):
+    ordered = zone_games_with_features.sort_values("game_date").reset_index(drop=True)
+    dates = ordered["game_date"]
+
+    boundaries = walk_forward_boundaries(dates, n_folds=4, min_train_games=30)
+
+    assert boundaries[0] >= 30
+    assert boundaries[-1] == len(ordered)
+    assert boundaries == sorted(boundaries)
+    for cut in boundaries[:-1]:
+        assert dates.iloc[cut - 1] < dates.iloc[cut]
+
+
+def test_walk_forward_folds_start_after_the_last_training_date(zone_games_with_features):
+    result = walk_forward_evaluate_zone_models(zone_games_with_features, n_folds=4, min_train_games=30)
+    ordered = zone_games_with_features.sort_values("game_date").reset_index(drop=True)
+
+    for fold in result["folds"]:
+        train_end = fold["n_train"]
+        assert ordered["game_date"].iloc[train_end - 1] < ordered["game_date"].iloc[train_end]
 
 
 # --- train / predict end-to-end --------------------------------------------

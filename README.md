@@ -237,6 +237,7 @@ nba-analytics/
 ├── INSTALAR_DEPENDENCIAS.bat
 ├── app.py
 ├── requirements.txt
+├── requirements-dev.txt
 └── README.md
 ```
 
@@ -253,7 +254,7 @@ Na pasta raiz do projeto ha tres atalhos para facilitar o uso:
 
 1. `INSTALAR_DEPENDENCIAS.bat` — cria o ambiente virtual `.venv`, atualiza o `pip` e baixa/instala todos os pacotes listados em `requirements.txt`. Execute este arquivo primeiro se quiser preparar o projeto manualmente.
 2. `INICIAR_PROJETO.bat` — inicia o Streamlit e abre o navegador. Se o ambiente virtual ou o Streamlit ainda nao estiver instalado, chama automaticamente o instalador de dependencias.
-3. `EXECUTAR_TESTES.bat` — executa a suite automatizada com `pytest`.
+3. `EXECUTAR_TESTES.bat` — instala as ferramentas de desenvolvimento (`requirements-dev.txt`: pytest, ruff e mypy) e executa a suite automatizada com `pytest`. O aplicativo em si usa apenas `requirements.txt`.
 
 **Antes de comecar:** extraia o ZIP inteiro para uma pasta local; nao execute os arquivos de dentro do ZIP. E necessario ter Python instalado (preferencialmente Python 3.12) e acesso a internet para baixar os pacotes. O arquivo `.bat` instala as bibliotecas Python, mas nao instala o proprio Python nem atualiza automaticamente os dados da NBA.
 

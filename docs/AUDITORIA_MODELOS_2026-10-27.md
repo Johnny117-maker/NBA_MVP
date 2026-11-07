@@ -10,6 +10,17 @@ Esta análise usa o código atual, os registros de 21/10/2026, o CSV de backtest
 existente e novas comparações. A execução abre o SQLite em modo somente leitura.
 Resultados reproduzíveis: [JSON da auditoria](../reports/model_audit_2026-10-27.json).
 
+## Atualização — modelos de zonas
+
+O preenchimento do início das séries em `src/shot_model.py` deixou de usar médias da
+base inteira: usa priors fixos por zona (`ZONE_SHARE_PRIOR`, `ZONE_FG_PCT_PRIOR`), e o
+teste `test_zone_features_of_past_games_ignore_future_games` reproduz a sonda acima.
+O corte treino/teste das zonas e os folds do walk-forward agora mantêm cada data
+inteira de um lado só. Os priors são valores aproximados da liga, escritos no código.
+As métricas de zonas citadas neste documento foram calculadas antes da correção e
+precisam ser recalculadas com a base real (`scripts/retrain_models.py`); este
+repositório não inclui a base, então o novo backtest não foi executado.
+
 ## Base e entradas
 
 | Item | Situação observada |

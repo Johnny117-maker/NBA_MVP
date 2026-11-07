@@ -1,0 +1,6 @@
+# Ferramentas de desenvolvimento: testes, lint e checagem de tipos.
+# O aplicativo, o executável e a gravação diária usam só requirements.txt.
+-r requirements.txt
+pytest>=8,<9
+ruff>=0.16,<1
+mypy>=2.0,<3

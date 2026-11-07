@@ -14,6 +14,10 @@ if not exist ".venv\Scripts\python.exe" (
     if errorlevel 1 goto :fail
 )
 
+echo Instalando ferramentas de teste (requirements-dev.txt)...
+".venv\Scripts\python.exe" -m pip install -q -r requirements-dev.txt
+if errorlevel 1 goto :fail
+
 ".venv\Scripts\python.exe" -m pytest -q
 set "TEST_EXIT_CODE=%ERRORLEVEL%"
 
