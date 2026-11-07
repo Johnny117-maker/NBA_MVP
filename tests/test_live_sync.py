@@ -117,8 +117,12 @@ def test_cache_tick_does_not_change_training_database(tmp_path):
     path = tmp_path / "nba.db"
     init_db(path)
     modified = path.stat().st_mtime_ns
-    save_live_games(path, [final_game()])
-    assert len(read_live_games(path, "2026-10-27")) == 1
+    game = final_game()
+    # `save_live_games` descarta dias com mais de 7 dias: usar o dia atual evita
+    # que o teste passe a falhar conforme a data de execução.
+    game.day = datetime.now(UTC).date().isoformat()
+    save_live_games(path, [game])
+    assert len(read_live_games(path, game.day)) == 1
     cache_put(path, "payload", "test")
     assert cache_get(path, "payload", 60) == "test"
     assert path.stat().st_mtime_ns == modified

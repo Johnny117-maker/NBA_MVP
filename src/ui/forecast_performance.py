@@ -121,9 +121,9 @@ def performance_panel(path: str | Path) -> None:
         if not probability["n"]:
             st.info("Aguardando resultados com linha e probabilidade válidas para avaliar.")
             return
-        columns = st.columns(2)
-        columns[0].metric("Brier score", f"{probability['brier']:.3f}")
-        columns[1].metric("Log loss", f"{probability['log_loss']:.3f}")
+        probability_columns = st.columns(2)
+        probability_columns[0].metric("Brier score", f"{probability['brier']:.3f}")
+        probability_columns[1].metric("Log loss", f"{probability['log_loss']:.3f}")
         st.caption("Menor é melhor nestas duas métricas; elas também refletem fatores além da calibração.")
         bins = calibration_bins(selected, side=side)
         chart = (
