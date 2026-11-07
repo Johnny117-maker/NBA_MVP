@@ -25,6 +25,10 @@ from .season_sync import SeasonSync
 from .today_picks import daily_team_picks
 
 SEED_NAME = "NBAAnalyticsLab-prediction-seed.zip"
+# O palpite de um jogo só é preservado nas últimas horas antes do início. Capturar
+# de manhã, logo na primeira execução do dia, usava um histórico que ainda não tinha
+# os resultados da noite anterior, e a captura nunca é substituída depois.
+CAPTURE_WINDOW_HOURS = 6
 
 
 def bootstrap_seed(db_path: Path, client: GitHubArchive) -> None:
@@ -75,6 +79,14 @@ def bootstrap_seed(db_path: Path, client: GitHubArchive) -> None:
         target.unlink(missing_ok=True)
 
 
+def _history_end(db_path: Path) -> str | None:
+    if not db_path.exists():
+        return None
+    with sqlite3.connect(db_path, timeout=15) as connection:
+        value = connection.execute("SELECT MAX(substr(game_date, 1, 10)) FROM games").fetchone()[0]
+    return str(value) if value else None
+
+
 def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -> dict:
     moment = utc_now()
     day = moment.astimezone(EASTERN).date().isoformat()
@@ -91,13 +103,25 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
     _, availability = injury_snapshot(db_path)
     games = read_live_games(db_path, day)
     existing = {item["game_key"] for item in read_snapshots(db_path, day)}
-    pending = [
+    upcoming = [
         game
         for game in games
         if game.key not in existing
         and game.state == "pre"
         and game.kickoff
         and pd.Timestamp(game.kickoff) > moment
+    ]
+    window = pd.Timedelta(hours=CAPTURE_WINDOW_HOURS)
+    pending = [game for game in upcoming if pd.Timestamp(game.kickoff) - moment <= window]
+    pending_keys = {game.key for game in pending}
+    waiting = [
+        dict(
+            game_key=game.key,
+            kickoff=game.kickoff,
+            capture_from=(pd.Timestamp(game.kickoff) - window).isoformat(),
+        )
+        for game in upcoming
+        if game.key not in pending_keys
     ]
     generated = 0
     if pending and bulletin_usable(availability):
@@ -143,7 +167,7 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
             else "Aguardando dados elegíveis",
         )
         for game in games
-        if game.key not in captured
+        if game.key not in captured and game.key not in {item["game_key"] for item in waiting}
     ]
     report = dict(
         day=day,
@@ -152,6 +176,8 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
         games_saved=len(snapshots),
         players_saved=sum(len(snapshot["players"]) for snapshot in snapshots),
         missing=missing,
+        waiting=waiting,
+        history_end=_history_end(db_path),
         errors=errors,
         source_errors=sync.get("errors", []),
         run_url=os.environ.get("NBA_AUTOMATION_RUN_URL", ""),

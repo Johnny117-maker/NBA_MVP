@@ -1,5 +1,18 @@
 # NBA Analytics Lab
 
+## Previsão de times mais precisa e base atualizada todo dia
+
+O modelo de times agora usa **Elo com margem de vitória**: o vencedor e o placar saem da
+mesma margem prevista, então nunca se contradizem. Em 2.592 jogos de temporadas que não
+participaram do ajuste, o acerto subiu de 64,8% para 67,6% e o erro probabilístico caiu.
+O ganho é menor no começo da temporada e não elimina o acaso de um jogo (veja os limites).
+[Método, evidência e limites](docs/MODELO_TIMES_ELO.md).
+
+`AGENDAR_ATUALIZACAO_DIARIA.bat` cria uma tarefa do Windows que importa os resultados da
+noite anterior às 07:00 e às 12:00, mesmo com o aplicativo fechado. Na nuvem, o palpite de
+cada jogo agora é preservado nas últimas 6 horas antes do início, já com o histórico do dia
+anterior. [Como funciona](docs/ATUALIZACAO_DIARIA.md).
+
 ## Jogos do dia com todos os destaques visíveis (1.6.1)
 
 Em **Jogos do dia**, os destaques agora abrem mostrando todos os atletas elegíveis.

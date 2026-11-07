@@ -87,6 +87,25 @@ def current_games(path: str | Path) -> list[LiveGame]:
     return games
 
 
+def _daily_update_caption(path: str | Path) -> None:
+    update = get_state(path, "daily_update", {})
+    finished = pd.to_datetime(update.get("finished_at"), utc=True, errors="coerce")
+    if not update or pd.isna(finished):
+        st.caption("Atualização diária agendada: ainda não executada. Veja docs/ATUALIZACAO_DIARIA.md.")
+        return
+    previous = update.get("previous_day", {})
+    stamp = format_datetime_br(finished.tz_convert("America/Sao_Paulo"))
+    outcome = {
+        "ok": "completa",
+        "incomplete": "fonte ainda sem todos os resultados",
+        "source_unavailable": "fonte indisponível",
+    }.get(update.get("status"), "sem status")
+    day = previous.get("day")
+    day_text = pd.Timestamp(day).strftime("%d/%m") if day else "dia anterior"
+    saved = previous.get("saved", 0)
+    st.caption(f"Atualização diária: {stamp} (Brasília) · {day_text}: {saved} jogos gravados · {outcome}")
+
+
 def sync_status(path: str | Path, *, detailed: bool = False) -> dict:
     status = get_state(path, "status", {})
     if not status:
@@ -113,6 +132,7 @@ def sync_status(path: str | Path, *, detailed: bool = False) -> dict:
             f"{pd.Timestamp(archive_day).strftime('%d/%m/%Y')}. Atualização do arquivo: até uma vez por hora."
         )
     if detailed:
+        _daily_update_caption(path)
         for error in status.get("errors", []):
             st.warning(error)
         if status.get("rejected_games"):
