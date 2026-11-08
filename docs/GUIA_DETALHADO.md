@@ -131,7 +131,7 @@ nba-analytics/
 │   ├── player_features.py
 │   ├── player_index.py
 │   ├── player_metrics.py
-│   ├── player_model.py
+│   ├── player_model/
 │   ├── season_simulator.py
 │   ├── shot_connector.py
 │   ├── shot_features.py
@@ -501,7 +501,7 @@ projeta mais produção do que contra uma forte.
 Uma última seção, **Probabilidade de over/under**, deixa escolher uma
 estatística (pontos, rebotes ou assistências) e um "line" de referência, e
 calcula a probabilidade de a produção real do jogador superar esse valor
-(`src/player_model.py::over_probability`). O cálculo aproxima o erro do
+(`src/player_model/prediction.py::over_probability`). O cálculo aproxima o erro do
 modelo por uma distribuição normal centrada na previsão, com desvio-padrão
 igual ao erro histórico (`residual_std`) daquela estatística: quanto mais
 longe o line está da previsão em unidades desse erro, mais a probabilidade
@@ -516,7 +516,7 @@ se afasta de 50%.
 
 Logo abaixo, **Distribuição de resultados** generaliza a mesma ideia: em vez
 de um único line, mostra a probabilidade em 5 faixas
-(`src/player_model.py::range_probabilities`), no espírito de "até 19 / 20–24
+(`src/player_model/prediction.py::range_probabilities`), no espírito de "até 19 / 20–24
 / 25–29 / 30–34 / 35 ou mais" em vez de só acima/abaixo de um número. A
 largura das faixas não é fixa — é o erro histórico do modelo arredondado
 (mínimo 1), centrada na própria previsão, para fazer sentido tanto para
@@ -726,7 +726,7 @@ tempo, para os três modelos) mudou para a página **"Qualidade do Modelo"**
 — ver seção abaixo.
 
 O modelo de jogadores é avaliado por **validação walk-forward**
-(`src/player_model.py::walk_forward_evaluate`), não um único split 80/20:
+(`src/player_model/evaluation.py::walk_forward_evaluate`), não um único split 80/20:
 os jogos são ordenados por data e divididos em 5 janelas sucessivas — a
 primeira janela treina com o começo da base e avalia no trecho seguinte, a
 segunda treina com tudo até ali (incluindo o trecho já avaliado) e avalia

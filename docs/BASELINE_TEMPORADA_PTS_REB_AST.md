@@ -10,7 +10,7 @@ Usar as médias de pontos (PTS), rebotes (REB), assistências (AST) e minutos da
 
 ## Combinação da projeção
 
-`src/player_model.py::_blend_season_baseline` combina a estimativa dinâmica com a taxa da temporada-base multiplicada pelos minutos previstos. O peso teórico da referência anual é `clip(0,60 - 0,04 × jogos_desde_troca, 0,20, 0,60)`, multiplicado por uma confiabilidade entre 0 e 1, baseada no tamanho da amostra (até 10 jogos). Assim, a referência tem maior influência imediatamente após a mudança de time e o padrão recente ganha influência à medida que há novos jogos.
+`src/player_model/preparation.py::_blend_season_baseline` combina a estimativa dinâmica com a taxa da temporada-base multiplicada pelos minutos previstos. O peso teórico da referência anual é `clip(0,60 - 0,04 × jogos_desde_troca, 0,20, 0,60)`, multiplicado por uma confiabilidade entre 0 e 1, baseada no tamanho da amostra (até 10 jogos). Assim, a referência tem maior influência imediatamente após a mudança de time e o padrão recente ganha influência à medida que há novos jogos.
 
 ## Interface e validação
 

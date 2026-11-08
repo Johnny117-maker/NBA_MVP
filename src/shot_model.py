@@ -15,7 +15,7 @@ from .player_features import DEFAULT_REST_DAYS, EMA_HALFLIFE_SLOW
 from .shot_features import THREE_POINT_ZONES, ZONE_LABELS_PT, ZONES, add_shot_value, opponent_zone_defense
 
 # Modelo de previsão da seção 10 do planejamento: minutos → FGA já são
-# resolvidos por `src/player_model.py` (não repetidos aqui). Este módulo cobre
+# resolvidos por `src/player_model/` (não repetidos aqui). Este módulo cobre
 # o que falta na cadeia — distribuição por zona e eficiência por zona — e
 # devolve pontos esperados de bola-de-quadra (sem lance livre: o
 # `ShotChartDetail` só traz arremessos de quadra, `context_measure_simple="FGA"`).
@@ -337,7 +337,7 @@ def add_zone_model_features(shots: pd.DataFrame) -> pd.DataFrame:
 def train_zone_models(zone_games_with_features: pd.DataFrame) -> ZoneModelBundle:
     """Treina os modelos de zona: um Ridge de participação (`share`) e um Ridge
     de eficiência (`fg_pct`) por zona, igual em espírito aos modelos de
-    `player_model.py` (regressão sobre a taxa agregada, não classificação por
+    `player_model/` (regressão sobre a taxa agregada, não classificação por
     arremesso individual — mesma escolha já feita para TS%/per-36 no resto do
     projeto). Um único treino usa os jogos de **todos** os jogadores já
     coletados (não um modelo por jogador) — mesma arquitetura de
@@ -472,7 +472,7 @@ def expected_fg_points(zone_predictions: pd.DataFrame, predicted_fga: pd.Series)
     bola-de-quadra, por linha original — o "Pontos totais" (só campo) do
     diagrama da seção 10. `predicted_fga` precisa ter o mesmo índice usado em
     `predict_zone_distribution` (a coluna `row_index` do resultado). Lance
-    livre fica fora daqui: combine com `player_model.py::predict_player_game`
+    livre fica fora daqui: combine com `player_model/prediction.py::predict_player_game`
     (FTA × aproveitamento de lance livre do jogador) para o total do jogo.
     """
     data = zone_predictions.copy()
@@ -583,12 +583,12 @@ def walk_forward_evaluate_zone_models(
 ) -> dict:
     """Validação walk-forward dos modelos de zona (seção 17 do planejamento):
     treina até uma data, avalia no pedaço seguinte, avança — mesmo princípio
-    de `player_model.py::walk_forward_evaluate`.
+    de `player_model/evaluation.py::walk_forward_evaluate`.
 
     Usa o **FGA real** de cada jogo do teste (não uma previsão) para calcular
     `fg_points_mae`: isola o erro da decomposição por zona do erro do modelo
     de volume de arremessos, que já é validado separadamente em
-    `player_model.py`. Reporta também o MAE de participação (`share`) por
+    `player_model/`. Reporta também o MAE de participação (`share`) por
     zona, fold a fold.
     """
     ordered = zone_games_with_features.sort_values("game_date").reset_index(drop=True)

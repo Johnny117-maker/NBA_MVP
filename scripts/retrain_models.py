@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> None:
     features = add_opponent_context(add_rolling_features(player_games), team_games)
     # Walk-forward é mais caro que um split único (retreina várias vezes),
     # mas dá uma métrica mais confiável para o histórico — por isso só roda
-    # aqui, não a cada carregamento da página (ver src/player_model.py).
+    # aqui, não a cada carregamento da página (ver src/player_model/).
     evaluation = walk_forward_evaluate(features)
     log_model_training("player", len(player_games), evaluation["aggregate"], DEFAULT_DB_PATH)
 
