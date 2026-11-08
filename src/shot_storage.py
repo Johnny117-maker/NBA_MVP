@@ -120,7 +120,7 @@ def read_player_shots(
     return data
 
 
-# Colunas usadas por `src/shot_features.py`/`src/shot_model.py` para estatísticas
+# Colunas usadas por `src/shot_features.py`/`src/shot_model/` para estatísticas
 # de referência e treino dos modelos de zona. Bem menos que as 26 de
 # `SHOT_COLUMNS` — sobretudo menos colunas de texto (7 em vez de 12), que são
 # o gargalo de memória ao carregar/cachear a base inteira (com a coleta em

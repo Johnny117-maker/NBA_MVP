@@ -18,7 +18,7 @@ THREE_POINT_ZONES = {"Left Corner 3", "Right Corner 3", "Above the Break 3", "Ba
 MIDRANGE_ZONES = {"Mid-Range"}
 
 # Lista canônica e ordenada das zonas — mesma ordem de `ZONE_LABELS_PT`,
-# reaproveitada por `src/shot_model.py` para nomear colunas de feature por zona.
+# reaproveitada por `src/shot_model/` para nomear colunas de feature por zona.
 ZONES = list(ZONE_LABELS_PT)
 
 _ZONE_SUMMARY_COLUMNS = [

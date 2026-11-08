@@ -12,7 +12,7 @@ Resultados reproduzíveis: [JSON da auditoria](../reports/model_audit_2026-10-27
 
 ## Atualização — modelos de zonas
 
-O preenchimento do início das séries em `src/shot_model.py` deixou de usar médias da
+O preenchimento do início das séries em `src/shot_model/` deixou de usar médias da
 base inteira: usa priors fixos por zona (`ZONE_SHARE_PRIOR`, `ZONE_FG_PCT_PRIOR`), e o
 teste `test_zone_features_of_past_games_ignore_future_games` reproduz a sonda acima.
 O corte treino/teste das zonas e os folds do walk-forward agora mantêm cada data
@@ -50,7 +50,7 @@ do que já era conhecido naquela data.
 | `fgpct_avg10_Restricted Area`, primeira partida | 0,500 | 0,625 |
 
 As mudanças confirmam preenchimentos com médias da série inteira em
-`src/features.py::_add_rolling_features`, `src/shot_model.py::add_zone_rolling_features`
+`src/features.py::_add_rolling_features`, `src/shot_model/features.py::add_zone_rolling_features`
 e `add_opponent_zone_defense_features`. É necessário substituir esses preenchimentos
 por referências anteriores à data, com um valor neutro fixo no início da série.
 O tamanho do efeito sobre o erro real precisa ser medido depois dessa correção.

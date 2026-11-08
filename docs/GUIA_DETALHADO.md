@@ -135,7 +135,7 @@ nba-analytics/
 │   ├── season_simulator.py
 │   ├── shot_connector.py
 │   ├── shot_features.py
-│   ├── shot_model.py
+│   ├── shot_model/
 │   ├── shot_storage.py
 │   ├── simulation.py
 │   ├── store/
