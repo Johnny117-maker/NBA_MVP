@@ -138,7 +138,7 @@ nba-analytics/
 │   ├── shot_model.py
 │   ├── shot_storage.py
 │   ├── simulation.py
-│   ├── store.py
+│   ├── store/
 │   └── ui/
 │       ├── __init__.py
 │       ├── components.py
