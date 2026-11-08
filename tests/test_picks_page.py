@@ -5,7 +5,18 @@ from streamlit.testing.v1 import AppTest
 
 from src.daily_games import today_et
 from src.live_store import set_state
+from src.live_types import EASTERN
 from src.nba_schedule import SCHEDULE_COLUMNS
+
+
+def _kickoff_within_nba_day(now: pd.Timestamp) -> pd.Timestamp:
+    """Início posterior a `now`, sempre no mesmo dia NBA (fuso Eastern).
+
+    "Agora + 3 horas" cruza a meia-noite da costa leste entre 21h e 24h ET, e a
+    fotografia pré-jogo exige captura e início no mesmo dia NBA.
+    """
+    end_of_day = (now.tz_convert(EASTERN) + pd.Timedelta(days=1)).normalize().tz_convert("UTC")
+    return min(now + pd.Timedelta(hours=3), now + (end_of_day - now) / 2)
 
 
 @pytest.fixture(autouse=True)
@@ -81,7 +92,7 @@ def test_saved_picks_are_ready_without_loading_or_training_other_models(app_db, 
             home="NYK",
             away="BOS",
             captured_at=now.isoformat(),
-            kickoff=(now + pd.Timedelta(hours=3)).isoformat(),
+            kickoff=_kickoff_within_nba_day(now).isoformat(),
             history_end="2024-12-01",
             model={"train_end": "2024-12-01"},
             players=[
