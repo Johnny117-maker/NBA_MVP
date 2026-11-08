@@ -57,6 +57,16 @@ protegido `.streamlit/secrets.toml`, com Contents somente leitura. Não envie o
 token ao chat nem o inclua em commits. Também é possível baixar os JSONs pelo
 navegador autenticado e importá-los, sem instalar GitHub CLI.
 
+## Repositório configurável
+
+Por padrão o app lê o arquivo diário de `Johnny117-maker/NBA_MVP`. Para um fork ou um
+repositório renomeado, informe `dono/nome` em `NBA_ARCHIVE_REPOSITORY` (variável de
+ambiente, tem prioridade) ou em `[archive].repository` no `.streamlit/secrets.toml`
+(há um exemplo em `.streamlit/secrets.example.toml`). Valores fora do formato
+`dono/nome` são ignorados e o app volta ao padrão. A verificação de atualizações do
+executável continua presa ao repositório oficial, de propósito, porque ela baixa um
+programa.
+
 ## Limites operacionais
 
 GitHub Actions e as fontes externas podem atrasar ou falhar. O agendamento não é

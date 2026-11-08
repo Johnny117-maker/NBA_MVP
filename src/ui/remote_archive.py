@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from src.live_store import get_state
-from src.remote_archive import ArchiveError, import_envelope, sync_remote_archive
+from src.remote_archive import BRANCH, ArchiveError, archive_repository, import_envelope, sync_remote_archive
 
 
 def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
@@ -34,18 +34,20 @@ def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
                 )
             except ArchiveError as error:
                 st.warning(str(error))
+        repository = archive_repository()
         st.link_button(
             "Ver execução e eventuais falhas",
-            "https://github.com/Johnny117-maker/NBA_MVP/actions/workflows/daily-picks.yml",
+            f"https://github.com/{repository}/actions/workflows/daily-picks.yml",
         )
         st.link_button(
             "Abrir arquivo de previsões",
-            "https://github.com/Johnny117-maker/NBA_MVP/tree/codex/daily-archive/archive",
+            f"https://github.com/{repository}/tree/{BRANCH}/archive",
         )
         st.caption(
             "Repositório privado: usa a autenticação GitHub local, NBA_GITHUB_ARCHIVE_TOKEN "
-            "ou [archive].github_token na configuração protegida. Em outro PC, use um token "
-            "de Contents somente leitura ou importe os arquivos abaixo."
+            "ou [archive].github_token na configuração protegida. O repositório vem de "
+            "NBA_ARCHIVE_REPOSITORY ou [archive].repository (padrão: o repositório oficial). "
+            "Em outro PC, use um token de Contents somente leitura ou importe os arquivos abaixo."
         )
         files = st.file_uploader(
             "Importar JSON ou ZIP baixados do arquivo GitHub",

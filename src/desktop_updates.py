@@ -31,7 +31,8 @@ def version_tuple(value: str) -> tuple[int, ...]:
 
 
 def check_update(*, current=APP_VERSION, client=None) -> dict:
-    client = client or GitHubArchive()
+    # Atualizações do executável só vêm do repositório oficial, nunca do configurável.
+    client = client or GitHubArchive(repository=REPOSITORY)
     if client.repository != REPOSITORY:
         raise UpdateError("Repositório de atualização não autorizado.")
     release = client.request("GET", "/releases/latest")
@@ -114,7 +115,8 @@ def extract_program(archive_path: Path, destination: Path, version: str) -> Path
 def prepare_update(
     info: dict, profile: Path, *, client=None, previous_executable: Path | None = None
 ) -> dict:
-    client = client or GitHubArchive()
+    # Atualizações do executável só vêm do repositório oficial, nunca do configurável.
+    client = client or GitHubArchive(repository=REPOSITORY)
     if client.repository != REPOSITORY or info.get("status") != "available":
         raise UpdateError("Atualização não foi verificada.")
     version = str(info["latest"])

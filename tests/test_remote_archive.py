@@ -7,8 +7,10 @@ from src.analysis_archive import archive_snapshot, read_snapshots
 from src.remote_archive import (
     BRANCH,
     INDEX,
+    REPOSITORY,
     ArchiveError,
     GitHubArchive,
+    archive_repository,
     digest,
     envelope,
     import_envelope,
@@ -146,3 +148,36 @@ def test_github_failures_do_not_expose_token(monkeypatch):
     assert "PRIVATE-PAT" not in str(result.value)
     with pytest.raises(ArchiveError, match="Caminho"):
         GitHubArchive("fake").read_json("../secrets.json")
+
+
+def _secrets(tmp_path, monkeypatch, text):
+    path = tmp_path / "secrets.toml"
+    path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr("src.remote_archive.secrets_path", lambda: path)
+
+
+def test_repository_defaults_to_the_official_one(tmp_path, monkeypatch):
+    monkeypatch.delenv("NBA_ARCHIVE_REPOSITORY", raising=False)
+    monkeypatch.setattr("src.remote_archive.secrets_path", lambda: tmp_path / "ausente.toml")
+    assert archive_repository() == REPOSITORY == "Johnny117-maker/NBA_MVP"
+    assert GitHubArchive("fake").repository == REPOSITORY
+
+
+def test_repository_comes_from_the_environment_before_secrets(tmp_path, monkeypatch):
+    _secrets(tmp_path, monkeypatch, '[archive]\nrepository = "outro/segredo"\n')
+    monkeypatch.setenv("NBA_ARCHIVE_REPOSITORY", " fork/NBA_MVP ")
+    assert archive_repository() == "fork/NBA_MVP"
+    monkeypatch.delenv("NBA_ARCHIVE_REPOSITORY")
+    assert archive_repository() == "outro/segredo"
+    assert GitHubArchive("fake").repository == "outro/segredo"
+    assert GitHubArchive("fake", repository="explicito/repo").repository == "explicito/repo"
+
+
+def test_invalid_or_broken_repository_settings_fall_back_to_default(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv("NBA_ARCHIVE_REPOSITORY", "sem-barra")
+    _secrets(tmp_path, monkeypatch, '[archive]\nrepository = "../../etc"\n')
+    assert archive_repository() == REPOSITORY
+    _secrets(tmp_path, monkeypatch, "isto não é toml = = =")
+    with caplog.at_level("WARNING", logger="src.remote_archive"):
+        assert archive_repository() == REPOSITORY
+    assert any("repositório padrão" in record.message for record in caplog.records)

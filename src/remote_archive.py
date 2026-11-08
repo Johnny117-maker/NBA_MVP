@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -21,7 +22,10 @@ from .app_paths import secrets_path
 from .live_store import get_state, set_state
 from .live_types import utc_now
 
-REPOSITORY = "Johnny117-maker/NBA_MVP"
+logger = logging.getLogger(__name__)
+
+REPOSITORY = "Johnny117-maker/NBA_MVP"  # repositório oficial; é também o padrão do arquivo diário
+REPOSITORY_ENV = "NBA_ARCHIVE_REPOSITORY"
 BRANCH = "codex/daily-archive"
 INDEX = "archive/index.json"
 SEED_TAG = "prediction-seed-v1"
@@ -39,6 +43,28 @@ def canonical(value) -> str:
 
 def digest(value) -> str:
     return hashlib.sha256(canonical(value).encode()).hexdigest()
+
+
+def archive_repository() -> str:
+    """Repositório (`dono/nome`) do arquivo diário.
+
+    Ordem: variável de ambiente NBA_ARCHIVE_REPOSITORY, `[archive].repository` em
+    secrets.toml e, por fim, o repositório oficial. Valores inválidos são ignorados
+    para o app nunca ficar sem repositório por um erro de digitação.
+    """
+    candidates = [os.environ.get(REPOSITORY_ENV, "")]
+    path = secrets_path()
+    if path.exists():
+        try:
+            with path.open("rb") as stream:
+                candidates.append(str(tomllib.load(stream).get("archive", {}).get("repository", "")))
+        except (OSError, tomllib.TOMLDecodeError):
+            logger.warning("Não foi possível ler %s; usando o repositório padrão.", path, exc_info=True)
+    for value in candidates:
+        value = value.strip()
+        if re.fullmatch(r"[\w.-]+/[\w.-]+", value):
+            return value
+    return REPOSITORY
 
 
 def archive_token() -> str:
@@ -76,7 +102,8 @@ def archive_token() -> str:
 
 
 class GitHubArchive:
-    def __init__(self, token: str | None = None, repository: str = REPOSITORY, branch: str = BRANCH):
+    def __init__(self, token: str | None = None, repository: str | None = None, branch: str = BRANCH):
+        repository = repository or archive_repository()
         if (
             not re.fullmatch(r"[\w.-]+/[\w.-]+", repository)
             or not re.fullmatch(r"[\w./-]+", branch)
