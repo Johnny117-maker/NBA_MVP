@@ -208,7 +208,7 @@ def _extreme_future_shots(shots: pd.DataFrame) -> pd.DataFrame:
     """
     future = shots.copy()
     future["game_id"] = "FUT-" + future["game_id"].astype(str)
-    future["game_date"] = future["game_date"] + pd.Timedelta(days=1000)
+    future["game_date"] = future["game_date"] + pd.Timedelta(1000, unit="D")
     future["shot_zone_basic"] = "Backcourt"
     future["shot_type"] = "3PT Field Goal"
     future["shot_made"] = True

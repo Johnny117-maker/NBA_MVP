@@ -15,8 +15,8 @@ def _kickoff_within_nba_day(now: pd.Timestamp) -> pd.Timestamp:
     "Agora + 3 horas" cruza a meia-noite da costa leste entre 21h e 24h ET, e a
     fotografia pré-jogo exige captura e início no mesmo dia NBA.
     """
-    end_of_day = (now.tz_convert(EASTERN) + pd.Timedelta(days=1)).normalize().tz_convert("UTC")
-    return min(now + pd.Timedelta(hours=3), now + (end_of_day - now) / 2)
+    end_of_day = (now.tz_convert(EASTERN) + pd.Timedelta(1, unit="D")).normalize().tz_convert("UTC")
+    return min(now + pd.Timedelta(3, unit="h"), now + (end_of_day - now) / 2)
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +38,7 @@ def _offline_calendar(monkeypatch, tmp_path, app_db):
     row.update(
         game_id="PICK1",
         game_date=pd.Timestamp(today_et()),
-        game_datetime_utc=pd.Timestamp.now(tz="UTC") + pd.Timedelta(hours=3),
+        game_datetime_utc=pd.Timestamp.now(tz="UTC") + pd.Timedelta(3, unit="h"),
         game_status=1,
         home_team_tricode="NYK",
         home_team_name="New York Knicks",
@@ -250,7 +250,7 @@ def test_no_new_picks_for_live_or_completed_games(app_db, monkeypatch):
                 "game_id": "ended",
                 "game_date": pd.Timestamp(today_et()),
                 "game_status": 3,
-                "game_datetime_utc": pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=2),
+                "game_datetime_utc": pd.Timestamp.now(tz="UTC") - pd.Timedelta(2, unit="h"),
             }
         ]
     ).reindex(columns=SCHEDULE_COLUMNS)

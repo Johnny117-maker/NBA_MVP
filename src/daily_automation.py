@@ -111,7 +111,7 @@ def generate_daily_archive(db_path: Path, client: GitHubArchive, output: Path) -
         and game.kickoff
         and pd.Timestamp(game.kickoff) > moment
     ]
-    window = pd.Timedelta(hours=CAPTURE_WINDOW_HOURS)
+    window = pd.Timedelta(CAPTURE_WINDOW_HOURS, unit="h")
     pending = [game for game in upcoming if pd.Timestamp(game.kickoff) - moment <= window]
     pending_keys = {game.key for game in pending}
     waiting = [

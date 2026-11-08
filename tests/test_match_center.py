@@ -16,7 +16,7 @@ def test_match_center_keeps_all_views_accessible_without_training_models(app_db,
         "NYK",
         "pre",
         now.isoformat(),
-        kickoff=(pd.Timestamp(now) + pd.Timedelta(hours=2)).isoformat(),
+        kickoff=(pd.Timestamp(now) + pd.Timedelta(2, unit="h")).isoformat(),
     )
     monkeypatch.setattr("src.live_store.read_live_games", lambda *args: [game])
     monkeypatch.setattr("src.ui.match_center._defense", lambda *args: (pd.DataFrame(), pd.DataFrame()))

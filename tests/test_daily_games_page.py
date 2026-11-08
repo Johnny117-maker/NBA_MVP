@@ -34,7 +34,7 @@ def _schedule_for_today() -> pd.DataFrame:
     row.update(
         game_id="TEST1",
         game_date=pd.Timestamp(today_et()),
-        game_datetime_utc=pd.Timestamp.now(tz="UTC") + pd.Timedelta(hours=3),
+        game_datetime_utc=pd.Timestamp.now(tz="UTC") + pd.Timedelta(3, unit="h"),
         game_status=1,
         game_status_text="Scheduled",
         home_team_tricode="NYK",
@@ -141,7 +141,8 @@ def test_team_probabilities_work_without_player_data_and_ignore_future_games(app
     from src.model import predict_game, train_models
 
     history = generate_demo_games(number_of_games=100)
-    history["game_date"] = pd.date_range(end=pd.Timestamp(today_et()) - pd.Timedelta(days=1), periods=100)
+    yesterday = pd.Timestamp(today_et()) - pd.Timedelta(1, unit="D")
+    history["game_date"] = pd.date_range(end=yesterday, periods=100)
     future = pd.concat([history.tail(1), history.tail(1)], ignore_index=True)
     future["game_date"] = pd.date_range(start=pd.Timestamp(today_et()), periods=2)
     combined = pd.concat([history, future], ignore_index=True)

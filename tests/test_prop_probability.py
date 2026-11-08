@@ -25,6 +25,7 @@ def test_under_is_not_counted_as_extra_independent_evidence():
     )
     assert probability_metrics(rows) == pytest.approx(probability_metrics(rows, side="under"))
     rows.loc[0, "under"] = 0.9
+    rows["actual"] = rows["actual"].astype(float)  # evita atribuir 20.5 a uma coluna int64
     rows.loc[1, "actual"] = 20.5
     assert len(probability_rows(rows)) == 1
 

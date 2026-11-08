@@ -27,3 +27,15 @@ check_untyped_defs = true
 # `app.py` e `scripts/` (código de produção) continuam 100% cobertos:
 #   mypy src pages app.py scripts
 exclude = ["^tests/"]
+
+[tool.pytest.ini_options]
+# Avisos de depreciação e de mudança futura viram erro, para não acumularem.
+# Os filtros mais abaixo têm precedência sobre os de cima.
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::FutureWarning",
+    # Incompatibilidade de bibliotecas (pandas 2.3 com NumPy 2.5): o próprio pandas
+    # usa timedelta64("NaT") sem unidade ao concatenar colunas de datas com ausentes.
+    # Não vem do código do projeto; remover quando o pandas corrigir.
+    "ignore:The 'generic' unit for NumPy timedelta is deprecated:DeprecationWarning",
+]

@@ -97,7 +97,7 @@ def test_current_game_and_future_results_never_change_pregame_prior(context):
     future = history.tail(1).assign(game_date=pd.Timestamp("2026-10-28"), pts=999)
     changed = pd.concat([history, future], ignore_index=True)
     assert player_prior(changed, 1, game, "pts") == original
-    old = history.assign(season="2025-26", game_date=history["game_date"] - pd.Timedelta(days=200))
+    old = history.assign(season="2025-26", game_date=history["game_date"] - pd.Timedelta(200, unit="D"))
     assert player_prior(old, 1, game, "pts") is None
 
 

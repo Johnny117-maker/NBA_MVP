@@ -84,7 +84,7 @@ def _round_robin_games(days=40, seed=5):
     for day in range(days):
         order = rng.permutation(teams)
         for left, right in zip(order[::2], order[1::2], strict=True):
-            rows.append((pd.Timestamp("2025-11-01") + pd.Timedelta(days=day), left, right,
+            rows.append((pd.Timestamp("2025-11-01") + pd.Timedelta(day, unit="D"), left, right,
                          int(rng.integers(90, 130)), int(rng.integers(90, 130))))
     return _games(rows)
 
