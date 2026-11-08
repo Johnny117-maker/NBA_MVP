@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import altair as alt
@@ -18,6 +19,8 @@ from src.team_defense import (
 )
 from src.ui import components, theme
 from src.ui.defense import render_defense_index, render_team_charts
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="Defesa dos times — NBA Analytics Lab", page_icon=":material/shield:", layout="wide"
@@ -322,6 +325,8 @@ else:
                 collect_team_tracking(DEFAULT_DB_PATH, season, pd.Timestamp(summary.latest_game.max()).date())
                 st.rerun()
             except Exception as error:
+                # A fonte externa pode falhar de várias formas; os dados locais continuam disponíveis.
+                logger.warning("Falha ao consultar o tracking de defesa", exc_info=True)
                 st.warning(
                     f"Tracking indisponível nesta conexão ({type(error).__name__}). "
                     "Os dados locais continuam disponíveis."

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.live_types import current_season  # noqa: E402
+from src.logging_setup import configure_logging  # noqa: E402
 from src.nba_client import (  # noqa: E402
     fetch_player_season_logs,
     fetch_season_games,
@@ -20,6 +22,8 @@ from src.store import (  # noqa: E402
     upsert_games,
     upsert_player_games,
 )
+
+logger = logging.getLogger(__name__)
 
 _CURRENT_START = int(current_season()[:4])
 DEFAULT_SEASONS = [f"{year}-{(year + 1) % 100:02d}" for year in range(_CURRENT_START - 2, _CURRENT_START + 1)]
@@ -41,6 +45,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
     init_db(args.db)
 
@@ -49,6 +54,8 @@ def main() -> None:
         try:
             raw = fetch_season_games(season, season_type=args.season_type)
         except Exception as error:  # nba_api costuma falhar por timeout/bloqueio de rede
+            # nba_api costuma falhar por timeout/bloqueio de rede; segue para a próxima temporada.
+            logger.warning("Falha ao baixar a temporada %s", season, exc_info=True)
             print(f"  Falha ao baixar {season}: {error}")
             continue
 
@@ -59,6 +66,8 @@ def main() -> None:
         try:
             player_raw = fetch_player_season_logs(season, season_type=args.season_type)
         except Exception as error:  # nba_api costuma falhar por timeout/bloqueio de rede
+            # nba_api costuma falhar por timeout/bloqueio de rede; segue para a próxima temporada.
+            logger.warning("Falha ao baixar os jogadores de %s", season, exc_info=True)
             print(f"  Falha ao baixar jogadores de {season}: {error}")
             continue
 

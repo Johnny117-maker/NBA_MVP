@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from datetime import date, timedelta
@@ -14,6 +15,8 @@ import pandas as pd
 from .analysis_archive import connect_archive
 from .live_types import utc_now
 from .research_metrics import defended_rim
+
+logger = logging.getLogger(__name__)
 
 METRICS = ("LEBRON", "O-LEBRON", "D-LEBRON", "DARKO DPM", "RAPM local", "DFG% <6ft", "Gravity local (ft)")
 
@@ -122,6 +125,8 @@ def collect_rim_daily(path: str | Path, day: date) -> dict:
             "status": "ok",
         }
     except Exception as error:
+        # Falha de fonte externa não pode derrubar o app: o estado guarda o tipo do erro.
+        logger.warning("Falha ao coletar a defesa no garrafão", exc_info=True)
         state = {**state, "status": "indisponível", "error": type(error).__name__}
     with connect_archive(path) as connection:
         connection.execute(

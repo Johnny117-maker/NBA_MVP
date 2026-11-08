@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+from src.logging_setup import configure_logging  # noqa: E402
 from src.shot_connector import fetch_player_shots  # noqa: E402
 from src.shot_storage import (  # noqa: E402
     count_player_shots,
@@ -21,6 +23,8 @@ from src.shot_storage import (  # noqa: E402
     upsert_player_shots,
 )
 from src.store import DEFAULT_DB_PATH, init_db  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_LIMIT = 100
 DEFAULT_DELAY_SECONDS = 0.6
@@ -53,6 +57,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
     init_db(args.db)
 
@@ -78,6 +83,8 @@ def main() -> None:
             collected += 1
             print(f"  [{index}/{len(batch)}] {player_name} ({season}): {added} arremessos novos")
         except Exception as error:  # nba_api costuma falhar por timeout/bloqueio de rede
+            # nba_api costuma falhar por timeout/bloqueio de rede; segue para o próximo jogador.
+            logger.warning("Falha ao coletar os arremessos de %s", player_name, exc_info=True)
             failed += 1
             print(f"  [{index}/{len(batch)}] Falha em {player_name} ({season}): {error}")
 

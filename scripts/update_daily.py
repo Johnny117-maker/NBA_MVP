@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.daily_update import DEFAULT_ATTEMPTS, DEFAULT_WAIT_SECONDS, run_daily_update  # noqa: E402
+from src.logging_setup import configure_logging  # noqa: E402
 from src.provider_settings import load_api_keys  # noqa: E402
 from src.store import DEFAULT_DB_PATH  # noqa: E402
 
@@ -21,6 +22,7 @@ EXIT_CODES = {"ok": 0, "incomplete": 2, "source_unavailable": 3}
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument(

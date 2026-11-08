@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from .history_store import connect_history, history_root, read_assets
 from .live_providers import team_code
 from .live_types import current_season, minutes, utc_now
 from .nba_teams import TEAM_ABBREVIATION_TO_NAME
+
+logger = logging.getLogger(__name__)
 
 PHASES = {
     "001": "Pré-temporada",
@@ -353,6 +356,8 @@ def normalize_history(db_path: str | Path, *, years=None) -> dict:
                 result["defense_zones"] += len(zones)
                 result["new_current_shots"] += _import_current_shots(db_path, shots)
         except Exception as error:
+            # Um ano com arquivo corrompido ou fora do formato não impede a normalização dos outros.
+            logger.warning("Falha ao normalizar o histórico de %s", year, exc_info=True)
             result["errors"].append(
                 {"year": int(year), "error": type(error).__name__, "detail": str(error)[:160]}
             )

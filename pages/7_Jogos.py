@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime, time, timedelta
 
 import pandas as pd
@@ -37,6 +38,8 @@ from src.ui.injuries import annotate_injuries, injury_notice
 from src.ui.insights import matchup_intel
 from src.ui.navigation import page_link
 from src.ui.round_cards import highlights_grid, history_notice
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="Jogos do Dia — NBA Analytics Lab",
@@ -233,6 +236,8 @@ if player_data_available:
             roster_version = str(hash(roster_records))
 
     except Exception as exc:
+        # A consulta externa pode falhar de várias formas; usa-se o histórico dos times.
+        logger.warning("Falha ao consultar o elenco atual da NBA", exc_info=True)
         st.warning(
             "Não foi possível consultar o elenco atual da NBA. "
             "Os destaques usarão os times registrados no histórico. "

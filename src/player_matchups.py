@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from nba_api.stats.static.teams import get_teams
 from .history_normalize import game_phase, season_label
 from .history_store import connect_history, history_root, read_assets
 from .live_types import minutes, utc_now
+
+logger = logging.getLogger(__name__)
 
 MATCHUP_COLUMNS = [
     "game_id",
@@ -165,6 +168,8 @@ def ingest_matchup_assets(db_path: str | Path, *, years=None) -> dict:
                 )
             result["files"] += 1
         except Exception as error:
+            # Um arquivo de marcações inválido não impede a importação dos demais.
+            logger.warning("Falha ao importar o arquivo %s", asset["name"], exc_info=True)
             result["errors"].append(
                 {"file": asset["name"], "error": type(error).__name__, "detail": str(error)[:160]}
             )
@@ -358,6 +363,8 @@ def collect_pending_matchups(db_path: str | Path, *, limit: int = 8) -> dict:
             result["collected"] += 1
             result["rows"] += count
         except Exception as error:
+            # A fonte externa pode falhar de várias formas; o erro fica no resultado e a coleta para.
+            logger.warning("Falha ao coletar as marcações do jogo %s", game_id, exc_info=True)
             result["error"] = type(error).__name__
             break
     return result

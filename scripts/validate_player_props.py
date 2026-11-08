@@ -13,9 +13,11 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
+    from src.logging_setup import configure_logging
     from src.prop_training import load_research_history
     from src.prop_validation import probability_grid, temporal_audit
 
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, required=True)
     parser.add_argument("--before-day", required=True)

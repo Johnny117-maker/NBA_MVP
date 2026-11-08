@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import threading
 import uuid
@@ -17,6 +18,8 @@ import requests
 
 from .history_store import connect_history, history_root, set_history_state
 from .live_types import current_season, utc_now
+
+logger = logging.getLogger(__name__)
 
 BASE = "https://github.com/sportsdataverse/sportsdataverse-data/releases/download"
 CATALOG_URL = "https://api.github.com/repos/sportsdataverse/sportsdataverse-data/releases"
@@ -204,6 +207,8 @@ def collect_history(
                 item = future.result()
                 result[item["status"]] += 1
             except Exception as error:
+                # Um arquivo com erro (rede, zip, parse) não interrompe os demais downloads.
+                logger.warning("Falha ao baixar o arquivo %s", asset.name, exc_info=True)
                 result["errors"].append({"tag": asset.tag, "name": asset.name, "error": type(error).__name__})
             if progress:
                 progress(index, len(assets), asset.name)
@@ -245,6 +250,8 @@ def start_current_history_sync(db_path: str | Path, stop_event: threading.Event)
                             "errors": len(result["errors"]) + len(result["normalized"].get("errors", [])),
                         }
                     except Exception as error:
+                        # O monitor em segundo plano continua vivo após qualquer falha da fonte.
+                        logger.warning("Falha na sincronização diária de defesa", exc_info=True)
                         state = {"attempted_at": moment.isoformat(), "error": type(error).__name__}
                     set_history_state(db_path, "daily_sync", state)
                 stop_event.wait(60)

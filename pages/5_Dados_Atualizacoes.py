@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import time
 
@@ -23,6 +24,8 @@ from src.ui import components, states, theme
 from src.ui.data_quality import data_quality_panel
 from src.ui.formatters import format_int_br
 from src.ui.live import sync_status
+
+logger = logging.getLogger(__name__)
 
 MAX_SHOT_BATCH = 30
 SHOT_COLLECTION_DELAY_SECONDS = 0.6
@@ -100,6 +103,8 @@ with tab_games:
             )
             st.rerun()
         except Exception as error:  # nba_api costuma falhar por timeout/bloqueio de rede
+            # Falha de rede ou bloqueio da nba_api não derruba a página.
+            logger.warning("Falha ao coletar a temporada", exc_info=True)
             progress.empty()
             states.error_state(f"Falha ao coletar a temporada {season_input}.", detail=str(error))
 
@@ -134,6 +139,7 @@ with tab_shots:
                     upsert_player_shots(shots, DEFAULT_DB_PATH)
                     collected += 1
                 except Exception:  # nba_api costuma falhar por timeout/bloqueio de rede
+                    logger.warning("Falha ao coletar os arremessos do jogador %s", player_id, exc_info=True)
                     failed += 1
                 progress.progress(index / len(batch))
                 time.sleep(SHOT_COLLECTION_DELAY_SECONDS)
@@ -193,6 +199,8 @@ with st.expander("Base ampliada desde 2022", expanded=False):
                     f"{result['cached']} já conferidos."
                 )
         except Exception as error:
+            # A fonte externa pode falhar de várias formas; os dados salvos são preservados.
+            logger.warning("Falha ao consultar o acervo histórico", exc_info=True)
             status.empty()
             st.error(
                 f"Não foi possível consultar o acervo ({type(error).__name__}). "

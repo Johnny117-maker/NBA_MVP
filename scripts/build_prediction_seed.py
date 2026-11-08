@@ -17,7 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 def main():
     from src.desktop_seed import build_seed
+    from src.logging_setup import configure_logging
 
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import secrets
 import subprocess
@@ -24,6 +25,8 @@ from .desktop_support import (
     resource_root,
     server_command,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _local_request(url: str, *, token: str | None = None) -> dict:
@@ -320,6 +323,8 @@ def main(argv: list[str] | None = None) -> int:
             return _diagnose(root, resources, args.diagnostico)
         return _run_window(root, resources)
     except Exception:
+        # Último recurso da inicialização: nada pode escapar sem registro, nem sem aviso ao usuário.
+        logger.exception("Falha ao iniciar o sistema")
         detail = traceback.format_exc()
         (root / "logs" / "error.log").write_text(detail, encoding="utf-8")
         if not args.serve and not args.diagnostico and sys.platform == "win32":

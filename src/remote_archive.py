@@ -309,6 +309,8 @@ def start_remote_archive_sync(db_path: str | Path, stop_event: threading.Event) 
                 try:
                     sync_remote_archive(db_path)
                 except Exception as error:
+                    # Rede, GitHub ou arquivo ruim não podem matar a thread de sincronização.
+                    logger.warning("Falha ao sincronizar o arquivo remoto", exc_info=True)
                     set_state(
                         db_path,
                         "remote_archive_status",

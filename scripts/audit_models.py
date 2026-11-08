@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.features import engineer_features  # noqa: E402
+from src.logging_setup import configure_logging  # noqa: E402
 from src.model import (  # noqa: E402
     SCORE_MODEL_VERSION,
     _relative_features,
@@ -342,6 +343,7 @@ def historical_report_audit(path: Path) -> dict:
 
 
 def main() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=Path("data/nba.db"))
     parser.add_argument("--as-of", default=date.today().isoformat())

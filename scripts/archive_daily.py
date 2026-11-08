@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.analysis_archive import run_daily_analysis  # noqa: E402
 from src.live_store import acquire_lease, release_lease  # noqa: E402
 from src.live_types import EASTERN, utc_now  # noqa: E402
+from src.logging_setup import configure_logging  # noqa: E402
 from src.prop_training import ensure_props_bundle, load_research_history  # noqa: E402
 from src.research_feeds import fetch_rapm_inputs  # noqa: E402
 from src.shot_quality import train_location_quality  # noqa: E402
@@ -21,6 +22,7 @@ from src.store import DEFAULT_DB_PATH  # noqa: E402
 
 
 def main() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description="Preserva previsões pré-jogo e treina modelos temporais.")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--train-only", action="store_true")

@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.data import generate_demo_games, load_real_games  # noqa: E402
+from src.logging_setup import configure_logging  # noqa: E402
 from src.model import train_models  # noqa: E402
 from src.player_data import load_player_games  # noqa: E402
 from src.player_features import add_opponent_context, add_rolling_features  # noqa: E402
@@ -33,6 +34,7 @@ def _load_player_games():
 
 
 def main(argv: list[str] | None = None) -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description="Retreina e registra as métricas dos modelos locais.")
     parser.add_argument("--team-only", action="store_true", help="Treina somente os modelos de times.")
     args = parser.parse_args(argv)

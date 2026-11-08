@@ -10,12 +10,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.logging_setup import configure_logging  # noqa: E402
 from src.provider_settings import load_api_keys  # noqa: E402
 from src.season_sync import SeasonSync  # noqa: E402
 from src.store import DEFAULT_DB_PATH  # noqa: E402
 
 
 def main() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--watch", action="store_true")

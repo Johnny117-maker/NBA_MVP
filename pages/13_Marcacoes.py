@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 
 import pandas as pd
@@ -11,6 +12,8 @@ from src.player_matchups import collect_game_matchups, defender_summary, read_ma
 from src.store import DEFAULT_DB_PATH, list_seasons
 from src.team_defense import defense_fingerprint
 from src.ui import components, theme
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="Marcações e encaixes — NBA Analytics Lab", page_icon=":material/person_search:", layout="wide"
@@ -195,6 +198,8 @@ if mode == "Partida":
             else:
                 st.info("A NBA ainda não retornou marcações para esta partida.")
         except Exception as error:
+            # A fonte externa pode falhar de várias formas; os registros salvos são preservados.
+            logger.warning("Falha ao consultar as marcações da partida", exc_info=True)
             st.warning(
                 f"Consulta indisponível ({type(error).__name__}). Os registros salvos foram preservados."
             )

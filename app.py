@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from src.data import load_real_games
+from src.logging_setup import configure_logging
 from src.shot_storage import count_player_shots
 from src.store import (
     DEFAULT_DB_PATH,
@@ -19,6 +20,8 @@ from src.ui.home import today_overview
 from src.ui.insights import latest_season_games, player_card, ranking_list, team_form_table
 from src.ui.live import opportunities_panel
 from src.ui.navigation import page_link
+
+configure_logging()
 
 st.set_page_config(
     page_title="NBA Analytics Lab",

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src.logging_setup import configure_logging  # noqa: E402
 from src.nba_client import fetch_game_advanced_stats  # noqa: E402
 from src.store import (  # noqa: E402
     DEFAULT_DB_PATH,
@@ -15,6 +17,8 @@ from src.store import (  # noqa: E402
     init_db,
     upsert_team_advanced_stats,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_LIMIT = 200
 DEFAULT_DELAY_SECONDS = 0.6
@@ -46,6 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
     init_db(args.db)
 
@@ -70,6 +75,8 @@ def main() -> None:
             upsert_team_advanced_stats(advanced, args.db)
             collected += 1
         except Exception as error:  # nba_api costuma falhar por timeout/bloqueio de rede
+            # nba_api costuma falhar por timeout/bloqueio de rede; segue para o próximo item.
+            logger.warning("Falha ao coletar as estatísticas avançadas", exc_info=True)
             failed += 1
             print(f"  [{index}/{len(batch)}] Falha em {game_id}: {error}")
 

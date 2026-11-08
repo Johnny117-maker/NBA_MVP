@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import timedelta
 
 import pandas as pd
@@ -12,6 +13,8 @@ from src.shot_quality import expected_points, train_location_quality
 from src.store import DEFAULT_DB_PATH
 from src.ui import components, theme
 from src.ui.learning import learning_status
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="Laboratório — NBA Analytics Lab", page_icon=":material/science:", layout="wide"
@@ -126,6 +129,8 @@ elif mode == "Métricas e fontes":
                 count = collect_rim_defense(DEFAULT_DB_PATH, current_season(today), today - timedelta(days=1))
             st.success(f"{count} indicadores de defesa importados.")
         except Exception as error:
+            # A fonte externa pode falhar de várias formas; a página mostra um aviso e continua.
+            logger.warning("Falha ao consultar a defesa no garrafão na página Laboratório", exc_info=True)
             st.warning(f"A NBA não forneceu os dados nesta consulta ({type(error).__name__}).")
     upload = st.file_uploader("Importar métricas publicadas (CSV)", type=["csv"])
     st.caption("Colunas: metric, player_id, as_of, value, source. LEBRON e DARKO exigem a fonte do produtor.")
