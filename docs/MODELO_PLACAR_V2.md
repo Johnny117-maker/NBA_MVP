@@ -94,7 +94,7 @@ python scripts/audit_models.py --as-of 2026-10-27 --output reports/model_promoti
 
 O primeiro comando treina e registra somente times. O segundo consulta os dados
 sem alterar o banco e permite repetir a comparação. O fluxo padrão de
-`RETREINAR_MODELOS.bat` continua disponível para a avaliação completa dos modelos.
+`windows/RETREINAR_MODELOS.bat` continua disponível para a avaliação completa dos modelos.
 
 Testes cobrem a exclusão de resultados da própria data, a independência de
 resultados futuros, a correspondência do contexto entre treinamento e previsão,

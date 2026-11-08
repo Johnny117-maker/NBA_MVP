@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 set "PYTHONUTF8=1"
-cd /d "%~dp0"
+cd /d "%~dp0.."
 title NBA Analytics Lab - Iniciar projeto
 
 echo ============================================================
@@ -9,14 +9,14 @@ echo  NBA Analytics Lab - Inicializacao
 echo ============================================================
 echo.
 
-set "VENV_PY=%~dp0.venv\Scripts\python.exe"
+set "VENV_PY=%~dp0..\.venv\Scripts\python.exe"
 
-if not exist "%~dp0app.py" (
+if not exist "%~dp0..\app.py" (
     echo [ERRO] O app.py nao foi encontrado. Execute este BAT na pasta completa do projeto.
     goto :fail
 )
 
-if not exist "%~dp0scripts\prepare_start.ps1" (
+if not exist "%~dp0..\scripts\prepare_start.ps1" (
     echo [ERRO] O auxiliar scripts\prepare_start.ps1 nao foi encontrado.
     echo Atualize os arquivos do projeto antes de iniciar.
     goto :fail
@@ -45,7 +45,7 @@ if not exist "%VENV_PY%" (
 :prepare_server
 if /i "%~1"=="--verificar" goto :verify_start
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File "%~dp0scripts\prepare_start.ps1" -ProjectRoot "%~dp0." -Port 8501
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File "%~dp0..\scripts\prepare_start.ps1" -ProjectRoot "%CD%" -Port 8501
 if errorlevel 1 goto :fail
 
 :run_app
@@ -55,7 +55,7 @@ echo O navegador sera aberto automaticamente quando o servidor estiver pronto.
 echo Os modelos atuais sao carregados pelo aplicativo; nao e preciso retreinar para abrir.
 echo Para encerrar a aplicacao, pressione Ctrl+C nesta janela.
 echo.
-"%VENV_PY%" -m streamlit run "%~dp0app.py" --server.port 8501 --server.headless false --server.showEmailPrompt false --browser.serverAddress localhost
+"%VENV_PY%" -m streamlit run "%~dp0..\app.py" --server.port 8501 --server.headless false --server.showEmailPrompt false --browser.serverAddress localhost
 set "APP_EXIT_CODE=%ERRORLEVEL%"
 
 if not "%APP_EXIT_CODE%"=="0" (
@@ -69,7 +69,7 @@ if not "%APP_EXIT_CODE%"=="0" (
 exit /b %APP_EXIT_CODE%
 
 :verify_start
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File "%~dp0scripts\prepare_start.ps1" -ProjectRoot "%~dp0." -Port 8501 -CheckOnly
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File "%~dp0..\scripts\prepare_start.ps1" -ProjectRoot "%CD%" -Port 8501 -CheckOnly
 exit /b %ERRORLEVEL%
 
 :fail

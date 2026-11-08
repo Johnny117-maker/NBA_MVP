@@ -102,7 +102,7 @@ coletada na temporada 2026–27. Essa limitação aparece no manifesto do labora
 
 ## Operação
 
-Abra `INICIAR_PROJETO.bat`. O inicializador verifica Streamlit e XGBoost e instala as
+Abra `windows/INICIAR_PROJETO.bat`. O inicializador verifica Streamlit e XGBoost e instala as
 dependências ausentes. O monitor continua enquanto o servidor existir, com ou sem a aba aberta.
 
 Comandos opcionais na raiz do projeto:

@@ -24,4 +24,4 @@ A média de referência usada na avaliação interna é calculada apenas no conj
 
 Foram adicionados dois testes isolados em `tests/test_opponent_defense_adjustment.py`: um verifica direção e limites do ajuste; o outro valida a integração no pipeline de previsão e confirma que o ajuste não altera rebotes e assistências.
 
-Resultado local: **2 testes isolados aprovados** e arquivos alterados compilados com `py_compile`. Não foi possível executar aqui os testes de interface `AppTest`, pois Streamlit não está instalado no ambiente; o conjunto completo deve ser executado no Windows com `EXECUTAR_TESTES.bat`.
+Resultado local: **2 testes isolados aprovados** e arquivos alterados compilados com `py_compile`. Não foi possível executar aqui os testes de interface `AppTest`, pois Streamlit não está instalado no ambiente; o conjunto completo deve ser executado no Windows com `windows/EXECUTAR_TESTES.bat`.

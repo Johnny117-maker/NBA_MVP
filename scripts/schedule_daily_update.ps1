@@ -11,9 +11,9 @@ if ($Remove) {
 }
 
 $root = Split-Path -Parent $PSScriptRoot
-$runner = Join-Path $root "ATUALIZAR_DIARIO.bat"
+$runner = Join-Path $root "windows\ATUALIZAR_DIARIO.bat"
 if (-not (Test-Path $runner)) {
-    throw "ATUALIZAR_DIARIO.bat nao encontrado em $root. Execute este atalho na pasta do projeto."
+    throw "windows\ATUALIZAR_DIARIO.bat nao encontrado em $root. Execute este atalho na pasta do projeto."
 }
 
 $action = New-ScheduledTaskAction -Execute $runner -WorkingDirectory $root

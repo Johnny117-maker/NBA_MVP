@@ -69,7 +69,7 @@ nos módulos afetados; Ruff passou e mypy validou os 44 arquivos de produção.
 Se aparecer `fetch_nba_schedule() got an unexpected keyword argument 'start_date'`
 após uma atualização, o processo do Streamlit pode estar com a versão anterior
 do módulo em memória. Encerre o servidor com `Ctrl+C`, execute novamente
-`INICIAR_PROJETO.bat` e atualize a página no navegador. Apenas recarregar a página
+`windows/INICIAR_PROJETO.bat` e atualize a página no navegador. Apenas recarregar a página
 não garante o recarregamento dos módulos Python do servidor.
 
 A página salva os calendários recebidos em `data/nba_schedule.json`, fora do Git.

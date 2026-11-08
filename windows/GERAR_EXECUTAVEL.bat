@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-cd /d "%~dp0"
+cd /d "%~dp0.."
 set "PYTHONUTF8=1"
 echo NBA Analytics Lab - Gerar executavel Windows
 echo Esta ferramenta e para compilar. O usuario do EXE nao precisa de Python.

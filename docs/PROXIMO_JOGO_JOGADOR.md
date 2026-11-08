@@ -30,7 +30,7 @@ O parser está isolado da requisição HTTP para ser testado com fixtures sem ac
 
 ## Validação
 
-Execute `EXECUTAR_TESTES.bat` no Windows para rodar toda a suíte. Os testes de calendário verificam a leitura de partidas, escolha do próximo jogo futuro, exclusão de partidas finalizadas/que já começaram e retorno vazio quando não há confronto futuro. A consulta ao CDN depende de conectividade externa e não pode ser validada em ambiente offline.
+Execute `windows/EXECUTAR_TESTES.bat` no Windows para rodar toda a suíte. Os testes de calendário verificam a leitura de partidas, escolha do próximo jogo futuro, exclusão de partidas finalizadas/que já começaram e retorno vazio quando não há confronto futuro. A consulta ao CDN depende de conectividade externa e não pode ser validada em ambiente offline.
 
 ## Resiliência do calendário
 

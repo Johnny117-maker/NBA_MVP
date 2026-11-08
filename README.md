@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ```
 
 Para desenvolvimento (testes, lint e tipos), use `requirements-dev.txt`.
-No Windows, `INSTALAR_DEPENDENCIAS.bat` faz esses passos.
+No Windows, `windows/INSTALAR_DEPENDENCIAS.bat` faz esses passos.
 
 ## Como executar
 
@@ -46,7 +46,7 @@ No Windows, `INSTALAR_DEPENDENCIAS.bat` faz esses passos.
 python -m streamlit run app.py
 ```
 
-No Windows também é possível usar `INICIAR_PROJETO.bat`. Na primeira execução não há dados
+No Windows também é possível usar `windows/INICIAR_PROJETO.bat`. Na primeira execução não há dados
 reais: colete-os pela página **Dados e atualizações** ou com os scripts abaixo.
 
 ## Dados e scripts principais

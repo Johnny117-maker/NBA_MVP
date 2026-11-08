@@ -1,6 +1,6 @@
 # Temporada atual, forma recente e Over/Under — 28/10/2026
 
-Ao abrir o projeto pelo `INICIAR_PROJETO.bat`, a primeira página inicia um monitor
+Ao abrir o projeto pelo `windows/INICIAR_PROJETO.bat`, a primeira página inicia um monitor
 compartilhado. Ele continua trabalhando enquanto o servidor estiver aberto,
 mesmo quando outra aba do projeto estiver selecionada ou o navegador estiver
 em segundo plano. Fechar o servidor, suspender ou desligar o computador interrompe
@@ -119,8 +119,8 @@ futuras ou prorrogações que ainda não começaram.
 
 ## Uso e configuração
 
-Para usar as fontes públicas, abra `INICIAR_PROJETO.bat`. Para um ciclo sem abrir
-o aplicativo, use `ATUALIZAR_TEMPORADA.bat` ou, no ambiente virtual:
+Para usar as fontes públicas, abra `windows/INICIAR_PROJETO.bat`. Para um ciclo sem abrir
+o aplicativo, use `windows/ATUALIZAR_TEMPORADA.bat` ou, no ambiente virtual:
 
 O novo painel foi validado com Streamlit 1.66.0. O requisito mínimo é 1.66;
 o BAT confere a versão e chama o instalador se o ambiente estiver desatualizado.
@@ -139,7 +139,7 @@ Não envie suas chaves no chat. Erros de requisição omitem URLs autenticadas.
 `NBA_AUTO_SYNC=0` desativa o monitor automático. Os testes usam essa opção para
 não depender de rede, horário ou APIs reais. Testes de coleta exercitam os serviços
 diretamente com respostas controladas. Para verificar o atalho sem iniciar ou
-encerrar processos, use `INICIAR_PROJETO.bat --verificar`.
+encerrar processos, use `windows/INICIAR_PROJETO.bat --verificar`.
 
 Validação: 322 testes automatizados passaram; Ruff e mypy sem erros em 63 arquivos
 de produção. Após a organização final dos filtros, os 13 testes de abertura,

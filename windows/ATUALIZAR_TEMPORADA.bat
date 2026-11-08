@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 set "PYTHONUTF8=1"
-cd /d "%~dp0"
+cd /d "%~dp0.."
 title NBA Analytics Lab - Atualizar temporada atual
 if not exist ".venv\Scripts\python.exe" (
     call "%~dp0INSTALAR_DEPENDENCIAS.bat"

@@ -7,10 +7,14 @@ publicam os resultados com algumas horas de atraso.
 ## No seu computador
 
 ```text
-AGENDAR_ATUALIZACAO_DIARIA.bat            cria a tarefa do Windows
-AGENDAR_ATUALIZACAO_DIARIA.bat remover    desfaz
-ATUALIZAR_DIARIO.bat                      executa agora, sem janela de pausa
+windows/AGENDAR_ATUALIZACAO_DIARIA.bat            cria a tarefa do Windows
+windows/AGENDAR_ATUALIZACAO_DIARIA.bat remover    desfaz
+windows/ATUALIZAR_DIARIO.bat                      executa agora, sem janela de pausa
 ```
+
+Os atalhos `.bat` ficam na pasta `windows/` (o `CRIAR_ATALHO.bat` e o `PUBLICAR_GITHUB.bat` continuam na raiz).
+Quem já tinha criado a tarefa agendada antes dessa mudança deve executar `windows/AGENDAR_ATUALIZACAO_DIARIA.bat`
+de novo, porque a tarefa antiga apontava para o caminho da raiz.
 
 A tarefa roda às 07:00 e às 12:00, e também ao entrar no Windows. Se o computador estiver
 desligado no horário, ela roda assim que ele ligar. Cada execução grava o resultado em
@@ -36,7 +40,7 @@ Limites:
 - A tarefa foi escrita e testada na parte Python (testes automatizados e uma execução real
   contra a fonte pública), mas o script do Agendador do Windows não pôde ser executado no
   ambiente de desenvolvimento, que é Linux. Se algo falhar ao agendar, rode
-  `ATUALIZAR_DIARIO.bat` manualmente e avise.
+  `windows/ATUALIZAR_DIARIO.bat` manualmente e avise.
 - O executável do Windows guarda os dados em `%LOCALAPPDATA%\NBAAnalyticsLab`. Para usar a
   tarefa com ele, defina a variável de ambiente `NBA_DATA_HOME` com essa pasta.
 

@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-cd /d "%~dp0"
+cd /d "%~dp0.."
 title NBA Analytics Lab - Instalar dependencias
 
 echo ============================================================

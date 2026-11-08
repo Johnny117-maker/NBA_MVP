@@ -30,7 +30,7 @@ que uma projeção seja avaliada contra uma partida diferente daquela pretendida
 ## Como usar
 
 1. Atualize os dados reais antes de avaliar.
-2. Execute `RETREINAR_MODELOS.bat` no Windows ou `python scripts/retrain_models.py` no terminal.
+2. Execute `windows/RETREINAR_MODELOS.bat` no Windows ou `python scripts/retrain_models.py` no terminal.
 3. Abra **Qualidade do Modelo** para examinar MAE por rodada e por jogador.
 4. Gere novas previsões na página **Jogadores**, selecione a data exata do jogo,
    equipe adversária e mando, e registre a previsão.

@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 set "PYTHONUTF8=1"
-cd /d "%~dp0"
+cd /d "%~dp0.."
 rem Atualizacao diaria sem janela de pausa; usada pela tarefa agendada.
 rem O resultado fica em data\atualizacao_diaria.log.
 if not exist "data" mkdir "data"

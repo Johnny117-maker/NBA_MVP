@@ -14,7 +14,7 @@ consultar novos dados. Fechar a janela encerra o processamento.
 
 Execute `CRIAR_ATALHO.bat` para criar o ícone **NBA Analytics Lab** na Área de Trabalho.
 
-Para gerar uma nova versão, use `GERAR_EXECUTAVEL.bat` no ambiente de desenvolvimento.
+Para gerar uma nova versão, use `windows/GERAR_EXECUTAVEL.bat` no ambiente de desenvolvimento.
 [Uso, backup, migração e compilação](EXECUTAVEL_WINDOWS.md).
 
 > Os dados reais são coletados após a instalação; exemplos sintéticos servem para demonstração e testes. A disponibilidade ao vivo depende das fontes e da rede. As probabilidades são experimentais; cotações externas são opcionais.
@@ -174,9 +174,10 @@ nba-analytics/
 │   ├── test_ui_components.py
 │   ├── test_ui_explanations.py
 │   └── test_ui_formatters.py
-├── EXECUTAR_TESTES.bat
-├── INICIAR_PROJETO.bat
-├── INSTALAR_DEPENDENCIAS.bat
+├── windows/
+│   ├── EXECUTAR_TESTES.bat
+│   ├── INICIAR_PROJETO.bat
+│   └── INSTALAR_DEPENDENCIAS.bat
 ├── app.py
 ├── requirements.txt
 ├── requirements-dev.txt
@@ -194,13 +195,13 @@ mantendo a separação de responsabilidades da navegação (seção 3 do
 
 Na pasta raiz do projeto ha tres atalhos para facilitar o uso:
 
-1. `INSTALAR_DEPENDENCIAS.bat` — cria o ambiente virtual `.venv`, atualiza o `pip` e baixa/instala todos os pacotes listados em `requirements.txt`. Execute este arquivo primeiro se quiser preparar o projeto manualmente.
-2. `INICIAR_PROJETO.bat` — inicia o Streamlit e abre o navegador. Se o ambiente virtual ou o Streamlit ainda nao estiver instalado, chama automaticamente o instalador de dependencias.
-3. `EXECUTAR_TESTES.bat` — instala as ferramentas de desenvolvimento (`requirements-dev.txt`: pytest, ruff e mypy) e executa a suite automatizada com `pytest`. O aplicativo em si usa apenas `requirements.txt`.
+1. `windows/INSTALAR_DEPENDENCIAS.bat` — cria o ambiente virtual `.venv`, atualiza o `pip` e baixa/instala todos os pacotes listados em `requirements.txt`. Execute este arquivo primeiro se quiser preparar o projeto manualmente.
+2. `windows/INICIAR_PROJETO.bat` — inicia o Streamlit e abre o navegador. Se o ambiente virtual ou o Streamlit ainda nao estiver instalado, chama automaticamente o instalador de dependencias.
+3. `windows/EXECUTAR_TESTES.bat` — instala as ferramentas de desenvolvimento (`requirements-dev.txt`: pytest, ruff e mypy) e executa a suite automatizada com `pytest`. O aplicativo em si usa apenas `requirements.txt`.
 
 **Antes de comecar:** extraia o ZIP inteiro para uma pasta local; nao execute os arquivos de dentro do ZIP. E necessario ter Python instalado (preferencialmente Python 3.12) e acesso a internet para baixar os pacotes. O arquivo `.bat` instala as bibliotecas Python, mas nao instala o proprio Python nem atualiza automaticamente os dados da NBA.
 
-Para uso normal, basta dar duplo clique em `INICIAR_PROJETO.bat`. Mantenha a janela aberta enquanto estiver usando a aplicacao. Para parar o servidor, volte a essa janela e pressione `Ctrl+C`.
+Para uso normal, basta dar duplo clique em `windows/INICIAR_PROJETO.bat`. Mantenha a janela aberta enquanto estiver usando a aplicacao. Para parar o servidor, volte a essa janela e pressione `Ctrl+C`.
 
 O BAT abre **http://localhost:8501** automaticamente quando o servidor fica pronto.
 Se este projeto já estiver usando a porta 8501, o auxiliar
@@ -210,7 +211,7 @@ nesse caso, o atalho explica o conflito e encerra a inicialização.
 Abrir o projeto não dispara um novo treinamento completo dos modelos.
 
 Para verificar a inicialização sem encerrar o servidor nem abrir o navegador,
-execute `INICIAR_PROJETO.bat --verificar` no terminal.
+execute `windows/INICIAR_PROJETO.bat --verificar` no terminal.
 
 ## Como executar no Windows
 
@@ -251,7 +252,7 @@ A Visão Geral mostra oportunidades estatísticas de Over/Under e a nova tela
 pontos, rebotes ou assistências. As fontes públicas funcionam sem cadastro;
 conexões ao vivo dependem da disponibilidade da NBA/ESPN nesta rede.
 Veja [fontes, configuração, limites e validação](ATUALIZACAO_AUTOMATICA_E_AO_VIVO.md).
-Para atualizar uma vez sem abrir o navegador, execute `ATUALIZAR_TEMPORADA.bat`.
+Para atualizar uma vez sem abrir o navegador, execute `windows/ATUALIZAR_TEMPORADA.bat`.
 
 A [auditoria de 27/10/2026](AUDITORIA_MODELOS_2026-10-27.md) compara modelos e
 referências simples, verifica dependências temporais e descreve as prioridades de melhoria.
@@ -786,7 +787,7 @@ estatística) fica como próximo passo antes de revisitar o modo quantílico.
 
 ```powershell
 # Windows
-double-click RETREINAR_MODELOS.bat
+double-click windows/RETREINAR_MODELOS.bat
 
 # Or in PowerShell
 python scripts/retrain_models.py

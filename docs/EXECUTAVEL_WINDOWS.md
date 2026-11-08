@@ -69,7 +69,7 @@ Essa migração é pessoal: previsões, chaves e caches privados não acompanham
 ## Compilar uma nova versão
 
 Esta etapa é somente para quem desenvolve o projeto. No Windows x64 com o ambiente
-de desenvolvimento configurado, execute `GERAR_EXECUTAVEL.bat`. A saída fica em:
+de desenvolvimento configurado, execute `windows/GERAR_EXECUTAVEL.bat`. A saída fica em:
 
 ```text
 dist/
