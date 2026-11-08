@@ -27,27 +27,32 @@ acompanhar a qualidade das próprias previsões ao longo da temporada.
 
 - Python 3.12
 - Acesso à internet para coletar dados via `nba_api`
-- Windows, Linux ou macOS (os atalhos `.bat` são só para Windows)
+- Windows, Linux ou macOS (os atalhos `.bat` em `windows/` são só para Windows; no resto, use o `Makefile`)
 
-## Instalação
+## Instalação e execução
+
+**Linux e macOS** (com `make` e Python 3.12):
 
 ```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate    |    Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
+make install    # cria o .venv e instala requirements-dev.txt
+make run        # abre o app em http://localhost:8501
 ```
 
-Para desenvolvimento (testes, lint e tipos), use `requirements-dev.txt`.
-No Windows, `windows/INSTALAR_DEPENDENCIAS.bat` faz esses passos.
-
-## Como executar
+Sem `make`, os mesmos passos manuais:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt     # use requirements-dev.txt para testes, lint e tipos
 python -m streamlit run app.py
 ```
 
-No Windows também é possível usar `windows/INICIAR_PROJETO.bat`. Na primeira execução não há dados
-reais: colete-os pela página **Dados e atualizações** ou com os scripts abaixo.
+**Windows:** `windows\INSTALAR_DEPENDENCIAS.bat` instala as dependências e
+`windows\INICIAR_PROJETO.bat` abre o app. Manualmente: crie o ambiente com
+`python -m venv .venv`, ative com `.venv\Scripts\activate` e rode os mesmos comandos pip e streamlit.
+
+Na primeira execução não há dados reais: colete-os pela página **Dados e atualizações**
+ou com os scripts abaixo.
 
 ## Dados e scripts principais
 
@@ -56,18 +61,22 @@ Os dados ficam em `data/` (banco SQLite `data/nba.db`, que **não** é versionad
 | Script | Função |
 |---|---|
 | `python scripts/sync_current_season.py` | Sincroniza a temporada atual |
-| `python scripts/update_daily.py` | Atualização diária (jogos de ontem e de hoje) |
+| `python scripts/update_daily.py` | Atualização diária (jogos de ontem e de hoje); `make update-data` |
 | `python scripts/collect_history.py` | Coleta de histórico de temporadas |
-| `python scripts/retrain_models.py` | Retreina os modelos |
+| `python scripts/retrain_models.py` | Retreina os modelos; `make retrain` |
 | `python scripts/audit_models.py` | Auditoria de modelos contra jogos ainda não vistos |
 
 ## Testes e qualidade
 
 ```bash
-python -m ruff check .
-python -m mypy src pages app.py desktop_launcher.py scripts
-python -m pytest -q
+make test        # pytest
+make lint        # ruff
+make typecheck   # mypy
+make check       # os três, como no CI
 ```
+
+Sem `make`: `python -m ruff check .`, `python -m mypy src pages app.py desktop_launcher.py scripts`
+e `python -m pytest -q`. No Windows, `windows\EXECUTAR_TESTES.bat` roda os testes.
 
 O workflow `tests.yml` roda os mesmos comandos no GitHub Actions.
 
