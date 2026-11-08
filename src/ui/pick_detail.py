@@ -6,21 +6,8 @@ import streamlit as st
 from src.prop_explanations import compare_line, line_context, projection_components
 
 
-def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
-    key = f"{key}_{snapshot.get('game_id', '')}_{snapshot['captured_at']}_{player['name']}"
-    labels = {"pts": "Pontos", "reb": "Rebotes", "ast": "Assistências"}
-    st.subheader(player["name"])
-    stamp = pd.Timestamp(snapshot["captured_at"]).tz_convert("America/Sao_Paulo")
-    st.caption(f"{snapshot['away']} × {snapshot['home']} · captura de {stamp:%d/%m às %H:%M} · Brasília")
-    stat = st.segmented_control(
-        "Analisar produção",
-        list(labels),
-        format_func=lambda s: labels[s],
-        default="pts",
-        required=True,
-        key=key + "_stat",
-    )
-    estimate = player["stats"][stat]
+def _estimate_metrics(stat: str, estimate: dict, player: dict, labels: dict) -> None:
+    """Cartões de projeção, faixa P10–P90 e minutos estimados."""
     columns = st.columns(3)
     columns[0].metric(labels[stat] + " previstos", f"{estimate['projected']:.1f}")
     columns[1].metric(
@@ -33,6 +20,10 @@ def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
         "Minutos estimados", f"{player['minutes']:.1f}" if player.get("minutes") is not None else "—"
     )
     st.caption("A faixa é experimental e não garante o resultado. A projeção assume participação do atleta.")
+
+
+def _line_comparison(stat: str, estimate: dict, player: dict, labels: dict, key: str):
+    """Compara a projeção com uma linha escolhida; devolve (linha, contexto da linha)."""
     line = st.number_input(
         "Linha para comparar",
         min_value=0.0,
@@ -68,6 +59,11 @@ def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
             f"A produção estimada é {estimate['projected']:.1f} {labels[stat].lower()}; "
             "o resultado real pode ficar acima ou abaixo dessa média."
         )
+    return line, context
+
+
+def _method_evidence(snapshot: dict, estimate: dict, stat: str, line: float) -> None:
+    """Evidência do método no teste histórico e avisos sobre a linha consultada."""
     evidence = snapshot.get("model", {}).get("validation", {}).get("stats", {}).get(stat)
     if evidence:
         st.caption(
@@ -89,6 +85,10 @@ def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
         )
     st.caption("A validação pré-jogo não se aplica às probabilidades condicionais de uma partida ao vivo.")
     st.caption("Referência estatística; a comparação não é cotação de casa nem modifica a captura original.")
+
+
+def _pregame_context(player: dict, stat: str, context: dict, labels: dict, key: str) -> None:
+    """Contexto conhecido antes do jogo: forma recente, temporada, adversário e descanso."""
     st.markdown("**O que sabemos antes do jogo**")
     factors = player.get("factors", {})
     recent = factors.get("recent", {}).get(stat, {})
@@ -137,6 +137,10 @@ def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
     st.caption(
         "Escalação e restrição de minutos não confirmadas. Os fatores são contexto, não causas comprovadas."
     )
+
+
+def _projection_breakdown(estimate: dict) -> None:
+    """Parcelas aritméticas que somam a projeção, quando preservadas."""
     parts = projection_components(estimate)
     if parts:
         with st.expander("Como chegamos ao valor previsto"):
@@ -151,6 +155,10 @@ def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
             )
             if float(estimate.get("ml_weight", 0)) == 0:
                 st.write("O peso efetivo do XGBoost foi zero nesta previsão; a combinação utiliza Bayes.")
+
+
+def _model_origin(snapshot: dict, player: dict, estimate: dict) -> None:
+    """Modelo, fonte e parâmetros preservados da estimativa."""
     with st.expander("Modelo e origem desta estimativa"):
         st.caption(
             f"Modelo: {snapshot['model'].get('id', 'sem identificação')} · "
@@ -167,3 +175,26 @@ def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
                 if k in estimate
             }
         )
+
+
+def pick_detail(snapshot: dict, player: dict, *, key: str) -> None:
+    key = f"{key}_{snapshot.get('game_id', '')}_{snapshot['captured_at']}_{player['name']}"
+    labels = {"pts": "Pontos", "reb": "Rebotes", "ast": "Assistências"}
+    st.subheader(player["name"])
+    stamp = pd.Timestamp(snapshot["captured_at"]).tz_convert("America/Sao_Paulo")
+    st.caption(f"{snapshot['away']} × {snapshot['home']} · captura de {stamp:%d/%m às %H:%M} · Brasília")
+    stat = st.segmented_control(
+        "Analisar produção",
+        list(labels),
+        format_func=lambda s: labels[s],
+        default="pts",
+        required=True,
+        key=key + "_stat",
+    )
+    estimate = player["stats"][stat]
+    _estimate_metrics(stat, estimate, player, labels)
+    line, context = _line_comparison(stat, estimate, player, labels, key)
+    _method_evidence(snapshot, estimate, stat, line)
+    _pregame_context(player, stat, context, labels, key)
+    _projection_breakdown(estimate)
+    _model_origin(snapshot, player, estimate)

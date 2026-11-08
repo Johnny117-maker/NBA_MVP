@@ -134,6 +134,10 @@ def _diagnose(root: Path, resources: Path, output: Path) -> int:
 
 
 def _run_window(root: Path, resources: Path) -> int:
+    # Função longa de propósito (plano C2): reúne as classes Qt aninhadas, que dependem de
+    # closures e de importações tardias do PySide6. Sem PySide6 no ambiente de testes e sem
+    # cobertura automatizada da janela, dividir aqui não teria como provar que o comportamento
+    # permanece igual; por isso ela não foi refatorada.
     from PySide6.QtCore import QLockFile, QSettings, QStandardPaths, QTimer, QUrl
     from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QIcon
     from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile

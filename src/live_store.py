@@ -301,19 +301,20 @@ def validate_final(game: LiveGame) -> None:
             raise ValueError("Boxscore incompleto: minutos da equipe inconsistentes.")
 
 
-def persist_final(
-    db_path: str | Path,
-    game: LiveGame,
-    crosswalk: dict[str, int] | None = None,
-    known_names: dict[str, set[int]] | None = None,
-) -> bool:
-    validate_final(game)
-    init_db(Path(db_path))
-    for player in game.players:
-        if (player.minutes or 0) > 0:
-            player.canonical_id = resolve_player(db_path, game.source, player, crosswalk, known_names)
-    # Datas de consulta não entram no hash: uma repetição não invalida os modelos.
-    fingerprint = hashlib.sha256(
+# Prioridade de cada fonte ao decidir qual versão de uma partida final permanece.
+_SOURCE_PRIORITIES = {
+    "NBA": 30,
+    "NBA (preexistente)": 30,
+    "ESPN": 20,
+    "API-Sports": 15,
+    "balldontlie": 15,
+    "SportsDataverse/ESPN": 10,
+}
+
+
+def _final_fingerprint(game: LiveGame) -> str:
+    """Hash do resultado final. Datas de consulta não entram: uma repetição não invalida os modelos."""
+    return hashlib.sha256(
         json.dumps(
             {
                 "home": game.home_score,
@@ -327,6 +328,75 @@ def persist_final(
             sort_keys=True,
         ).encode()
     ).hexdigest()
+
+
+def _source_alias(game: LiveGame) -> str:
+    """Identificador da partida na fonte, com prefixo quando não é a NBA."""
+    if game.source == "NBA":
+        return game.external_id
+    if "ESPN" in game.source:
+        return "espn:" + game.external_id
+    return game.source + ":" + game.external_id
+
+
+def _upsert_game_row(connection: sqlite3.Connection, game: LiveGame, game_id: str) -> None:
+    connection.execute(
+        "INSERT INTO games VALUES (?,?,?,?,?,?,?) ON CONFLICT(game_id) DO UPDATE SET "
+        "home_points=excluded.home_points,away_points=excluded.away_points",
+        (
+            game_id,
+            game.day,
+            game.season,
+            TEAM_ABBREVIATION_TO_NAME[game.home],
+            TEAM_ABBREVIATION_TO_NAME[game.away],
+            game.home_score,
+            game.away_score,
+        ),
+    )
+
+
+def _upsert_player_rows(
+    connection: sqlite3.Connection, game: LiveGame, game_id: str, *, official_existing: bool
+) -> None:
+    columns = [*_PLAYER_GAME_COLUMNS, "is_starter"]
+    updates = ",".join(f"{col}=excluded.{col}" for col in columns if col not in {"game_id", "player_id"})
+    conflict = "DO NOTHING" if official_existing else "DO UPDATE SET " + updates
+    for player in game.players:
+        if (player.minutes or 0) <= 0:
+            continue
+        record = {
+            "game_id": game_id,
+            "player_id": player.canonical_id,
+            "game_date": game.day,
+            "season": game.season,
+            "player_name": player.name,
+            "team": player.team,
+            "opponent": game.away if player.team == game.home else game.home,
+            "is_home": int(player.team == game.home),
+            "minutes": player.minutes,
+            **{key: int(player.stats[key] or 0) for key in STAT_FIELDS},
+            "is_starter": None if player.starter is None else int(player.starter),
+        }
+        connection.execute(
+            f"INSERT INTO player_game_stats ({','.join(columns)}) "
+            f"VALUES ({','.join('?' for _ in columns)}) "
+            f"ON CONFLICT(game_id,player_id) {conflict}",
+            tuple(record[col] for col in columns),
+        )
+
+
+def persist_final(
+    db_path: str | Path,
+    game: LiveGame,
+    crosswalk: dict[str, int] | None = None,
+    known_names: dict[str, set[int]] | None = None,
+) -> bool:
+    validate_final(game)
+    init_db(Path(db_path))
+    for player in game.players:
+        if (player.minutes or 0) > 0:
+            player.canonical_id = resolve_player(db_path, game.source, player, crosswalk, known_names)
+    fingerprint = _final_fingerprint(game)
     with sqlite3.connect(db_path, timeout=15) as connection:
         connection.execute(
             "CREATE TABLE IF NOT EXISTS ingestion_provenance "
@@ -336,17 +406,8 @@ def persist_final(
             "SELECT game_id FROM games WHERE date(game_date)=? AND home_team=? AND away_team=? LIMIT 1",
             (game.day, TEAM_ABBREVIATION_TO_NAME[game.home], TEAM_ABBREVIATION_TO_NAME[game.away]),
         ).fetchone()
-        game_id = (
-            existing[0]
-            if existing
-            else (
-                game.external_id
-                if game.source == "NBA"
-                else "espn:" + game.external_id
-                if "ESPN" in game.source
-                else game.source + ":" + game.external_id
-            )
-        )
+        alias = _source_alias(game)
+        game_id = existing[0] if existing else alias
         old_context = connection.execute(
             "SELECT date(game_date),home_team,away_team FROM games WHERE game_id=?", (game_id,)
         ).fetchone()
@@ -357,26 +418,12 @@ def persist_final(
         )
         if old_context is not None and old_context != expected_context:
             raise ValueError("Identificador de partida associado a outra data ou equipes.")
-        alias = (
-            game.external_id
-            if game.source == "NBA"
-            else (
-                "espn:" + game.external_id if "ESPN" in game.source else game.source + ":" + game.external_id
-            )
-        )
         if alias != game_id:
             connection.execute("INSERT OR REPLACE INTO game_id_aliases VALUES (?,?)", (alias, game_id))
         previous = connection.execute(
             "SELECT source,fingerprint FROM ingestion_provenance WHERE game_id=?", (game_id,)
         ).fetchone()
-        priorities = {
-            "NBA": 30,
-            "NBA (preexistente)": 30,
-            "ESPN": 20,
-            "API-Sports": 15,
-            "balldontlie": 15,
-            "SportsDataverse/ESPN": 10,
-        }
+        priorities = _SOURCE_PRIORITIES
         if previous and previous[1] == fingerprint:
             if priorities.get(game.source, 0) > priorities.get(previous[0], 30):
                 connection.execute(
@@ -393,44 +440,8 @@ def persist_final(
             and (previous is None or previous[0] == "NBA (preexistente)")
         )
         if not official_existing:
-            connection.execute(
-                "INSERT INTO games VALUES (?,?,?,?,?,?,?) ON CONFLICT(game_id) DO UPDATE SET "
-                "home_points=excluded.home_points,away_points=excluded.away_points",
-                (
-                    game_id,
-                    game.day,
-                    game.season,
-                    TEAM_ABBREVIATION_TO_NAME[game.home],
-                    TEAM_ABBREVIATION_TO_NAME[game.away],
-                    game.home_score,
-                    game.away_score,
-                ),
-            )
-        columns = [*_PLAYER_GAME_COLUMNS, "is_starter"]
-        updates = ",".join(f"{col}=excluded.{col}" for col in columns if col not in {"game_id", "player_id"})
-        conflict = "DO NOTHING" if official_existing else "DO UPDATE SET " + updates
-        for player in game.players:
-            if (player.minutes or 0) <= 0:
-                continue
-            record = {
-                "game_id": game_id,
-                "player_id": player.canonical_id,
-                "game_date": game.day,
-                "season": game.season,
-                "player_name": player.name,
-                "team": player.team,
-                "opponent": game.away if player.team == game.home else game.home,
-                "is_home": int(player.team == game.home),
-                "minutes": player.minutes,
-                **{key: int(player.stats[key] or 0) for key in STAT_FIELDS},
-                "is_starter": None if player.starter is None else int(player.starter),
-            }
-            connection.execute(
-                f"INSERT INTO player_game_stats ({','.join(columns)}) "
-                f"VALUES ({','.join('?' for _ in columns)}) "
-                f"ON CONFLICT(game_id,player_id) {conflict}",
-                tuple(record[col] for col in columns),
-            )
+            _upsert_game_row(connection, game, game_id)
+        _upsert_player_rows(connection, game, game_id, official_existing=official_existing)
         connection.execute(
             "INSERT OR REPLACE INTO ingestion_provenance VALUES (?,?,?,?)",
             (

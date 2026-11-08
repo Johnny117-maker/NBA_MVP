@@ -368,28 +368,9 @@ def latest_season_baseline(
     return values
 
 
-def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
-    """Adiciona variáveis pré-jogo e preenchimentos estritamente temporais.
-
-    Usa operações vetorizadas do pandas para processar a base histórica sem
-    executar uma função Python para cada jogador. As características incluem
-    janelas dos últimos 3/5/10 jogos e EMAs de carreira/da passagem atual.
-    Fallbacks da liga usam somente datas anteriores; no início absoluto da
-    série entram os priors fixos documentados em ``INITIAL_PRIORS``.
-    """
-    if player_games.empty:
-        return player_games.copy()
-
-    source = player_games.copy().reset_index(drop=True)
-    source["game_date"] = pd.to_datetime(source["game_date"])
-    games = assign_team_stints(source).sort_values(["player_id", "game_date"]).copy()
-    # Quantas partidas do jogador já estavam disponíveis antes deste registro.
-    # Serve para avaliar o suporte do histórico sem expor informação futura ao modelo.
-    games["games_before"] = games.groupby("player_id", sort=False).cumcount().astype(float)
-    games["_effective_starter"] = effective_starter_flag(games).astype(float)
+def _add_player_windows(games: pd.DataFrame) -> None:
+    """Janelas e EMAs pré-jogo de cada jogador (carreira), no próprio `games`."""
     player_keys = ["player_id"]
-    stint_keys = ["player_id", "team_stint_id"]
-
     prior_minutes = _group_shift(games, "minutes", player_keys)
     games["minutes_avg5"] = _group_ewm(prior_minutes, games, player_keys, EMA_HALFLIFE_FAST)
     games["minutes_avg10"] = _group_ewm(prior_minutes, games, player_keys, EMA_HALFLIFE_SLOW)
@@ -425,7 +406,10 @@ def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
         prior_starter, games, player_keys, EMA_HALFLIFE_SLOW
     )
 
-    # Repetição para o período de vínculo do jogador ao time atual.
+
+def _add_stint_windows(games: pd.DataFrame) -> None:
+    """As mesmas janelas e EMAs, restritas à passagem atual do jogador pelo time."""
+    stint_keys = ["player_id", "team_stint_id"]
     prior_minutes_stint = _group_shift(games, "minutes", stint_keys)
     games["minutes_avg5_stint"] = _group_ewm(
         prior_minutes_stint, games, stint_keys, EMA_HALFLIFE_FAST
@@ -467,6 +451,9 @@ def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
         prior_starter_stint, games, stint_keys, EMA_HALFLIFE_SLOW
     )
 
+
+def _fill_with_league_fallbacks(games: pd.DataFrame, source: pd.DataFrame) -> None:
+    """Preenche estreias com médias da liga de datas anteriores e, no início da série, com priors fixos."""
     source_dates = source["game_date"].dt.normalize()
     games_dates = games["game_date"].dt.normalize()
     fallback_specs: dict[str, tuple[pd.Series, float]] = {
@@ -512,6 +499,9 @@ def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
     games["usg_pct_avg10"] = games["usg_pct_avg10"].fillna(fallback("usage_pct"))
     games["starter_rate_avg10"] = games["starter_rate_avg10"].fillna(fallback("starter_rate"))
 
+
+def _fill_stint_from_career(games: pd.DataFrame) -> None:
+    """Sem histórico no time atual, a janela da passagem herda a janela de carreira."""
     games["minutes_avg5_stint"] = games["minutes_avg5_stint"].fillna(games["minutes_avg5"])
     games["minutes_avg10_stint"] = games["minutes_avg10_stint"].fillna(games["minutes_avg10"])
     for stat in PER_MIN_STATS:
@@ -535,9 +525,35 @@ def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
         games["starter_rate_avg10"]
     )
 
+
+def add_rolling_features(player_games: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona variáveis pré-jogo e preenchimentos estritamente temporais.
+
+    Usa operações vetorizadas do pandas para processar a base histórica sem
+    executar uma função Python para cada jogador. As características incluem
+    janelas dos últimos 3/5/10 jogos e EMAs de carreira/da passagem atual.
+    Fallbacks da liga usam somente datas anteriores; no início absoluto da
+    série entram os priors fixos documentados em ``INITIAL_PRIORS``.
+    """
+    if player_games.empty:
+        return player_games.copy()
+
+    source = player_games.copy().reset_index(drop=True)
+    source["game_date"] = pd.to_datetime(source["game_date"])
+    games = assign_team_stints(source).sort_values(["player_id", "game_date"]).copy()
+    # Quantas partidas do jogador já estavam disponíveis antes deste registro.
+    # Serve para avaliar o suporte do histórico sem expor informação futura ao modelo.
+    games["games_before"] = games.groupby("player_id", sort=False).cumcount().astype(float)
+    games["_effective_starter"] = effective_starter_flag(games).astype(float)
+    _add_player_windows(games)
+    _add_stint_windows(games)
+    _fill_with_league_fallbacks(games, source)
+    _fill_stint_from_career(games)
+
     games = add_previous_season_baselines(games)
     games = games.drop(columns=["_effective_starter"])
     return games.sort_values(["game_date", "player_id"]).reset_index(drop=True)
+
 
 def _team_long_defense(team_games: pd.DataFrame) -> pd.DataFrame:
     """Uma linha por time por jogo, com os pontos sofridos naquele jogo."""

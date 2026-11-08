@@ -409,38 +409,13 @@ def _prediction_confidence(
     return "Média"
 
 
-def train_player_models(
-    games_with_rolling_features: pd.DataFrame, interval_method: str = "normal"
-) -> PlayerModelBundle:
-    """Treina os modelos de projeção de jogador.
-
-    A estimativa final de pontos, rebotes e assistências combina o modelo
-    dinâmico com a taxa por minuto da temporada-base, com maior peso nessa
-    referência no início de uma nova passagem por um time.
-
-    `interval_method="normal"` (padrão): intervalos de pts/reb/ast vêm de
-    Normal(0, erro histórico) em torno da previsão central — rápido. A previsão
-    central de pontos usa um regressor direto regularizado de pontos/minuto;
-    a cadeia FGA × TS% é mantida como métrica de comparação. `interval_method="quantile"`: além dos
-    modelos de sempre, treina modelos de quantil (P10/P90) por estatística
-    para gerar intervalos assimétricos — mais caro (`GradientBoostingRegressor`
-    em vez de Ridge, 3 modelos por estatística), pensado para comparar contra
-    o modo normal via `walk_forward_evaluate` antes de virar padrão.
-    """
-    if interval_method not in ("normal", "quantile"):
-        raise ValueError(f"interval_method inválido: {interval_method!r}")
-    if len(games_with_rolling_features) < 50:
-        raise ValueError("São necessários pelo menos 50 jogos para treinar o modelo.")
-
-    ordered = _prepare(games_with_rolling_features).sort_values("game_date").reset_index(drop=True)
-    train_rows, test_rows = _temporal_train_test_split(ordered, train_fraction=0.8)
-
+def _evaluate_minutes(train_rows: pd.DataFrame, test_rows: pd.DataFrame):
+    """Treina e avalia o modelo de minutos; devolve (modelo, minutos previstos, métricas, desvios)."""
     minutes_eval = _regression_pipeline().fit(train_rows[MINUTES_FEATURES], train_rows["minutes"])
     predicted_minutes_raw = minutes_eval.predict(test_rows[MINUTES_FEATURES])
     predicted_minutes = _calibrate_minutes_predictions(
         predicted_minutes_raw, _prepare(test_rows)
     )
-    predicted_minutes_by_index = pd.Series(predicted_minutes, index=test_rows.index)
 
     metrics = {"minutes_mae": float(mean_absolute_error(test_rows["minutes"], predicted_minutes))}
     residual_std = {
@@ -449,10 +424,20 @@ def train_player_models(
             MIN_RESIDUAL_STD_MINUTES,
         )
     }
+    return minutes_eval, predicted_minutes, metrics, residual_std
 
-    train_valid = train_rows[train_rows["minutes"] > 0]
-    test_valid = test_rows[test_rows["minutes"] > 0]
+def _evaluate_points(
+    train_rows: pd.DataFrame,
+    train_valid: pd.DataFrame,
+    test_valid: pd.DataFrame,
+    test_predicted_minutes: np.ndarray,
+    metrics: dict,
+    residual_std: dict,
+):
+    """Avalia os modelos de pontos (volume, eficiência e regressor direto); atualiza métricas e desvios.
 
+    Devolve (modelo de FGA, modelo de TS%, regressor direto de pontos por minuto).
+    """
     # TS% não existe (fica NaN) só em jogos sem nenhuma tentativa de
     # arremesso ou lance livre — não há nada a aprender sobre eficiência
     # nesses jogos, então o AJUSTE dos modelos de volume/eficiência usa só
@@ -461,13 +446,11 @@ def train_player_models(
     # número não seria comparável ao MAE de minutos/rebotes/assistências,
     # nem ao MAE do modelo de taxa única de antes desta versão.
     train_pts_valid = train_valid[train_valid["true_shooting_pct"].notna()]
-
     # Volume: FGA por minuto.
     fga_eval = _regression_pipeline().fit(
         train_pts_valid[VOLUME_FEATURES], train_pts_valid["fga"] / train_pts_valid["minutes"]
     )
     predicted_fga_rate = fga_eval.predict(test_valid[VOLUME_FEATURES])
-    test_predicted_minutes = predicted_minutes_by_index.loc[test_valid.index].to_numpy()
     predicted_fga = np.maximum(0.0, predicted_fga_rate * test_predicted_minutes)
 
     # Eficiência: TS% (já usa o contexto do adversário).
@@ -524,7 +507,16 @@ def train_player_models(
     residual_std["pts"] = max(
         float(np.std(test_valid["pts"].to_numpy() - predicted_pts)), MIN_RESIDUAL_STD_STAT
     )
+    return fga_eval, ts_pct_eval, direct_pts_eval
 
+def _evaluate_rate_stats(
+    train_valid: pd.DataFrame,
+    test_valid: pd.DataFrame,
+    test_predicted_minutes: np.ndarray,
+    metrics: dict,
+    residual_std: dict,
+) -> dict:
+    """Avalia rebotes e assistências (taxa por minuto); atualiza métricas e desvios."""
     rate_models_eval = {}
     for stat in SIMPLE_RATE_STATS:
         features = _rate_features(stat)
@@ -549,7 +541,12 @@ def train_player_models(
             float(np.std(test_valid[stat].to_numpy() - predicted_stat)), MIN_RESIDUAL_STD_STAT
         )
         rate_models_eval[stat] = model
+    return rate_models_eval
 
+def _fit_final_models(
+    ordered: pd.DataFrame, interval_method: str, minutes_eval, fga_eval, ts_pct_eval, rate_models_eval: dict
+) -> dict:
+    """Reajusta todos os modelos com a base inteira, depois da avaliação."""
     all_valid = ordered[ordered["minutes"] > 0]
     all_pts_valid = all_valid[all_valid["true_shooting_pct"].notna()]
 
@@ -583,18 +580,67 @@ def train_player_models(
         )
         for stat in SIMPLE_RATE_STATS
     }
-
-    return PlayerModelBundle(
+    return dict(
         minutes_model=final_minutes_model,
         fga_model=final_fga_model,
         ts_pct_model=final_ts_pct_model,
         rate_models=final_rate_models,
+        direct_pts_model=final_direct_pts_model,
+        quantile_rate_models=final_quantile_rate_models,
+    )
+
+
+def train_player_models(
+    games_with_rolling_features: pd.DataFrame, interval_method: str = "normal"
+) -> PlayerModelBundle:
+    """Treina os modelos de projeção de jogador.
+
+    A estimativa final de pontos, rebotes e assistências combina o modelo
+    dinâmico com a taxa por minuto da temporada-base, com maior peso nessa
+    referência no início de uma nova passagem por um time.
+
+    `interval_method="normal"` (padrão): intervalos de pts/reb/ast vêm de
+    Normal(0, erro histórico) em torno da previsão central — rápido. A previsão
+    central de pontos usa um regressor direto regularizado de pontos/minuto;
+    a cadeia FGA × TS% é mantida como métrica de comparação. `interval_method="quantile"`: além dos
+    modelos de sempre, treina modelos de quantil (P10/P90) por estatística
+    para gerar intervalos assimétricos — mais caro (`GradientBoostingRegressor`
+    em vez de Ridge, 3 modelos por estatística), pensado para comparar contra
+    o modo normal via `walk_forward_evaluate` antes de virar padrão.
+    """
+    if interval_method not in ("normal", "quantile"):
+        raise ValueError(f"interval_method inválido: {interval_method!r}")
+    if len(games_with_rolling_features) < 50:
+        raise ValueError("São necessários pelo menos 50 jogos para treinar o modelo.")
+
+    ordered = _prepare(games_with_rolling_features).sort_values("game_date").reset_index(drop=True)
+    train_rows, test_rows = _temporal_train_test_split(ordered, train_fraction=0.8)
+
+    minutes_eval, predicted_minutes, metrics, residual_std = _evaluate_minutes(train_rows, test_rows)
+    predicted_minutes_by_index = pd.Series(predicted_minutes, index=test_rows.index)
+    train_valid = train_rows[train_rows["minutes"] > 0]
+    test_valid = test_rows[test_rows["minutes"] > 0]
+    test_predicted_minutes = predicted_minutes_by_index.loc[test_valid.index].to_numpy()
+
+    fga_eval, ts_pct_eval, _direct_pts_eval = _evaluate_points(
+        train_rows, train_valid, test_valid, test_predicted_minutes, metrics, residual_std
+    )
+    rate_models_eval = _evaluate_rate_stats(
+        train_valid, test_valid, test_predicted_minutes, metrics, residual_std
+    )
+    final = _fit_final_models(ordered, interval_method, minutes_eval, fga_eval, ts_pct_eval, rate_models_eval)
+
+    return PlayerModelBundle(
+        minutes_model=final["minutes_model"],
+        fga_model=final["fga_model"],
+        ts_pct_model=final["ts_pct_model"],
+        rate_models=final["rate_models"],
         metrics=metrics,
         residual_std=residual_std,
         league_avg_opponent_def_rating=float(ordered["opponent_def_rating"].mean()),
-        direct_pts_model=final_direct_pts_model,
+        direct_pts_model=final["direct_pts_model"],
         interval_method=interval_method,
-        quantile_rate_models=final_quantile_rate_models,
+        quantile_rate_models=final["quantile_rate_models"],
     )
 
 
@@ -870,6 +916,137 @@ def range_probabilities(
     return buckets
 
 
+def _fold_boundaries(ordered: pd.DataFrame, n_folds: int, min_train_games: int):
+    """Datas normalizadas, datas únicas e índices de data que separam os folds."""
+    date_key = pd.to_datetime(ordered["game_date"]).dt.normalize()
+    unique_dates = np.sort(date_key.dropna().unique())
+    if len(unique_dates) < n_folds + 2:
+        raise ValueError(
+            f"São necessárias pelo menos {n_folds + 2} datas distintas para {n_folds} folds "
+            "e um treino inicial com mais de uma data."
+        )
+
+    rows_per_date = date_key.value_counts().sort_index()
+    cumulative_rows = rows_per_date.cumsum().to_numpy()
+    first_test_date = int(np.searchsorted(cumulative_rows, min_train_games, side="left"))
+    # O treinador também faz avaliação temporal interna; por isso o primeiro
+    # fold precisa de ao menos duas datas para conseguir formar treino/teste.
+    first_test_date = min(max(first_test_date, 2), len(unique_dates) - 1)
+    boundaries = np.linspace(first_test_date, len(unique_dates), n_folds + 1, dtype=int)
+    return date_key, unique_dates, boundaries
+
+
+def _fold_prediction_records(
+    fold_index: int, bundle: PlayerModelBundle, predicted: pd.DataFrame, test_fold_valid: pd.DataFrame
+) -> list[dict]:
+    """Uma linha por jogador-partida do fold, com previsto, realizado e erros."""
+    records: list[dict] = []
+    for row_index, actual_row in test_fold_valid.iterrows():
+        predicted_row = predicted.loc[row_index]
+        forecast_stats = {
+            stat: float(predicted_row[stat]) for stat in ("pts", "reb", "ast")
+        }
+        confidence = _prediction_confidence(
+            bundle.residual_std,
+            float(predicted_row["minutes"]),
+            forecast_stats,
+            actual_row,
+        )
+        record = {
+            "fold": fold_index + 1,
+            "game_date": pd.Timestamp(actual_row["game_date"]).date().isoformat(),
+            "game_id": actual_row.get("game_id"),
+            "player_id": actual_row.get("player_id"),
+            "player_name": actual_row.get("player_name"),
+            "team": actual_row.get("team"),
+            "opponent": actual_row.get("opponent"),
+            "is_home": actual_row.get("is_home"),
+            "confidence": confidence,
+        }
+        for stat in ("minutes", "pts", "reb", "ast"):
+            record[f"predicted_{stat}"] = float(predicted_row[stat])
+            record[f"actual_{stat}"] = float(actual_row[stat])
+            record[f"{stat}_error"] = float(predicted_row[stat] - actual_row[stat])
+            record[f"{stat}_absolute_error"] = abs(record[f"{stat}_error"])
+        records.append(record)
+    return records
+
+
+def _fold_metrics(
+    fold_index: int,
+    train_fold: pd.DataFrame,
+    test_fold_valid: pd.DataFrame,
+    predicted: pd.DataFrame,
+    intervals: dict,
+    stats_to_evaluate: list[str],
+) -> dict:
+    """Erro médio, viés, referências e cobertura dos intervalos de um fold."""
+    fold_metrics: dict[str, int | float] = {
+        "fold": fold_index,
+        "n_train": int(len(train_fold)),
+        "n_test": int(len(test_fold_valid)),
+    }
+    for stat in stats_to_evaluate:
+        fold_metrics[f"{stat}_mae"] = float(
+            mean_absolute_error(test_fold_valid[stat], predicted[stat])
+        )
+        fold_metrics[f"{stat}_bias"] = float(
+            (predicted[stat].to_numpy() - test_fold_valid[stat].to_numpy()).mean()
+        )
+    baseline_points = np.maximum(
+        0.0,
+        test_fold_valid["pts_per_min_avg5"].to_numpy() * predicted["minutes"].to_numpy(),
+    )
+    fold_metrics["pts_chain_mae"] = float(
+        mean_absolute_error(test_fold_valid["pts"], predicted["pts_chain"])
+    )
+    fold_metrics["pts_baseline_mae"] = float(
+        mean_absolute_error(test_fold_valid["pts"], baseline_points)
+    )
+    prepared_fold = _prepare(test_fold_valid)
+    for stat in ("pts", *SIMPLE_RATE_STATS):
+        seasonal_reference = (
+            prepared_fold[f"prev_season_{stat}_per_min"].to_numpy()
+            * predicted["minutes"].to_numpy()
+        )
+        fold_metrics[f"{stat}_season_baseline_mae"] = float(
+            mean_absolute_error(test_fold_valid[stat], seasonal_reference)
+        )
+    for stat in ("pts", *SIMPLE_RATE_STATS):
+        low, high = intervals[stat]
+        inside = (test_fold_valid[stat] >= low) & (test_fold_valid[stat] <= high)
+        fold_metrics[f"{stat}_interval_coverage"] = float(inside.mean())
+    return fold_metrics
+
+
+def _aggregate_folds(fold_results: list[dict], stats_to_evaluate: list[str]) -> dict:
+    """Média das métricas de todos os folds."""
+    aggregate = {
+        f"{stat}_mae": float(np.mean([fold[f"{stat}_mae"] for fold in fold_results]))
+        for stat in stats_to_evaluate
+    }
+    aggregate["pts_chain_mae"] = float(
+        np.mean([fold["pts_chain_mae"] for fold in fold_results])
+    )
+    aggregate["pts_baseline_mae"] = float(
+        np.mean([fold["pts_baseline_mae"] for fold in fold_results])
+    )
+    for stat in ("pts", *SIMPLE_RATE_STATS):
+        aggregate[f"{stat}_season_baseline_mae"] = float(
+            np.mean([fold[f"{stat}_season_baseline_mae"] for fold in fold_results])
+        )
+    for stat in ("pts", *SIMPLE_RATE_STATS):
+        aggregate[f"{stat}_interval_coverage"] = float(
+            np.mean([fold[f"{stat}_interval_coverage"] for fold in fold_results])
+        )
+    for stat in stats_to_evaluate:
+        aggregate[f"{stat}_bias"] = float(
+            np.mean([fold[f"{stat}_bias"] for fold in fold_results])
+        )
+    aggregate["n_folds"] = len(fold_results)
+    return aggregate
+
+
 def walk_forward_evaluate(
     games_with_features: pd.DataFrame,
     n_folds: int = 5,
@@ -889,21 +1066,7 @@ def walk_forward_evaluate(
             "walk-forward."
         )
 
-    date_key = pd.to_datetime(ordered["game_date"]).dt.normalize()
-    unique_dates = np.sort(date_key.dropna().unique())
-    if len(unique_dates) < n_folds + 2:
-        raise ValueError(
-            f"São necessárias pelo menos {n_folds + 2} datas distintas para {n_folds} folds "
-            "e um treino inicial com mais de uma data."
-        )
-
-    rows_per_date = date_key.value_counts().sort_index()
-    cumulative_rows = rows_per_date.cumsum().to_numpy()
-    first_test_date = int(np.searchsorted(cumulative_rows, min_train_games, side="left"))
-    # O treinador também faz avaliação temporal interna; por isso o primeiro
-    # fold precisa de ao menos duas datas para conseguir formar treino/teste.
-    first_test_date = min(max(first_test_date, 2), len(unique_dates) - 1)
-    boundaries = np.linspace(first_test_date, len(unique_dates), n_folds + 1, dtype=int)
+    date_key, unique_dates, boundaries = _fold_boundaries(ordered, n_folds, min_train_games)
 
     stats_to_evaluate = ["minutes", "pts", *SIMPLE_RATE_STATS]
     fold_results = []
@@ -929,72 +1092,10 @@ def walk_forward_evaluate(
         bundle = train_player_models(train_fold, interval_method=interval_method)
         predicted = predict_from_features(bundle, test_fold_valid)
         intervals = _predict_intervals(bundle, test_fold_valid, predicted)
-
-        for row_index, actual_row in test_fold_valid.iterrows():
-            predicted_row = predicted.loc[row_index]
-            forecast_stats = {
-                stat: float(predicted_row[stat]) for stat in ("pts", "reb", "ast")
-            }
-            confidence = _prediction_confidence(
-                bundle.residual_std,
-                float(predicted_row["minutes"]),
-                forecast_stats,
-                actual_row,
-            )
-            record = {
-                "fold": fold_index + 1,
-                "game_date": pd.Timestamp(actual_row["game_date"]).date().isoformat(),
-                "game_id": actual_row.get("game_id"),
-                "player_id": actual_row.get("player_id"),
-                "player_name": actual_row.get("player_name"),
-                "team": actual_row.get("team"),
-                "opponent": actual_row.get("opponent"),
-                "is_home": actual_row.get("is_home"),
-                "confidence": confidence,
-            }
-            for stat in ("minutes", "pts", "reb", "ast"):
-                record[f"predicted_{stat}"] = float(predicted_row[stat])
-                record[f"actual_{stat}"] = float(actual_row[stat])
-                record[f"{stat}_error"] = float(predicted_row[stat] - actual_row[stat])
-                record[f"{stat}_absolute_error"] = abs(record[f"{stat}_error"])
-            prediction_records.append(record)
-
-        fold_metrics: dict[str, int | float] = {
-            "fold": fold_index,
-            "n_train": int(len(train_fold)),
-            "n_test": int(len(test_fold_valid)),
-        }
-        for stat in stats_to_evaluate:
-            fold_metrics[f"{stat}_mae"] = float(
-                mean_absolute_error(test_fold_valid[stat], predicted[stat])
-            )
-            fold_metrics[f"{stat}_bias"] = float(
-                (predicted[stat].to_numpy() - test_fold_valid[stat].to_numpy()).mean()
-            )
-        baseline_points = np.maximum(
-            0.0,
-            test_fold_valid["pts_per_min_avg5"].to_numpy() * predicted["minutes"].to_numpy(),
+        prediction_records.extend(_fold_prediction_records(fold_index, bundle, predicted, test_fold_valid))
+        fold_results.append(
+            _fold_metrics(fold_index, train_fold, test_fold_valid, predicted, intervals, stats_to_evaluate)
         )
-        fold_metrics["pts_chain_mae"] = float(
-            mean_absolute_error(test_fold_valid["pts"], predicted["pts_chain"])
-        )
-        fold_metrics["pts_baseline_mae"] = float(
-            mean_absolute_error(test_fold_valid["pts"], baseline_points)
-        )
-        prepared_fold = _prepare(test_fold_valid)
-        for stat in ("pts", *SIMPLE_RATE_STATS):
-            seasonal_reference = (
-                prepared_fold[f"prev_season_{stat}_per_min"].to_numpy()
-                * predicted["minutes"].to_numpy()
-            )
-            fold_metrics[f"{stat}_season_baseline_mae"] = float(
-                mean_absolute_error(test_fold_valid[stat], seasonal_reference)
-            )
-        for stat in ("pts", *SIMPLE_RATE_STATS):
-            low, high = intervals[stat]
-            inside = (test_fold_valid[stat] >= low) & (test_fold_valid[stat] <= high)
-            fold_metrics[f"{stat}_interval_coverage"] = float(inside.mean())
-        fold_results.append(fold_metrics)
 
     if not fold_results:
         raise ValueError("Não foi possível formar nenhum fold de validação walk-forward.")
@@ -1022,6 +1123,8 @@ def walk_forward_evaluate(
             np.mean([fold[f"{stat}_bias"] for fold in fold_results])
         )
     aggregate["n_folds"] = len(fold_results)
+
+    aggregate = _aggregate_folds(fold_results, stats_to_evaluate)
 
     predictions_frame = pd.DataFrame(prediction_records)
     if not predictions_frame.empty:
