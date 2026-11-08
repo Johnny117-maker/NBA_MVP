@@ -193,7 +193,7 @@ pages/3_Benchmark_Mercado.py
 tests/test_market_benchmark.py
 tests/test_market_benchmark_page.py
 docs/benchmark_mercado.md
-docs/alteracoes_benchmark_mercado.md
+docs/planning/alteracoes_benchmark_mercado.md
 ```
 
 ### Responsabilidades
@@ -205,7 +205,7 @@ docs/alteracoes_benchmark_mercado.md
 | `tests/test_market_benchmark.py` | Testes das regras e métricas |
 | `tests/test_market_benchmark_page.py` | Teste de carregamento da página Streamlit |
 | `docs/benchmark_mercado.md` | Documentação da metodologia |
-| `docs/alteracoes_benchmark_mercado.md` | Registro consolidado das mudanças |
+| `docs/planning/alteracoes_benchmark_mercado.md` | Registro consolidado das mudanças |
 
 ## 7. Arquivo atualizado
 

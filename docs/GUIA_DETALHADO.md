@@ -188,7 +188,7 @@ resumo da base (jogos, times, jogadores, temporadas, arremessos), selo de
 fonte/atualização e atalhos para as demais páginas. A comparação de times
 em si — o que antes vivia em `app.py` — foi movida para `pages/0_Times.py`,
 mantendo a separação de responsabilidades da navegação (seção 3 do
-[planejamento de UI/UX](../planejamento_ui_ux_nba_analytics.md)).
+[planejamento de UI/UX](planning/planejamento_ui_ux_nba_analytics.md)).
 
 ## Execucao rapida no Windows com arquivos .bat
 
