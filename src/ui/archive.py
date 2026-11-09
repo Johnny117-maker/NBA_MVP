@@ -13,6 +13,7 @@ from src.injuries import current_pick_players
 from src.live_types import EASTERN, utc_now
 from src.prop_model import PROP_LABELS
 from src.sync_runtime import ensure_auto_sync
+from src.ui.cloud import action_button
 
 from .formatters import format_decimal_br
 from .navigation import page_link
@@ -188,7 +189,7 @@ def request_archive_refresh(path: str | Path) -> None:
         "mesmo com o computador desligado. Ao abrir o sistema, o histórico remoto é importado "
         "e complementa as capturas locais."
     )
-    if st.button("Verificar registros do dia", icon=":material/sync:"):
+    if action_button("Verificar registros do dia", icon=":material/sync:"):
         service = ensure_auto_sync(path)
         if service:
             service.request_refresh()

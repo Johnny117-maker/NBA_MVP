@@ -33,6 +33,7 @@ from src.store import DEFAULT_DB_PATH, count_player_games
 from src.today_picks import round_highlights
 from src.ui import components, theme
 from src.ui.archive import archived_preview
+from src.ui.cloud import action_button
 from src.ui.formatters import format_date_br
 from src.ui.injuries import annotate_injuries, injury_notice
 from src.ui.insights import matchup_intel
@@ -150,7 +151,7 @@ with st.container(key="daily_date_controls"):
                 help="Treina o modelo de jogadores na primeira vez (pode demorar) e projeta "
                 "minutos, pontos, rebotes e assistências de cada destaque.",
             )
-            st.button("Atualizar calendário", on_click=_refresh_schedule)
+            action_button("Atualizar calendário", on_click=_refresh_schedule)
 
 archived_preview(DEFAULT_DB_PATH, selected_day.isoformat(), "games_archive")
 schedule, schedule_error = _load_schedule(int(st.session_state.get("daily_schedule_retry", 0)), selected_day)

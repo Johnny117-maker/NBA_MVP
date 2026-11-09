@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import sqlite3
 from datetime import timedelta
 
 import numpy as np
@@ -191,3 +192,40 @@ def app_db(_app_db_path, monkeypatch: pytest.MonkeyPatch):
     """
     monkeypatch.setattr("src.store.DEFAULT_DB_PATH", _app_db_path)
     return _app_db_path
+
+
+@pytest.fixture
+def cloud_data(_app_db_path, tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Simula o app online: cópia do banco de teste (com os bancos auxiliares já
+    criados, como no pacote publicado) em ``NBA_DATA_HOME`` e ``NBA_DEPLOY_MODE=cloud``.
+
+    A consulta de atualização ao Release é trocada por um estado "em dia" para
+    nenhum teste acessar a rede. Ao final o guarda de somente leitura é removido.
+    """
+    import shutil
+
+    from src import cloud_bootstrap, deploy_mode
+    from src.analysis_archive import connect_archive
+    from src.history_store import connect_history
+    from src.live_store import connect_state
+    from src.ui import cloud
+
+    home = tmp_path / "home"
+    (home / "data").mkdir(parents=True)
+    db = home / "data" / "nba.db"
+    shutil.copy2(_app_db_path, db)
+    for connect in (connect_history, connect_state, connect_archive):
+        connect(db).close()
+    with sqlite3.connect(db.with_name("nba_history.sqlite")) as history:
+        history.execute("PRAGMA journal_mode=DELETE")  # como no pacote: sem -wal/-shm ao lado
+    monkeypatch.setenv("NBA_DATA_HOME", str(home))
+    for name in ("NBA_DEPLOY_MODE", "NBA_AUTO_SYNC"):
+        monkeypatch.setenv(name, "x")  # registra o valor original para restaurar no fim
+    monkeypatch.setenv("NBA_DEPLOY_MODE", "cloud")
+    monkeypatch.setattr("src.store.DEFAULT_DB_PATH", db)
+    current = cloud_bootstrap.BundleStatus(cloud_bootstrap.STATE_CURRENT, "teste", "2026-11-09T12:00:00Z")
+    monkeypatch.setattr(cloud_bootstrap, "sync_bundle", lambda *args, **kwargs: current)
+    cloud._synchronized_status.clear()
+    yield db
+    cloud._synchronized_status.clear()
+    deploy_mode.uninstall_read_only_guard()

@@ -10,6 +10,7 @@ import streamlit as st
 
 from src.live_store import get_state
 from src.remote_archive import BRANCH, ArchiveError, archive_repository, import_envelope, sync_remote_archive
+from src.ui.cloud import action_button, action_file_uploader
 
 
 def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
@@ -24,7 +25,7 @@ def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
             st.caption(f"Última sincronização local: {stamp:%d/%m/%Y %H:%M} · Brasília")
         if status.get("error"):
             st.info(status["error"])
-        if st.button("Sincronizar previsões e resultados", key="sync_remote_picks"):
+        if action_button("Sincronizar previsões e resultados", key="sync_remote_picks"):
             try:
                 with st.spinner("Importando o arquivo diário…"):
                     result = sync_remote_archive(path, day=day)
@@ -49,13 +50,13 @@ def remote_archive_controls(path: str | Path, day: str | None = None) -> None:
             "NBA_ARCHIVE_REPOSITORY ou [archive].repository (padrão: o repositório oficial). "
             "Em outro PC, use um token de Contents somente leitura ou importe os arquivos abaixo."
         )
-        files = st.file_uploader(
+        files = action_file_uploader(
             "Importar JSON ou ZIP baixados do arquivo GitHub",
             type=["json", "zip"],
             accept_multiple_files=True,
             key="remote_archive_files",
         )
-        if files and st.button("Importar arquivos selecionados", key="import_remote_archive_files"):
+        if files and action_button("Importar arquivos selecionados", key="import_remote_archive_files"):
             try:
                 count = 0
                 result_documents = []

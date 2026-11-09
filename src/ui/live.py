@@ -24,6 +24,7 @@ from src.prop_model import (
 )
 from src.provider_settings import load_api_keys
 from src.sync_runtime import ensure_auto_sync
+from src.ui.cloud import action_button
 
 from .formatters import format_datetime_br
 from .navigation import page_link
@@ -268,7 +269,7 @@ def _manual_line(path: str | Path, history: pd.DataFrame, games: list[LiveGame])
         if not row["eligible"]:
             st.info("Linha já decidida ou contexto de participação reduzida; não entra nas oportunidades.")
     keys = _keys_for_ui()
-    if st.button("Consultar linhas das casas", disabled=not bool(keys.odds), key="prop_fetch_odds"):
+    if action_button("Consultar linhas das casas", disabled=not bool(keys.odds), key="prop_fetch_odds"):
         try:
             quotes = fetch_market_quotes(FeedClient(path, keys), game)
             set_state(path, "quotes:" + game.key, quotes)
@@ -350,7 +351,7 @@ def opportunities_panel(path: str | Path, compact: bool = False) -> None:
     status = sync_status(path)
     prefix = "home_props" if compact else "all_props"
     if not compact:
-        if st.button("Verificar atualizações", key=prefix + "_refresh"):
+        if action_button("Verificar atualizações", key=prefix + "_refresh"):
             service = ensure_auto_sync(path)
             if service is not None:
                 service.request_refresh()

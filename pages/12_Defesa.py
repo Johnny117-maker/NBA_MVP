@@ -18,6 +18,7 @@ from src.team_defense import (
     rim_defenders,
 )
 from src.ui import components, theme
+from src.ui.cloud import action_button
 from src.ui.defense import render_defense_index, render_team_charts
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ if view == "Fontes e cobertura":
             f"fonte atualizada em {str(asset['source_updated'])[:10]}"
         )
         st.link_button("Abrir arquivo público original", asset["source_url"])
-        if st.button("Pré-visualizar 100 registros"):
+        if action_button("Pré-visualizar 100 registros"):
             parquet = pq.ParquetFile(history_root(DEFAULT_DB_PATH) / asset["relative_path"])
             batch = next(parquet.iter_batches(batch_size=100), None)
             if batch is not None:
@@ -320,7 +321,7 @@ else:
         )
         if phase != REGULAR or last_n:
             st.info("Selecione a temporada regular inteira para consultar este dashboard.")
-        elif st.button("Consultar DFG% oficial <6 pés"):
+        elif action_button("Consultar DFG% oficial <6 pés"):
             try:
                 collect_team_tracking(DEFAULT_DB_PATH, season, pd.Timestamp(summary.latest_game.max()).date())
                 st.rerun()

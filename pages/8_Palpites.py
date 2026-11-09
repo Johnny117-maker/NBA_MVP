@@ -12,6 +12,7 @@ from src.store import DEFAULT_DB_PATH, count_player_games
 from src.sync_runtime import watch_history_version
 from src.today_picks import build_matchup_pick, round_highlights, upcoming_games
 from src.ui import components, theme
+from src.ui.cloud import action_button
 from src.ui.data_quality import data_quality_panel
 from src.ui.formatters import format_date_br
 from src.ui.injuries import injury_notice, watch_pick_injuries
@@ -36,7 +37,7 @@ day_column, refresh_column = st.columns([3, 1])
 with day_column:
     st.markdown(f"**{format_date_br(today)} · calendário NBA (ET)**")
 with refresh_column:
-    if st.button("Atualizar jogos de hoje"):
+    if action_button("Atualizar jogos de hoje"):
         st.session_state["daily_schedule_retry"] = int(st.session_state.get("daily_schedule_retry", 0)) + 1
 
 schedule, schedule_error = _load_schedule(int(st.session_state.get("daily_schedule_retry", 0)), today)

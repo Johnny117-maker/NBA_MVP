@@ -12,6 +12,7 @@ from src.research_metrics import fit_rapm, off_ball_gravity
 from src.shot_quality import expected_points, train_location_quality
 from src.store import DEFAULT_DB_PATH
 from src.ui import components, theme
+from src.ui.cloud import action_button, action_file_uploader
 from src.ui.learning import learning_status
 
 logger = logging.getLogger(__name__)
@@ -123,7 +124,7 @@ elif mode == "Métricas e fontes":
         "LEBRON e DARKO são indicadores de impacto, não linhas de pontos. Os valores importados ficam como "
         "contexto, sem entrar retroativamente no treino. A disponibilidade só começa na data da importação."
     )
-    if st.button("Consultar proteção de aro na NBA", icon=":material/cloud_download:"):
+    if action_button("Consultar proteção de aro na NBA", icon=":material/cloud_download:"):
         try:
             with st.spinner("Consultando nba_api..."):
                 count = collect_rim_defense(DEFAULT_DB_PATH, current_season(today), today - timedelta(days=1))
@@ -132,9 +133,9 @@ elif mode == "Métricas e fontes":
             # A fonte externa pode falhar de várias formas; a página mostra um aviso e continua.
             logger.warning("Falha ao consultar a defesa no garrafão na página Laboratório", exc_info=True)
             st.warning(f"A NBA não forneceu os dados nesta consulta ({type(error).__name__}).")
-    upload = st.file_uploader("Importar métricas publicadas (CSV)", type=["csv"])
+    upload = action_file_uploader("Importar métricas publicadas (CSV)", type=["csv"])
     st.caption("Colunas: metric, player_id, as_of, value, source. LEBRON e DARKO exigem a fonte do produtor.")
-    if upload is not None and st.button("Importar arquivo de métricas"):
+    if upload is not None and action_button("Importar arquivo de métricas"):
         try:
             st.success(f"{import_metrics(DEFAULT_DB_PATH, pd.read_csv(upload))} indicadores importados.")
         except (ValueError, TypeError, KeyError) as error:
@@ -150,10 +151,10 @@ elif mode == "RAPM":
         "Saldo por 100 posses = escalação da casa (+1) e visitante (−1), com regularização Ridge. "
         "Amostras pequenas e escalações repetidas geram muita incerteza. Alpha é uma escolha explícita."
     )
-    upload = st.file_uploader("Stints validados (CSV)", type=["csv"])
+    upload = action_file_uploader("Stints validados (CSV)", type=["csv"])
     st.caption("Colunas: home_players, away_players (listas JSON de cinco IDs), points_diff, possessions.")
     alpha = st.number_input("Regularização Ridge (alpha)", min_value=1.0, value=2000.0)
-    if upload is not None and st.button("Calcular RAPM dos stints"):
+    if upload is not None and action_button("Calcular RAPM dos stints"):
         try:
             result = fit_rapm(pd.read_csv(upload), alpha)
             st.caption(f"{result.stints} stints · {result.possessions:.0f} posses · alpha {result.alpha:g}")
@@ -166,7 +167,7 @@ elif mode == "Qualidade do arremesso":
         "xP de localização = valor do arremesso × probabilidade de acerto. Usa distância, ângulo, "
         "tipo e período. ShotChartDetail não traz tracking do defensor. Este modelo não mede esse componente."
     )
-    if st.button("Treinar xP com os arremessos coletados"):
+    if action_button("Treinar xP com os arremessos coletados"):
         try:
             with st.spinner("Treinando em até 60 mil tentativas, com teste temporal..."):
                 report = train_location_quality(DEFAULT_DB_PATH, model_dir, today.isoformat())
@@ -189,12 +190,12 @@ elif mode == "Gravity":
         "Indicador local em pés: distância de referência menos a distância real do defensor atribuído, "
         "ponderada pela duração. Mede aproximação defensiva fora da bola. Exige tracking externo em pés."
     )
-    upload = st.file_uploader("Frames de tracking (CSV)", type=["csv"])
+    upload = action_file_uploader("Frames de tracking (CSV)", type=["csv"])
     st.caption(
         "Colunas: frame_id, player_id, ball_handler_id, x, y, defender_x, defender_y, "
         "baseline_distance, duration (segundos). Não há tracking óptico na base atual."
     )
-    if upload is not None and st.button("Calcular Gravity local"):
+    if upload is not None and action_button("Calcular Gravity local"):
         try:
             result = off_ball_gravity(pd.read_csv(upload))
             st.dataframe(result, hide_index=True, alt="Aproximação defensiva local por jogador fora da bola")

@@ -21,6 +21,7 @@ from src.store import (
     upsert_player_games,
 )
 from src.ui import components, states, theme
+from src.ui.cloud import action_button
 from src.ui.data_quality import data_quality_panel
 from src.ui.formatters import format_int_br
 from src.ui.live import sync_status
@@ -79,7 +80,7 @@ with tab_games:
         "Temporada (formato AAAA-AA, ex.: 2025-26)", value=current_nba_season(), key="season_to_collect"
     )
     st.caption("Você pode repetir uma coleta para buscar novos registros da mesma temporada.")
-    if st.button("Coletar esta temporada", type="primary"):
+    if action_button("Coletar esta temporada", type="primary"):
         season_input = season_input.strip()
         if not re.fullmatch(r"\d{4}-\d{2}", season_input) or (
             int(season_input[-2:]) != (int(season_input[:4]) + 1) % 100
@@ -126,7 +127,7 @@ with tab_shots:
         batch_size = st.slider(
             "Quantos jogadores coletar agora?", 1, min(MAX_SHOT_BATCH, len(pending)), min(10, len(pending))
         )
-        if st.button("Coletar arremessos"):
+        if action_button("Coletar arremessos"):
             batch = pending[:batch_size]
             progress = st.progress(0.0)
             status = st.empty()
@@ -179,7 +180,7 @@ with st.expander("Base ampliada desde 2022", expanded=False):
         st.caption(
             f"Última coleta: {previous['completed_at'][:16]} · falhas: {len(previous.get('errors', []))}"
         )
-    if st.button("Ampliar e atualizar base desde 2022", key="collect_full_history"):
+    if action_button("Ampliar e atualizar base desde 2022", key="collect_full_history"):
         status = st.progress(0.0, text="Conferindo catálogo público…")
 
         def history_progress(done, total, name):

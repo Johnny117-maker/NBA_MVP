@@ -8,6 +8,7 @@ from src.live_types import current_season
 from src.nba_teams import TEAM_ABBREVIATION_TO_NAME
 from src.store import DEFAULT_DB_PATH
 from src.ui import components, theme
+from src.ui.cloud import action_button
 
 st.set_page_config(
     page_title="Lesões e disponibilidade — NBA Analytics Lab", page_icon=":material/healing:", layout="wide"
@@ -22,7 +23,7 @@ st.caption(
     "Consulta automática a cada 5 minutos enquanto o sistema estiver aberto. "
     "A tela confere os dados salvos a cada minuto. O retorno estimado não confirma participação."
 )
-if st.button("Atualizar boletim agora", icon=":material/refresh:"):
+if action_button("Atualizar boletim agora", icon=":material/refresh:"):
     with st.spinner("Consultando as fontes públicas…"):
         refresh_injuries(DEFAULT_DB_PATH, force=True)
 

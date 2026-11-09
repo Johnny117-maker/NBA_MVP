@@ -10,6 +10,7 @@ from src.desktop_updates import ArchiveError, UpdateError, activate_shortcut, ch
 from src.source_health import read_source_health
 from src.store import DEFAULT_DB_PATH
 from src.ui import components, theme
+from src.ui.cloud import action_button
 
 st.set_page_config(
     page_title="Sistema — NBA Analytics Lab", page_icon=":material/system_update:", layout="wide"
@@ -20,7 +21,7 @@ st.metric("Versão em uso", APP_VERSION)
 frozen = bool(getattr(sys, "frozen", False))
 if not frozen:
     st.caption("Modo de desenvolvimento. A preparação de pacotes é disponibilizada no executável Windows.")
-if st.button("Buscar atualização do programa"):
+if action_button("Buscar atualização do programa"):
     try:
         with st.spinner("Consultando a versão publicada…"):
             st.session_state["desktop_update"] = check_update()
@@ -33,7 +34,7 @@ if info:
     else:
         st.info(f"Versão {info['latest']} disponível · pacote do programa: {info['size'] / 1_000_000:.0f} MB")
         st.link_button("Ver informações da versão", info["url"])
-        if st.button("Baixar e preparar atualização", type="primary", disabled=not frozen):
+        if action_button("Baixar e preparar atualização", type="primary", disabled=not frozen):
             try:
                 with st.spinner("Baixando e conferindo o pacote. Você pode continuar usando a versão atual…"):
                     prepare_update(info, state_root())
@@ -53,13 +54,13 @@ if prepared.exists():
 if record:
     st.subheader("Versão preparada: " + record["version"])
     st.caption("Atualize o atalho, feche a versão atual e abra novamente pelo ícone da Área de Trabalho.")
-    if st.button("Usar a versão preparada no próximo início", disabled=not frozen):
+    if action_button("Usar a versão preparada no próximo início", disabled=not frozen):
         try:
             activate_shortcut(record["executable"])
             st.success("Atalho atualizado. Feche este sistema e abra novamente pelo ícone.")
         except UpdateError as error:
             st.warning(str(error))
-    if record.get("previous_executable") and st.button(
+    if record.get("previous_executable") and action_button(
         "Restaurar atalho da versão anterior", disabled=not frozen
     ):
         try:

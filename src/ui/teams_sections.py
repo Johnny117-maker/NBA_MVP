@@ -13,6 +13,7 @@ from src.data import available_teams, load_games, load_real_games, team_game_his
 from src.simulation import simulate_score_distribution
 from src.store import DEFAULT_DB_PATH, log_team_prediction
 from src.ui import components, states
+from src.ui.cloud import action_button, action_file_uploader
 
 
 def probability_chart(home_team: str, away_team: str, home_probability: float):
@@ -88,7 +89,7 @@ def source_options_panel(real_data_available: bool):
         )
         uploaded_file = None
         if source == "Enviar CSV":
-            uploaded_file = st.file_uploader("Arquivo de partidas", type=["csv"])
+            uploaded_file = action_file_uploader("Arquivo de partidas", type=["csv"])
 
         st.divider()
         st.caption(
@@ -171,7 +172,7 @@ def scenario_summary(prediction, games: pd.DataFrame, home_team: str, away_team:
 
 
 def register_prediction_button(prediction, home_team: str, away_team: str) -> None:
-    if st.button("Registrar esta previsão", type="primary"):
+    if action_button("Registrar esta previsão", type="primary"):
         log_team_prediction(
             home_team,
             away_team,

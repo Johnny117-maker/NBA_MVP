@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from src.data import generate_demo_games, load_real_games
+from src.deploy_mode import is_cloud
 from src.nba_schedule import fetch_nba_schedule
 from src.player_data import load_player_games
 from src.player_features import (
@@ -100,6 +101,8 @@ def _load_nba_schedule(
 ) -> tuple[pd.DataFrame, str | None]:
     """Cache schedule for one hour by team; a changed token forces a fresh lookup."""
     _ = retry_token  # Included in the cache key so the refresh button bypasses a stale result.
+    if is_cloud():  # versão online: sem consulta externa
+        return pd.DataFrame(), None
     try:
         return fetch_nba_schedule(team_tricode=team_tricode), None
     except RuntimeError as error:

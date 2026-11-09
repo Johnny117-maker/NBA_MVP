@@ -23,6 +23,13 @@ _STYLE_PATH = Path(__file__).with_name("styles.css")
 
 
 def inject_base_style(active_page: str | None = None) -> None:
+    from src.deploy_mode import apply_cloud_environment
+
+    cloud = apply_cloud_environment()  # sem NBA_DEPLOY_MODE=cloud não faz nada
+    if cloud:
+        from .cloud import ensure_cloud_data
+
+        ensure_cloud_data()
     st.markdown(_STYLE_PATH.read_text(encoding="utf-8"), unsafe_allow_html=True)
     pio.templates["nba_analytics"] = go.layout.Template(
         layout={

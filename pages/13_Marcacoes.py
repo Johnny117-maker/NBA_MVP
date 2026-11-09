@@ -12,6 +12,7 @@ from src.player_matchups import collect_game_matchups, defender_summary, read_ma
 from src.store import DEFAULT_DB_PATH, list_seasons
 from src.team_defense import defense_fingerprint
 from src.ui import components, theme
+from src.ui.cloud import action_button
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +191,7 @@ if mode == "Partida":
         if athlete != "Todos":
             rows = rows.loc[rows.off_name.eq(athlete)]
     show_assignments(rows)
-    if st.button("Consultar marcações oficiais desta partida"):
+    if action_button("Consultar marcações oficiais desta partida"):
         try:
             count = collect_game_matchups(DEFAULT_DB_PATH, str(game.game_id))
             if count:

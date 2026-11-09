@@ -10,6 +10,7 @@ import streamlit as st
 
 from .daily_games import build_form_table, player_snapshot_context, recent_training_sample
 from .data import team_snapshot
+from .deploy_mode import is_cloud
 from .player_features import add_opponent_context, add_rolling_features
 from .player_metrics import player_snapshot
 from .player_model import predict_player_game, train_player_models
@@ -37,6 +38,8 @@ def _load_schedule(retry_token: int, selected_day: date) -> tuple[pd.DataFrame, 
     synchronized = live_schedule(DEFAULT_DB_PATH, selected_day.isoformat())
     if not synchronized.empty:
         return synchronized, None
+    if is_cloud():  # versão online: nunca consulta a rede nem grava cópia do calendário
+        return read_schedule_cache(DEFAULT_SCHEDULE_CACHE_PATH), None
 
     try:
         return _fetch_schedule(retry_token, selected_day), None

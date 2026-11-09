@@ -22,6 +22,7 @@ from src.player_model import (
 )
 from src.store import log_player_prediction
 from src.ui import components, states
+from src.ui.cloud import action_button
 
 
 def projection_tab(
@@ -117,7 +118,8 @@ def projection_tab(
             ),
         )
         retry_state_key = f"nba_schedule_retry_token_{source}"
-        if st.button("Atualizar calendário oficial", key=f"refresh_nba_schedule_{source}_{projection_id}"):
+        refresh_key = f"refresh_nba_schedule_{source}_{projection_id}"
+        if action_button("Atualizar calendário oficial", key=refresh_key):
             st.session_state[retry_state_key] = int(st.session_state.get(retry_state_key, 0)) + 1
         retry_token = int(st.session_state.get(retry_state_key, 0))
         with st.spinner("Consultando o calendário oficial da NBA…"):
@@ -323,7 +325,7 @@ def projection_tab(
         "tem maior peso no início e diminui conforme chegam partidas do novo stint."
     )
 
-    if st.button("Registrar esta previsão", type="primary"):
+    if action_button("Registrar esta previsão", type="primary"):
         projection_player_name = players.loc[players["player_id"] == projection_id, "player_name"].iloc[0]
         log_player_prediction(
             projection_id,

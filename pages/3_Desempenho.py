@@ -15,6 +15,7 @@ from src.store import (
     resolve_team_predictions,
 )
 from src.ui import components, theme
+from src.ui.cloud import action_button
 from src.ui.forecast_performance import performance_panel
 from src.ui.navigation import page_link
 
@@ -59,7 +60,7 @@ with tab_team_predictions:
         page_link("teams", "Criar uma previsão de times")
     else:
         real_data_available = count_games(DEFAULT_DB_PATH) > 0
-        if st.button("Resolver previsões com jogos reais", disabled=not real_data_available):
+        if action_button("Resolver previsões com jogos reais", disabled=not real_data_available):
             games = read_raw_games(DEFAULT_DB_PATH)
             resolved_now = resolve_team_predictions(games, DEFAULT_DB_PATH)
             st.success(f"{resolved_now} previsão(ões) resolvida(s) com jogos reais.")
@@ -147,7 +148,7 @@ with tab_player_predictions:
         page_link("players", "Criar uma previsão de jogador")
     else:
         real_player_data_available = count_player_games(DEFAULT_DB_PATH) > 0
-        if st.button(
+        if action_button(
             "Resolver previsões com jogos reais",
             disabled=not real_player_data_available,
             key="resolve_player_predictions",
