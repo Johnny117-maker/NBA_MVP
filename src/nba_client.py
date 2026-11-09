@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import pandas as pd
+import requests
 from nba_api.stats.endpoints import boxscoreadvancedv3, boxscoretraditionalv3, leaguegamelog
+
+from .http_retry import retry_with_backoff
+
+# A nba_api faz a consulta ao criar o endpoint; só falhas de rede/HTTP são repetidas.
+RETRY_ON = (requests.ConnectionError, requests.Timeout)
 
 TEAM_RAW_COLUMNS = ["GAME_ID", "GAME_DATE", "TEAM_NAME", "MATCHUP", "PTS"]
 
@@ -67,10 +73,16 @@ def fetch_season_games(
     timeout: int = 60,
 ) -> pd.DataFrame:
     """Baixa o log de jogos de uma temporada (uma linha por time por jogo)."""
-    response = leaguegamelog.LeagueGameLog(
-        season=season,
-        season_type_all_star=season_type,
-        timeout=timeout,
+    response = retry_with_backoff(
+        lambda: leaguegamelog.LeagueGameLog(
+            season=season,
+            season_type_all_star=season_type,
+            timeout=timeout,
+        ),
+        attempts=3,
+        base_delay=2.0,
+        retry_on=RETRY_ON,
+        label=f"nba_api LeagueGameLog {season}",
     )
     raw = response.get_data_frames()[0]
     data = raw[TEAM_RAW_COLUMNS].copy()
@@ -116,11 +128,17 @@ def fetch_player_season_logs(
     timeout: int = 60,
 ) -> pd.DataFrame:
     """Baixa o log de jogos de todos os jogadores de uma temporada em uma só chamada."""
-    response = leaguegamelog.LeagueGameLog(
-        season=season,
-        season_type_all_star=season_type,
-        player_or_team_abbreviation="P",
-        timeout=timeout,
+    response = retry_with_backoff(
+        lambda: leaguegamelog.LeagueGameLog(
+            season=season,
+            season_type_all_star=season_type,
+            player_or_team_abbreviation="P",
+            timeout=timeout,
+        ),
+        attempts=3,
+        base_delay=2.0,
+        retry_on=RETRY_ON,
+        label=f"nba_api LeagueGameLog jogadores {season}",
     )
     raw = response.get_data_frames()[0]
     data = raw[PLAYER_RAW_COLUMNS].copy()
@@ -178,7 +196,13 @@ def fetch_game_advanced_stats(game_id: str, timeout: int = 30) -> pd.DataFrame:
     Usa BoxScoreAdvancedV3: o endpoint mais antigo (BoxScoreAdvancedV2) está
     quebrado na API atual da NBA (resposta sem a chave 'resultSet').
     """
-    response = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id, timeout=timeout)
+    response = retry_with_backoff(
+        lambda: boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id, timeout=timeout),
+        attempts=3,
+        base_delay=2.0,
+        retry_on=RETRY_ON,
+        label=f"nba_api BoxScoreAdvancedV3 {game_id}",
+    )
     team_stats = response.get_data_frames()[1]
 
     data = pd.DataFrame(
@@ -202,7 +226,13 @@ def fetch_game_starters(game_id: str, timeout: int = 30) -> pd.DataFrame:
     boxscore tradicional, sem custo de chamada extra por temporada. Custa uma
     chamada por jogo, igual ao Rating oficial (`fetch_game_advanced_stats`).
     """
-    response = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id, timeout=timeout)
+    response = retry_with_backoff(
+        lambda: boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id, timeout=timeout),
+        attempts=3,
+        base_delay=2.0,
+        retry_on=RETRY_ON,
+        label=f"nba_api BoxScoreTraditionalV3 {game_id}",
+    )
     player_stats = response.get_data_frames()[0]
 
     return pd.DataFrame(

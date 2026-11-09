@@ -12,14 +12,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pyarrow.parquet as pq
 import requests
 
 from .history_store import connect_history, history_root, set_history_state
+from .http_retry import TRANSIENT_STATUS, TransientHTTPError, retry_with_backoff
 from .live_types import current_season, utc_now
+from .source_health import record_source_result
 
 logger = logging.getLogger(__name__)
+
+HISTORY_SOURCE = "Acervo histórico (GitHub)"
 
 BASE = "https://github.com/sportsdataverse/sportsdataverse-data/releases/download"
 CATALOG_URL = "https://api.github.com/repos/sportsdataverse/sportsdataverse-data/releases"
@@ -108,9 +113,25 @@ def discover_releases(db_path: str | Path, *, refresh: bool = False) -> list[dic
         return json.loads(cached.read_text(encoding="utf-8"))
     releases: list[dict] = []
     for page in range(1, 9):
-        response = requests.get(CATALOG_URL, params={"per_page": 100, "page": page}, timeout=(5, 30))
-        response.raise_for_status()
-        batch = response.json()
+        def fetch_page(page: int = page) -> requests.Response:
+            reply = requests.get(CATALOG_URL, params={"per_page": 100, "page": page}, timeout=(5, 30))
+            if reply.status_code in TRANSIENT_STATUS:
+                raise TransientHTTPError(reply)
+            return reply
+
+        try:
+            try:
+                response = retry_with_backoff(
+                    fetch_page, attempts=3, base_delay=2.0, label="Catálogo do acervo"
+                )
+            except TransientHTTPError as error:
+                response = error.reply
+            response.raise_for_status()
+            batch = response.json()
+        except (requests.RequestException, ValueError) as error:
+            record_source_result(db_path, HISTORY_SOURCE, type(error).__name__)
+            raise
+        record_source_result(db_path, HISTORY_SOURCE)
         if not isinstance(batch, list):
             raise ValueError("Catálogo público retornou um formato inesperado.")
         releases.extend(row for row in batch if row.get("tag_name") in TAGS)
@@ -139,16 +160,27 @@ def download_asset(db_path: str | Path, asset: PublicAsset) -> dict:
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix("." + uuid.uuid4().hex + ".tmp")
     try:
-        digest, size = hashlib.sha256(), 0
-        with requests.get(asset.source_url, timeout=(5, 40), stream=True) as response:
-            response.raise_for_status()
-            with temporary.open("wb") as output:
-                for chunk in response.iter_content(1024 * 1024):
-                    size += len(chunk)
-                    if size > 150_000_000:
-                        raise ValueError("Arquivo excede o limite de 150 MB por conjunto.")
-                    digest.update(chunk)
-                    output.write(chunk)
+        def stream_asset() -> tuple[Any, int]:
+            """Baixa o arquivo inteiro; uma queda no meio recomeça do zero na próxima tentativa."""
+            hasher, total = hashlib.sha256(), 0
+            with requests.get(asset.source_url, timeout=(5, 40), stream=True) as response:
+                if response.status_code in TRANSIENT_STATUS:
+                    raise TransientHTTPError(response)
+                response.raise_for_status()
+                with temporary.open("wb") as output:
+                    for chunk in response.iter_content(1024 * 1024):
+                        total += len(chunk)
+                        if total > 150_000_000:
+                            raise ValueError("Arquivo excede o limite de 150 MB por conjunto.")
+                        hasher.update(chunk)
+                        output.write(chunk)
+            return hasher, total
+
+        try:
+            digest, size = retry_with_backoff(stream_asset, attempts=3, base_delay=2.0, label=asset.name)
+        except TransientHTTPError as error:
+            error.reply.raise_for_status()
+            raise
         if size != asset.size:
             raise ValueError("Tamanho do download diverge do catálogo público.")
         metadata = pq.ParquetFile(temporary).metadata

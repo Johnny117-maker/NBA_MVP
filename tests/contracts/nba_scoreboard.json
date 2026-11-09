@@ -1,0 +1,38 @@
+{
+  "_nota": "Amostra reduzida, escrita a partir do formato que o código consome (não capturada ao vivo). Substitua por uma gravação real, sem dados pessoais, quando houver acesso à rede; o teste de contrato deve continuar passando.",
+  "scoreboard": {
+    "gameDate": "2026-11-08",
+    "games": [
+      {
+        "gameId": "0022600100",
+        "gameStatus": 3,
+        "period": 4,
+        "gameClock": "PT00M00.00S",
+        "gameTimeUTC": "2026-11-08T00:30:00Z",
+        "homeTeam": {
+          "teamTricode": "CLE",
+          "score": 119
+        },
+        "awayTeam": {
+          "teamTricode": "PHI",
+          "score": 95
+        }
+      },
+      {
+        "gameId": "0022600101",
+        "gameStatus": 1,
+        "period": 0,
+        "gameClock": "",
+        "gameTimeUTC": "2026-11-08T23:00:00Z",
+        "homeTeam": {
+          "teamTricode": "BOS",
+          "score": 0
+        },
+        "awayTeam": {
+          "teamTricode": "NYK",
+          "score": 0
+        }
+      }
+    ]
+  }
+}

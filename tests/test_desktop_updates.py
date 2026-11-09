@@ -156,3 +156,17 @@ def test_system_page_checks_updates_only_after_user_action(monkeypatch, tmp_path
     app.button[0].click().run()
     assert not app.exception and calls == [True]
     assert app.success
+
+
+def test_system_page_lists_the_state_of_each_source(tmp_path, monkeypatch):
+    from src.source_health import record_source_result
+
+    db = tmp_path / "nba.db"
+    record_source_result(db, "ESPN")
+    record_source_result(db, "NBA", "Timeout")
+    monkeypatch.setattr("src.store.DEFAULT_DB_PATH", db)
+    app = AppTest.from_file("../pages/16_Sistema.py").run()
+    assert not app.exception
+    table = app.dataframe[0].value
+    assert set(table["Fonte"]) == {"ESPN", "NBA"}
+    assert table.loc[table["Fonte"] == "NBA", "Tipo do erro"].iloc[0] == "Timeout"

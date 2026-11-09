@@ -12,10 +12,12 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from .http_retry import TRANSIENT_STATUS, TransientHTTPError, retry_with_backoff
 from .live_store import cache_get, cache_put, reserve_usage
 from .live_types import EASTERN, LiveGame, LivePlayer, current_season, minutes, number, utc_now
 from .nba_schedule import ESPN_TRICODE_ALIASES
 from .nba_teams import TEAM_ABBREVIATION_TO_NAME
+from .source_health import record_source_result
 
 NBA_BOARD = "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json"
 NBA_BOX = "https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{game_id}.json"
@@ -76,13 +78,23 @@ class FeedClient:
             )
             if not reserve_usage(self.db_path, provider + ":" + auth_hash, costs):
                 raise ProviderError(f"{provider}: limite local de consultas atingido.")
-        try:
-            response = requests.get(
+        def fetch() -> requests.Response:
+            reply = requests.get(
                 url,
                 params=params,
                 headers={"User-Agent": "NBA-Analytics-Lab/0.3", **(headers or {})},
                 timeout=(3, 12),
             )
+            if reply.status_code in TRANSIENT_STATUS:
+                raise TransientHTTPError(reply)
+            return reply
+
+        try:
+            try:
+                # Uma repetição curta cobre falhas passageiras sem travar a interface.
+                response = retry_with_backoff(fetch, attempts=2, base_delay=0.5, label=provider)
+            except TransientHTTPError as error:
+                response = error.reply  # esgotou as tentativas: segue o fluxo normal de erro HTTP
             if not response.ok:
                 raise ProviderError(f"{provider}: HTTP {response.status_code}.")
             if len(response.content) > 25_000_000:
@@ -95,8 +107,13 @@ class FeedClient:
                 if isinstance(result, dict) and result.get("errors"):
                     raise ProviderError(f"{provider}: consulta recusada ou cota esgotada.")
                 body = json.dumps(result)
+        except ProviderError as error:
+            record_source_result(self.db_path, provider, str(error))
+            raise
         except (requests.RequestException, ValueError, UnicodeError) as error:
+            record_source_result(self.db_path, provider, type(error).__name__)
             raise ProviderError(f"{provider}: fonte indisponível ({type(error).__name__}).") from None
+        record_source_result(self.db_path, provider)
         if ttl:
             cache_put(self.db_path, key, body)
         return result

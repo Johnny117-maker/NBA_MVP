@@ -1,0 +1,20 @@
+{
+  "_nota": "Amostra reduzida, escrita a partir do formato que o código consome (não capturada ao vivo). Substitua por uma gravação real, sem dados pessoais, quando houver acesso à rede; o teste de contrato deve continuar passando.",
+  "releases": [
+    {
+      "tag_name": "nba_stats_schedules",
+      "assets": [
+        {
+          "name": "nba_stats_schedule_2026.parquet",
+          "size": 120000,
+          "updated_at": "2026-11-07T10:00:00Z",
+          "browser_download_url": "https://github.com/sportsdataverse/sportsdataverse-data/releases/download/nba_stats_schedules/nba_stats_schedule_2026.parquet"
+        }
+      ]
+    },
+    {
+      "tag_name": "outra_tag",
+      "assets": []
+    }
+  ]
+}

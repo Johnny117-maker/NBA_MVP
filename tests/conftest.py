@@ -14,6 +14,12 @@ from src.store import init_db, log_model_training, upsert_games, upsert_player_g
 
 
 @pytest.fixture(autouse=True)
+def no_real_waiting_between_retries(monkeypatch):
+    """As esperas entre retentativas de rede não devem atrasar a suíte."""
+    monkeypatch.setattr("src.http_retry.default_sleep", lambda seconds: None)
+
+
+@pytest.fixture(autouse=True)
 def disable_background_network_in_tests(monkeypatch):
     monkeypatch.setenv("NBA_AUTO_SYNC", "0")
 

@@ -1,0 +1,37 @@
+{
+  "_nota": "Amostra reduzida, escrita a partir do formato que o código consome (não capturada ao vivo). Substitua por uma gravação real, sem dados pessoais, quando houver acesso à rede; o teste de contrato deve continuar passando.",
+  "season": {
+    "type": 2
+  },
+  "events": [
+    {
+      "id": "401800001",
+      "date": "2026-11-08T00:30Z",
+      "status": {
+        "type": {
+          "state": "post"
+        }
+      },
+      "competitions": [
+        {
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "119",
+              "team": {
+                "abbreviation": "CLE"
+              }
+            },
+            {
+              "homeAway": "away",
+              "score": "95",
+              "team": {
+                "abbreviation": "PHI"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

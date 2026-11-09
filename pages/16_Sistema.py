@@ -1,11 +1,14 @@
 import json
 import sys
 
+import pandas as pd
 import streamlit as st
 
 from src.app_paths import state_root
 from src.desktop_support import APP_VERSION
 from src.desktop_updates import ArchiveError, UpdateError, activate_shortcut, check_update, prepare_update
+from src.source_health import read_source_health
+from src.store import DEFAULT_DB_PATH
 from src.ui import components, theme
 
 st.set_page_config(
@@ -67,6 +70,30 @@ if record:
     with st.expander("Local e verificação do pacote"):
         st.code(record["executable"], language=None)
         st.caption("SHA-256 conferido: " + record["sha256"])
+st.subheader("Estado das fontes de dados")
+health = read_source_health(DEFAULT_DB_PATH)
+if not health:
+    st.caption("Ainda não há consultas registradas nesta base. O estado aparece depois da primeira coleta.")
+else:
+
+    def _stamp(value: str | None) -> str:
+        if not value:
+            return "—"
+        return pd.Timestamp(value).tz_convert("America/Sao_Paulo").strftime("%d/%m %H:%M")
+
+    st.dataframe(
+        pd.DataFrame(
+            {
+                "Fonte": list(health),
+                "Última resposta OK": [_stamp(row.get("last_ok")) for row in health.values()],
+                "Último erro": [_stamp(row.get("last_error")) for row in health.values()],
+                "Tipo do erro": [row.get("last_error_type", "—") for row in health.values()],
+            }
+        ),
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.caption("Horários de Brasília. Erro mais recente que a última resposta OK indica fonte instável.")
 st.caption(
     "As estatísticas continuam sendo coletadas separadamente. "
     "O pacote de atualização não inclui a base histórica. "
