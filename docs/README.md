@@ -22,6 +22,8 @@ Visão geral das páginas e funções: [GUIA_DETALHADO.md](GUIA_DETALHADO.md).
 - [PALPITES_AUTOMATICOS_GITHUB.md](PALPITES_AUTOMATICOS_GITHUB.md): palpites diários sem abrir o aplicativo
 - [validation/](validation/): resultados de validação gerados por script
 
+- [PENDENCIAS_DADOS_REAIS.md](PENDENCIAS_DADOS_REAIS.md): comandos do bloco D, que exigem a base real
+
 ## Interface
 - [JOGOS_DO_DIA_E_DESTAQUES.md](JOGOS_DO_DIA_E_DESTAQUES.md): Jogos do Dia e jogadores em destaque
 - [PALPITES_E_DESTAQUES.md](PALPITES_E_DESTAQUES.md): Jogos do Dia e Palpites de Hoje

@@ -33,9 +33,9 @@ python -m pytest -q
 **Problema:** o README tem cerca de 53 KB e é um changelog empilhado (1.6.1, 1.6.0, 1.5.0, ...). Quem chega não descobre rapidamente o que o app faz nem como rodar.
 
 **Fazer:**
-- [ ] Mover todo o histórico de versões para um novo `CHANGELOG.md`, preservando o texto original.
-- [ ] Novo `README.md` curto (menos de 150 linhas) com: o que é o projeto (uma frase), principais funcionalidades, captura de tela ou diagrama (reaproveitar `docs/material/*.png` se fizer sentido), requisitos, instalação, como rodar (`streamlit run app.py`), como rodar os testes, estrutura de pastas, links para `docs/` e aviso de que as probabilidades são experimentais.
-- [ ] Deixar explícito logo no início que o projeto **não** prevê o prêmio de MVP da NBA (o nome do repositório é enganoso).
+- [x] Mover todo o histórico de versões para um novo `CHANGELOG.md`, preservando o texto original.
+- [x] Novo `README.md` curto (menos de 150 linhas) com: o que é o projeto (uma frase), principais funcionalidades, captura de tela ou diagrama (reaproveitar `docs/material/*.png` se fizer sentido), requisitos, instalação, como rodar (`streamlit run app.py`), como rodar os testes, estrutura de pastas, links para `docs/` e aviso de que as probabilidades são experimentais.
+- [x] Deixar explícito logo no início que o projeto **não** prevê o prêmio de MVP da NBA (o nome do repositório é enganoso).
 
 **Aceite:** o README cabe em uma leitura rápida e todos os links internos funcionam.
 
@@ -43,33 +43,33 @@ python -m pytest -q
 **Problema:** arquivo de 104 KB que é só uma cópia do código-fonte em texto.
 
 **Fazer:**
-- [ ] Remover `diagnostico_ui_nba.txt` do repositório.
-- [ ] Adicionar `diagnostico_*.txt` ao `.gitignore`.
+- [x] Remover `diagnostico_ui_nba.txt` do repositório.
+- [x] Adicionar `diagnostico_*.txt` ao `.gitignore`.
 
 ### A3. Organizar os documentos soltos na raiz
 **Problema:** a raiz mistura código, scripts `.bat` e vários documentos de planejamento.
 
 **Arquivos a mover para `docs/planning/`:**
-- [ ] `planejamento_analise_jogadores_nba.md`
-- [ ] `planejamento_mapa_arremessos_jogadores_nba.md`
-- [ ] `planejamento_programa_analise_nba.md`
-- [ ] `planejamento_ui_ux_nba_analytics.md`
-- [ ] `modulo_sabermetria_jogadores_nba.md`
-- [ ] `analise_estatistica_faixas_desempenho_jogadores_nba.md`
-- [ ] `alteracoes_benchmark_mercado.md`
-- [ ] `MELHORIAS_PREVISAO_PONTOS.md`
+- [x] `planejamento_analise_jogadores_nba.md` — movido para `docs/planning/`
+- [x] `planejamento_mapa_arremessos_jogadores_nba.md` — movido para `docs/planning/`
+- [x] `planejamento_programa_analise_nba.md` — movido para `docs/planning/`
+- [x] `planejamento_ui_ux_nba_analytics.md` — movido para `docs/planning/`
+- [x] `modulo_sabermetria_jogadores_nba.md` — movido para `docs/planning/`
+- [x] `analise_estatistica_faixas_desempenho_jogadores_nba.md` — movido para `docs/planning/`
+- [x] `alteracoes_benchmark_mercado.md` — movido para `docs/planning/`
+- [x] `MELHORIAS_PREVISAO_PONTOS.md` — movido para `docs/planning/`
 
 **Fazer também:**
-- [ ] Atualizar qualquer link que aponte para o local antigo (buscar com `grep -rn` pelos nomes de arquivo).
-- [ ] Criar `docs/README.md` com um índice curto de todos os documentos, agrupados por tema (modelos e qualidade, dados, interface, executável, planejamento).
+- [x] Atualizar qualquer link que aponte para o local antigo (buscar com `grep -rn` pelos nomes de arquivo).
+- [x] Criar `docs/README.md` com um índice curto de todos os documentos, agrupados por tema (modelos e qualidade, dados, interface, executável, planejamento).
 
 ### A4. Mover os scripts de Windows
 **Problema:** 8 arquivos `.bat` e um `.ps1` ocupam a raiz.
 
 **Fazer:**
-- [ ] Mover os `.bat` para `windows/` (ou `scripts/windows/`), ajustando caminhos relativos dentro deles.
-- [ ] Atualizar README e `docs/EXECUTAVEL_WINDOWS.md` com os novos caminhos.
-- [ ] Verificar `scripts/prepare_start.ps1` e `scripts/validate_desktop.py` para garantir que não dependem do local antigo.
+- [~] Mover os `.bat` para `windows/` (ou `scripts/windows/`), ajustando caminhos relativos dentro deles. — 8 dos 10 `.bat` movidos; `CRIAR_ATALHO.bat` e `PUBLICAR_GITHUB.bat` ficam na raiz porque o pacote do executável e testes (`test_desktop*.py`, `test_publish_github.py`) dependem do local
+- [x] Atualizar README e `docs/EXECUTAVEL_WINDOWS.md` com os novos caminhos.
+- [x] Verificar `scripts/prepare_start.ps1` e `scripts/validate_desktop.py` para garantir que não dependem do local antigo. — `schedule_daily_update.ps1` ajustado; `prepare_start.ps1` recebe a raiz por parâmetro e `validate_desktop.py` não referencia `.bat`
 
 **Aceite:** a raiz fica só com `app.py`, `desktop_launcher.py`, configs, `README.md`, `CHANGELOG.md` e pastas.
 
@@ -80,9 +80,9 @@ python -m pytest -q
 **Problema:** o fluxo para o usuário final é só Windows (`.bat`), embora o CI rode em Linux.
 
 **Fazer:**
-- [ ] Criar `Makefile` (ou `justfile`) com alvos: `install`, `run`, `test`, `lint`, `typecheck`, `update-data`, `retrain`.
-- [ ] Documentar no README a instalação em Linux/macOS (venv, `pip install -r requirements.txt`, `streamlit run app.py`).
-- [ ] Garantir que os scripts em `scripts/*.py` rodam sem depender de caminhos ou convenções do Windows (usar `pathlib`).
+- [x] Criar `Makefile` (ou `justfile`) com alvos: `install`, `run`, `test`, `lint`, `typecheck`, `update-data`, `retrain`.
+- [x] Documentar no README a instalação em Linux/macOS (venv, `pip install -r requirements.txt`, `streamlit run app.py`).
+- [x] Garantir que os scripts em `scripts/*.py` rodam sem depender de caminhos ou convenções do Windows (usar `pathlib`). — sem caminhos do Windows nos scripts de dados
 
 **Aceite:** seguindo só o README, alguém em Linux consegue abrir o app e rodar os testes.
 
@@ -94,36 +94,36 @@ python -m pytest -q
 **Problema:** há 23 ocorrências em `src/`, `pages/` e `scripts/`. Algumas engolem o erro sem registrar nada.
 
 **Locais para revisar primeiro:**
-- [ ] `src/season_sync.py` (linhas ~190 e ~325)
-- [ ] `src/injuries.py` (~296)
-- [ ] `src/desktop_runtime.py` (~322)
-- [ ] `src/research_feeds.py` (~124)
-- [ ] `src/history_sources.py` (~206 e ~247)
-- [ ] `src/remote_archive.py` (~284)
+- [x] `src/season_sync.py` (linhas ~190 e ~325) — revisado: já registrava em log, mantido
+- [x] `src/injuries.py` (~296) — revisado e registrado em log
+- [x] `src/desktop_runtime.py` (~322) — revisado e registrado em log
+- [x] `src/research_feeds.py` (~124) — revisado e registrado em log
+- [x] `src/history_sources.py` (~206 e ~247) — revisado e registrado em log
+- [x] `src/remote_archive.py` (~284) — revisado e registrado em log
 
 **Fazer:**
-- [ ] Para cada caso, trocar por exceções específicas (por exemplo `requests.RequestException`, `OSError`, `ValueError`, `sqlite3.Error`) quando for possível identificar quais ocorrem.
-- [ ] Quando o `except` amplo for intencional (falha de fonte externa não pode derrubar o app), manter, mas **registrar** com `logging.getLogger(__name__).warning(..., exc_info=True)` e incluir um comentário curto explicando o motivo.
-- [ ] Configurar `logging` de forma central (um módulo pequeno, por exemplo `src/logging_setup.py`) e usá-lo em `app.py` e nos scripts.
-- [ ] Acrescentar testes para pelo menos três desses caminhos de falha, confirmando que o erro é registrado e o fluxo continua.
+- [x] Para cada caso, trocar por exceções específicas (por exemplo `requests.RequestException`, `OSError`, `ValueError`, `sqlite3.Error`) quando for possível identificar quais ocorrem. — todos são limites de fonte externa/thread; mantidos
+- [x] Quando o `except` amplo for intencional (falha de fonte externa não pode derrubar o app), manter, mas **registrar** com `logging.getLogger(__name__).warning(..., exc_info=True)` e incluir um comentário curto explicando o motivo.
+- [x] Configurar `logging` de forma central (um módulo pequeno, por exemplo `src/logging_setup.py`) e usá-lo em `app.py` e nos scripts.
+- [x] Acrescentar testes para pelo menos três desses caminhos de falha, confirmando que o erro é registrado e o fluxo continua.
 
 **Aceite:** nenhum `except Exception: pass` silencioso restante. Ruff com regra `BLE001` ou `S110` pode ser considerada para impedir regressão.
 
 ### C2. Quebrar funções muito longas
 **Funções-alvo (linhas aproximadas):**
-- [ ] `pages/0_Times.py::main` (253)
-- [ ] `src/player_model.py::train_player_models` (187)
-- [ ] `src/ui/forecast_performance.py::performance_panel` (172)
-- [ ] `src/player_features.py::add_rolling_features` (170)
-- [ ] `src/player_model.py::walk_forward_evaluate` (165)
-- [ ] `src/ui/pick_detail.py::pick_detail` (161)
-- [ ] `src/desktop_runtime.py::_run_window` (157)
-- [ ] `src/live_store.py::persist_final` (140)
+- [x] `pages/0_Times.py::main` (253)
+- [x] `src/player_model.py::train_player_models` (187)
+- [x] `src/ui/forecast_performance.py::performance_panel` (172)
+- [x] `src/player_features.py::add_rolling_features` (170)
+- [x] `src/player_model.py::walk_forward_evaluate` (165)
+- [x] `src/ui/pick_detail.py::pick_detail` (161)
+- [~] `src/desktop_runtime.py::_run_window` (157) — não refatorada: código Qt aninhado sem PySide6 nem testes para provar equivalência (justificado em comentário)
+- [x] `src/live_store.py::persist_final` (140)
 
 **Fazer:**
-- [ ] Extrair funções auxiliares com nomes que descrevam uma etapa (carregar dados, montar features, treinar, avaliar, renderizar seção).
-- [ ] Refatoração **sem mudar comportamento**: os testes existentes devem continuar passando sem alterações de asserções.
-- [ ] Nas páginas Streamlit, extrair seções para funções em `src/ui/`.
+- [x] Extrair funções auxiliares com nomes que descrevam uma etapa (carregar dados, montar features, treinar, avaliar, renderizar seção).
+- [x] Refatoração **sem mudar comportamento**: os testes existentes devem continuar passando sem alterações de asserções. — equivalência exata conferida em features, treino e walk-forward
+- [x] Nas páginas Streamlit, extrair seções para funções em `src/ui/`.
 
 **Aceite:** nenhuma função com mais de ~80 linhas nos arquivos listados, ou justificativa em comentário.
 
@@ -131,18 +131,18 @@ python -m pytest -q
 **Arquivos-alvo:** `src/player_model.py` (1.038 linhas), `src/store.py` (866), `pages/1_Jogadores.py` (852), `src/shot_model.py` (643), `src/player_features.py` (623), `src/analysis_archive.py` (591).
 
 **Fazer:**
-- [ ] Propor a divisão por responsabilidade antes de mover código. Exemplo para `player_model.py`: `player_model/features.py`, `player_model/training.py`, `player_model/evaluation.py`, `player_model/prediction.py`.
-- [ ] Manter os imports públicos antigos funcionando (reexportar em `__init__.py`) para não quebrar páginas, scripts e testes.
-- [ ] Fazer um módulo por vez, com testes verdes entre cada passo.
+- [x] Propor a divisão por responsabilidade antes de mover código. Exemplo para `player_model.py`: `player_model/features.py`, `player_model/training.py`, `player_model/evaluation.py`, `player_model/prediction.py`.
+- [x] Manter os imports públicos antigos funcionando (reexportar em `__init__.py`) para não quebrar páginas, scripts e testes.
+- [x] Fazer um módulo por vez, com testes verdes entre cada passo.
 
 **Aceite:** nenhum módulo acima de ~600 linhas, sem quebra de imports existentes.
 
 ### C4. Corrigir avisos de depreciação
 **Fazer:**
-- [ ] `tests/test_picks_page.py:242`: `pd.Timedelta(hours=2)` com unidade genérica do NumPy. Usar uma forma explícita (`pd.Timedelta(hours=2)` com datetime tz-aware já tipado, ou `np.timedelta64(2, "h")`).
-- [ ] `tests/test_prop_probability.py:28`: `rows.loc[1, "actual"] = 20.5` em coluna `int64`. Converter a coluna para `float` antes.
-- [ ] `tests/test_shot_model.py:211`: `pd.Timedelta(days=1000)` com unidade genérica. Tornar explícito.
-- [ ] Rodar `python -m pytest -q -W error::DeprecationWarning -W error::FutureWarning` para achar outros e, se viável, transformar esses avisos em erro no `pyproject.toml` (`filterwarnings`).
+- [x] `tests/test_picks_page.py:242`: `pd.Timedelta(hours=2)` com unidade genérica do NumPy. Usar uma forma explícita (`pd.Timedelta(hours=2)` com datetime tz-aware já tipado, ou `np.timedelta64(2, "h")`).
+- [x] `tests/test_prop_probability.py:28`: `rows.loc[1, "actual"] = 20.5` em coluna `int64`. Converter a coluna para `float` antes.
+- [x] `tests/test_shot_model.py:211`: `pd.Timedelta(days=1000)` com unidade genérica. Tornar explícito.
+- [x] Rodar `python -m pytest -q -W error::DeprecationWarning -W error::FutureWarning` para achar outros e, se viável, transformar esses avisos em erro no `pyproject.toml` (`filterwarnings`). — um aviso interno do pandas 2.3 com NumPy 2.5 é ignorado de forma explícita no `pyproject.toml`
 
 **Aceite:** suíte sem `DeprecationWarning`/`FutureWarning` do próprio projeto.
 
@@ -150,10 +150,10 @@ python -m pytest -q
 **Problema:** `Johnny117-maker/NBA_MVP` está escrito direto em `src/remote_archive.py` (linha ~24, `REPOSITORY`) e em `src/ui/remote_archive.py` (linhas ~39 e ~43). Isso quebra se o repo for renomeado ou virar fork.
 
 **Fazer:**
-- [ ] Ler o repositório de uma variável de ambiente (`NBA_ARCHIVE_REPOSITORY`) ou de `.streamlit/secrets.toml`, mantendo o valor atual como padrão.
-- [ ] Montar as URLs da UI a partir dessa configuração.
-- [ ] Atualizar `secrets.example.toml` e a documentação.
-- [ ] Ajustar/estender os testes de `tests/test_remote_archive.py`.
+- [x] Ler o repositório de uma variável de ambiente (`NBA_ARCHIVE_REPOSITORY`) ou de `.streamlit/secrets.toml`, mantendo o valor atual como padrão.
+- [x] Montar as URLs da UI a partir dessa configuração.
+- [x] Atualizar `secrets.example.toml` e a documentação.
+- [x] Ajustar/estender os testes de `tests/test_remote_archive.py`.
 
 ---
 
@@ -203,16 +203,16 @@ python -m pytest -q
 **Problema:** `nba_api`, ESPN e SportsDataverse podem mudar ou bloquear sem aviso.
 
 **Fazer:**
-- [ ] Adicionar timeouts e retentativas com espera progressiva nos clientes HTTP, caso ainda não existam (`src/nba_client.py`, `src/live_providers.py`, `src/history_sources.py`).
-- [ ] Criar um teste de contrato que valida o formato esperado das respostas (com respostas gravadas) para detectar mudança de esquema.
-- [ ] Exibir na página **Sistema** o estado de cada fonte (última resposta OK e último erro).
+- [x] Adicionar timeouts e retentativas com espera progressiva nos clientes HTTP, caso ainda não existam (`src/nba_client.py`, `src/live_providers.py`, `src/history_sources.py`).
+- [~] Criar um teste de contrato que valida o formato esperado das respostas (com respostas gravadas) para detectar mudança de esquema. — amostras escritas a partir do formato lido pelo código, não gravadas ao vivo (sem rede); trocar por gravações reais
+- [x] Exibir na página **Sistema** o estado de cada fonte (última resposta OK e último erro).
 
 ### E2. Workflow de gravação diária
-- [ ] Revisar `.github/workflows/daily-picks.yml`: adicionar notificação ou issue automática quando a execução falhar em sequência (hoje só há upload de artefato).
-- [ ] Documentar em `docs/PALPITES_AUTOMATICOS_GITHUB.md` o que fazer quando o cron falha ou a cota do Actions acaba.
+- [x] Revisar `.github/workflows/daily-picks.yml`: adicionar notificação ou issue automática quando a execução falhar em sequência (hoje só há upload de artefato). — issue automática; o YAML só roda de verdade no GitHub
+- [x] Documentar em `docs/PALPITES_AUTOMATICOS_GITHUB.md` o que fazer quando o cron falha ou a cota do Actions acaba.
 
 ### E3. Cobertura de testes
-- [ ] Adicionar `pytest-cov` ao `requirements-dev.txt`, gerar o relatório de cobertura no CI e definir um piso mínimo realista (medir primeiro, depois fixar).
+- [x] Adicionar `pytest-cov` ao `requirements-dev.txt`, gerar o relatório de cobertura no CI e definir um piso mínimo realista (medir primeiro, depois fixar). — piso de 70% sobre 72,5% medidos
 
 ---
 
@@ -228,10 +228,13 @@ python -m pytest -q
 
 ## Checklist final
 
-- [ ] `ruff check .` sem erros
-- [ ] `mypy` sem erros (Linux e Windows)
-- [ ] `pytest -q` com todos os testes passando e sem avisos de depreciação do projeto
-- [ ] README curto + `CHANGELOG.md` + `docs/README.md` criados
-- [ ] Raiz do repositório limpa
-- [ ] Nenhuma previsão pré-jogo preservada foi alterada
-- [ ] Resumo das mudanças e dos itens não concluídos (com motivo) entregue ao final
+Legenda: [x] feito, [~] parcial, [ ] pendente. Resultado da execução de 08/11/2026 na branch `melhorias/plano-geral`.
+
+- [x] `ruff check .` sem erros
+- [x] `mypy` sem erros (Linux e Windows)
+- [x] `pytest -q` com todos os testes passando (507 passando, 3 ignorados) e sem avisos de depreciação do projeto
+- [x] README curto + `CHANGELOG.md` + `docs/README.md` criados
+- [~] Raiz do repositório limpa: sobraram `CRIAR_ATALHO.bat` e `PUBLICAR_GITHUB.bat` (veja A4) e os arquivos de plano
+- [x] Nenhuma previsão pré-jogo preservada foi alterada
+- [x] Resumo das mudanças e dos itens não concluídos (com motivo) entregue ao final
+- [ ] Bloco D (D1 a D5) pendente: exige a base real; comandos em `docs/PENDENCIAS_DADOS_REAIS.md`
