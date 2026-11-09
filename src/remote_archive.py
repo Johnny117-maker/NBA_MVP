@@ -19,6 +19,7 @@ import requests
 
 from .analysis_archive import archive_snapshot
 from .app_paths import secrets_path
+from .deploy_mode import is_cloud
 from .live_store import get_state, set_state
 from .live_types import utc_now
 
@@ -68,6 +69,8 @@ def archive_repository() -> str:
 
 
 def archive_token() -> str:
+    if is_cloud():
+        return ""  # a versão online nunca recebe nem usa tokens
     token = (
         os.environ.get("NBA_GITHUB_ARCHIVE_TOKEN")
         or os.environ.get("GH_TOKEN")

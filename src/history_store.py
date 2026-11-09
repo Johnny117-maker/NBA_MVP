@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from .deploy_mode import read_only_active
+
 
 def history_path(db_path: str | Path) -> Path:
     return Path(db_path).with_name("nba_history.sqlite")
@@ -21,7 +23,8 @@ def connect_history(db_path: str | Path) -> sqlite3.Connection:
     path = history_path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path, timeout=30)
-    connection.execute("PRAGMA journal_mode=WAL")
+    if not read_only_active():
+        connection.execute("PRAGMA journal_mode=WAL")
     connection.executescript(
         """
         CREATE TABLE IF NOT EXISTS assets (
