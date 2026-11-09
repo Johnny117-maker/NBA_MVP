@@ -34,5 +34,13 @@ jobs:
         run: python -m mypy --platform linux src pages app.py desktop_launcher.py scripts
       - name: Checagem de tipos Windows (mypy)
         run: python -m mypy --platform win32 src pages app.py desktop_launcher.py scripts
-      - name: Executar testes
-        run: python -m pytest -q
+      - name: Executar testes com cobertura
+        run: python -m pytest -q --cov --cov-report=term --cov-report=xml
+      - name: Guardar o relatorio de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: coverage.xml
+          if-no-files-found: ignore
+          retention-days: 14

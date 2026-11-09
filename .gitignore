@@ -67,3 +67,4 @@ reports/validation/
 
 # Diagnósticos gerados localmente
 diagnostico_*.txt
+coverage.xml

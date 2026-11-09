@@ -6,10 +6,10 @@ VENV   ?= .venv
 BIN    := $(VENV)/bin
 PORT   ?= 8501
 
-.PHONY: help install run test lint typecheck check update-data retrain
+.PHONY: help install run test coverage lint typecheck check update-data retrain
 
 help:
-	@echo "Alvos: install, run, test, lint, typecheck, check, update-data, retrain"
+	@echo "Alvos: install, run, test, coverage, lint, typecheck, check, update-data, retrain"
 
 $(BIN)/python:
 	$(PYTHON) -m venv $(VENV)
@@ -23,6 +23,9 @@ run: $(BIN)/python
 
 test: $(BIN)/python
 	$(BIN)/python -m pytest -q
+
+coverage: $(BIN)/python
+	$(BIN)/python -m pytest -q --cov --cov-report=term
 
 lint: $(BIN)/python
 	$(BIN)/python -m ruff check .

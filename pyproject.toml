@@ -39,3 +39,14 @@ filterwarnings = [
     # Não vem do código do projeto; remover quando o pandas corrigir.
     "ignore:The 'generic' unit for NumPy timedelta is deprecated:DeprecationWarning",
 ]
+
+[tool.coverage.run]
+source = ["src", "pages", "scripts"]
+branch = false
+
+[tool.coverage.report]
+# Cobertura medida em 08/11/2026 (src, pages e scripts): 72,5%.
+# O piso fica ~2 pontos abaixo para não quebrar por oscilação; suba-o quando a cobertura subir.
+fail_under = 70
+skip_covered = true
+show_missing = false
