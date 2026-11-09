@@ -75,4 +75,22 @@ aba Actions; falhas e falta de dados ficam registradas, sem previsões inventada
 As quotas de Actions da conta continuam aplicáveis. Consultas NBA/ESPN e fontes
 alternativas continuam habilitadas.
 
+## Quando a gravação falha
+
+Se o passo de geração falhar, o workflow abre uma issue com o rótulo `falha-palpites-diarios`
+com o link da execução. Novas falhas em sequência entram como comentários nessa mesma issue,
+e a primeira execução bem-sucedida a fecha sozinha. Para investigar:
+
+1. Abra a execução pelo link da issue e leia o passo **Gerar e preservar antes das partidas**; o
+   relatório (artefato `palpites-<dia>-<id>`) mostra cobertura, `waiting`, `incomplete` e erros de fonte.
+2. Fonte fora do ar (NBA/ESPN): normalmente passa sozinha na próxima execução (a cada 2 horas).
+   Nenhuma previsão é criada depois do início do jogo, então uma janela perdida fica registrada como perdida.
+3. Cron parado: o GitHub desativa agendamentos de repositórios sem atividade por 60 dias. Reative em
+   **Actions → Salvar palpites diarios → Enable workflow**, ou rode **Run workflow** manualmente.
+4. Cota de Actions esgotada (mensagem de limite na aba Actions ou e-mail do GitHub): as execuções param até a
+   cota renovar ou o plano mudar. Enquanto isso, execute no computador `python scripts/generate_daily_archive.py`
+   com o token configurado, ou abra o aplicativo, que também preserva as previsões antes de cada partida.
+5. Falha por permissão (`403`): confirme que o repositório mantém `Settings → Actions → Workflow permissions`
+   com leitura e escrita.
+
 Referência: [execuções agendadas do GitHub Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
