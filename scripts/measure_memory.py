@@ -22,7 +22,6 @@ import argparse
 import importlib.util
 import json
 import os
-import resource
 import shutil
 import subprocess
 import sys
@@ -96,17 +95,27 @@ def build_synthetic_db(target: Path) -> None:
     log_model_training("zone", 120, conftest._ZONE_METRICS, target)
 
 
+def peak_memory_mib() -> float | None:
+    """Pico de memória (RSS) do processo atual; ``None`` no Windows, que não tem ``resource``."""
+    if sys.platform == "win32":
+        return None
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    if sys.platform == "darwin":  # macOS informa bytes; Linux informa KiB
+        peak //= 1024
+    return round(peak / 1024, 1)
+
+
 def run_page_child(page: str) -> None:
     """Executa uma página no processo atual e imprime o pico de memória em JSON."""
     from streamlit.testing.v1 import AppTest
 
     app = AppTest.from_file(str(ROOT / page), default_timeout=PAGE_TIMEOUT_SECONDS)
     app.run()
-    peak_kib = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform == "darwin":  # macOS informa bytes
-        peak_kib //= 1024
+    peak_mib = peak_memory_mib()
     errors = [str(item.value) for item in app.exception]
-    print(json.dumps({"page": page, "peak_mib": round(peak_kib / 1024, 1), "errors": errors}))
+    print(json.dumps({"page": page, "peak_mib": peak_mib, "errors": errors}))
 
 
 def measure_page(page: str, data_home: Path) -> dict:
