@@ -221,3 +221,50 @@ def test_modo_local_nao_consulta_o_release(tmp_path, monkeypatch):
     monkeypatch.setattr(cloud_bootstrap, "sync_bundle", forbidden)
     app = AppTest.from_function(_boot_script).run()
     assert not app.exception
+
+
+def test_rodape_e_estado_dos_dados_na_nuvem(cloud_data):
+    from src import cloud_bootstrap as cb
+
+    manifest = cb.BundleManifest(
+        "v-abc", "2026-11-09T12:00:00Z", "nba-serving-v-abc.tar.gz", 10, "a" * 64, {"nba.db": 1}
+    )
+    cb._write_json_atomic(cloud_data.parent / cb.INSTALLED_MANIFEST_NAME, cb._manifest_payload(manifest))
+    cb._write_json_atomic(
+        cloud_data.parent / cb.STATUS_NAME,
+        {
+            "state": "offline",
+            "version": "v-abc",
+            "generated_at": "2026-11-09T12:00:00Z",
+            "checked_at": "2026-11-09T13:00:00Z",
+            "error": "sem rede",
+        },
+    )
+    app = AppTest.from_file("../pages/16_Sistema.py").run(timeout=60)
+    assert not app.exception
+    sidebar = " ".join(item.value for item in app.sidebar.caption)
+    assert "Dados vv-abc" in sidebar and "09/11/2026 às 09:00" in sidebar
+    assert "não são recomendação de aposta" in sidebar
+    assert any(m.label == "Versão dos dados" and m.value == "v-abc" for m in app.metric)
+    assert "sem rede" in app.warning[0].value
+
+
+def test_rodape_nao_aparece_no_modo_local(app_db, monkeypatch):
+    monkeypatch.delenv("NBA_DEPLOY_MODE", raising=False)
+    monkeypatch.setattr(deploy_mode, "_secret_value", lambda name: "")
+    app = AppTest.from_file("../pages/16_Sistema.py").run(timeout=60)
+    assert not app.exception
+    assert not any("não são recomendação" in c.value for c in app.sidebar.caption)
+    assert not any(m.label == "Versão dos dados" for m in app.metric)
+
+
+def test_idade_dos_dados():
+    from datetime import UTC, datetime
+
+    from src.ui.cloud import _age_text
+
+    now = datetime(2026, 11, 9, 15, 0, tzinfo=UTC)
+    assert _age_text("2026-11-09T14:30:00Z", now) == "30 min"
+    assert _age_text("2026-11-09T12:00:00Z", now) == "3 h"
+    assert _age_text("2026-11-07T15:00:00Z", now) == "2 d"
+    assert _age_text("lixo", now) == ""

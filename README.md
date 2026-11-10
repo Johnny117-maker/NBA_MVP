@@ -80,6 +80,14 @@ e `python -m pytest -q`. No Windows, `windows\EXECUTAR_TESTES.bat` roda os teste
 
 O workflow `tests.yml` roda os mesmos comandos no GitHub Actions.
 
+## Versão online
+
+O app pode ser publicado de graça no Streamlit Community Cloud em **modo somente leitura**
+(`NBA_DEPLOY_MODE=cloud`): o GitHub Actions coleta os dados e publica um pacote no Release
+`data-latest`, e o app só o baixa. Sem a variável, o programa local e o executável do Windows
+funcionam como sempre. Passo a passo em [docs/PUBLICACAO_STREAMLIT.md](docs/PUBLICACAO_STREAMLIT.md);
+fontes a revisar em [docs/TERMOS_DE_USO_DAS_FONTES.md](docs/TERMOS_DE_USO_DAS_FONTES.md).
+
 ## Documentação
 
 - [Guia detalhado](docs/GUIA_DETALHADO.md): funcionalidades, páginas e funcionamento interno.
@@ -87,6 +95,7 @@ O workflow `tests.yml` roda os mesmos comandos no GitHub Actions.
 - [docs/](docs/): documentos técnicos de cada modelo e processo.
 - [Executável para Windows](docs/EXECUTAVEL_WINDOWS.md): geração e uso do pacote `.exe`.
 - [Plano de melhorias](PLANO_DE_MELHORIAS.md): tarefas de organização e qualidade.
+- [Arquitetura de publicação gratuita](ARQUITETURA_PUBLICACAO_GRATUITA.md): app online, pacote de dados e checklist.
 
 ## Aviso
 

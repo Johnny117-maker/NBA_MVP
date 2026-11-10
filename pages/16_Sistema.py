@@ -10,13 +10,14 @@ from src.desktop_updates import ArchiveError, UpdateError, activate_shortcut, ch
 from src.source_health import read_source_health
 from src.store import DEFAULT_DB_PATH
 from src.ui import components, theme
-from src.ui.cloud import action_button
+from src.ui.cloud import action_button, render_system_state
 
 st.set_page_config(
     page_title="Sistema — NBA Analytics Lab", page_icon=":material/system_update:", layout="wide"
 )
 theme.inject_base_style("system")
 components.page_header("Sistema e atualizações", "Atualize o programa preservando sua base e o histórico.")
+render_system_state()
 st.metric("Versão em uso", APP_VERSION)
 frozen = bool(getattr(sys, "frozen", False))
 if not frozen:

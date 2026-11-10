@@ -48,6 +48,10 @@ def inject_base_style(active_page: str | None = None) -> None:
         from .navigation import sidebar_navigation
 
         sidebar_navigation(active_page)
+        if cloud:
+            from .cloud import render_sidebar_notice
+
+            render_sidebar_notice()
 
     from src.store import DEFAULT_DB_PATH
     from src.sync_runtime import ensure_auto_sync, watch_history_version

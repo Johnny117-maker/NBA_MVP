@@ -3,6 +3,16 @@
 Texto movido do antigo `README.md`, sem alterações. As seções mais novas vêm primeiro.
 Para instalar e usar o projeto, veja o [README](README.md).
 
+## Versão online somente leitura (publicação gratuita)
+
+O app pode ser publicado no Streamlit Community Cloud sem custo. Com `NBA_DEPLOY_MODE=cloud` ele
+abre o banco só para leitura, baixa o pacote de dados publicado no Release `data-latest`
+(conferindo SHA-256) e desabilita coleta, importação e registro de previsões. O workflow
+`data-refresh.yml` coleta e publica o pacote a cada 3 horas. A barra lateral e a página
+**Sistema** mostram a versão e a idade dos dados, com o aviso de que as probabilidades são
+experimentais. Sem a variável, nada muda no programa local nem no executável.
+[Passo a passo](docs/PUBLICACAO_STREAMLIT.md) · [Fontes a revisar](docs/TERMOS_DE_USO_DAS_FONTES.md).
+
 ## Previsão de times mais precisa e base atualizada todo dia
 
 O modelo de times agora usa **Elo com margem de vitória**: o vencedor e o placar saem da
