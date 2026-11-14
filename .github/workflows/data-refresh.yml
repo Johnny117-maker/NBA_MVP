@@ -73,9 +73,11 @@ jobs:
         id: collect
         run: |
           set +e
-          python scripts/update_daily.py --db "$WORK/home/data/nba.db"
+          python scripts/update_daily.py --db "$WORK/home/data/nba.db" --attempts 1
           code=$?
           echo "codigo=$code" >> "$GITHUB_OUTPUT"
+          # Uma tentativa só: se a fonte atrasou, a próxima execução (3 h depois) repete,
+          # em vez de esperar 2 x 20 min e ocupar o runner por ~40 min.
           # 0 = base atualizada; 2 = fonte ainda sem todos os jogos de ontem (publica o que há);
           # 3 = nenhuma fonte respondeu (não publica).
           if [ "$code" -eq 3 ]; then exit 3; fi
