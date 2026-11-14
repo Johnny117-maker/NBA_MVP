@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime, time, timedelta
 
 import pytest
 
@@ -9,7 +9,8 @@ from src.live_store import get_state, save_live_games
 from src.live_types import LiveGame
 from src.store import init_db
 
-DAY = date(2026, 11, 5)
+# Relativo a hoje: a base descarta jogos com mais de 7 dias.
+DAY = (datetime.now(UTC) - timedelta(days=1)).date()
 DAY_TEXT = DAY.isoformat()
 
 
@@ -95,9 +96,12 @@ class _FakeSync:
         }
 
 
+_NOW = datetime.combine(DAY + timedelta(days=1), time(10), tzinfo=UTC)
+
+
 def _patch_sync(monkeypatch, db, complete_on, calls):
     monkeypatch.setattr(daily_update, "SeasonSync", lambda *a, **k: _FakeSync(db, complete_on, calls))
-    monkeypatch.setattr(daily_update, "utc_now", lambda: datetime(2026, 11, 6, 10, tzinfo=UTC))
+    monkeypatch.setattr(daily_update, "utc_now", lambda: _NOW)
 
 
 def test_update_retries_until_the_previous_day_is_published(db, monkeypatch):
@@ -130,7 +134,7 @@ def test_update_reports_source_unavailable_when_nothing_answers(db, monkeypatch)
             return {"errors": ["fonte indisponível"], "changed_games": 0}
 
     monkeypatch.setattr(daily_update, "SeasonSync", lambda *a, **k: Offline(db, 1, []))
-    monkeypatch.setattr(daily_update, "utc_now", lambda: datetime(2026, 11, 6, 10, tzinfo=UTC))
+    monkeypatch.setattr(daily_update, "utc_now", lambda: _NOW)
     report = run_daily_update(db, attempts=1)
     assert report["status"] == "source_unavailable"
 

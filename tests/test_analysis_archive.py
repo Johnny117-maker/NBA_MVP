@@ -200,7 +200,11 @@ def test_xgboost_uses_separate_calibration_and_test_dates(research_history):
         assert report["metrics"][stat]["ensemble_mae"] >= 0
 
 
-def test_exact_game_results_are_separate_and_corrections_do_not_rewrite_forecast(tmp_path, research_history):
+def test_exact_game_results_are_separate_and_corrections_do_not_rewrite_forecast(
+    tmp_path, research_history, monkeypatch
+):
+    # A resolução só olha snapshots dos últimos 14 dias; fixa "agora" perto do jogo de 28/10.
+    monkeypatch.setattr("src.analysis_archive.utc_now", lambda: datetime(2026, 10, 29, 12, tzinfo=UTC))
     path = tmp_path / "nba.db"
     init_db(path)
     create_daily_snapshots(path, [pregame()], research_history, now=CAPTURE)
