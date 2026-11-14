@@ -268,3 +268,18 @@ def test_idade_dos_dados():
     assert _age_text("2026-11-09T12:00:00Z", now) == "3 h"
     assert _age_text("2026-11-07T15:00:00Z", now) == "2 d"
     assert _age_text("lixo", now) == ""
+
+
+def test_elenco_atual_nao_consulta_a_rede_na_nuvem(monkeypatch):
+    from src import current_roster
+    from src.round_context import _load_current_roster
+
+    def forbidden():
+        raise AssertionError("a versão online não pode consultar a NBA")
+
+    monkeypatch.setattr(current_roster, "fetch_current_roster", forbidden)
+    monkeypatch.setenv("NBA_DEPLOY_MODE", "cloud")
+    _load_current_roster.clear()
+    roster = _load_current_roster()
+    assert roster.empty and list(roster.columns) == ["player_id", "player_name", "team"]
+    _load_current_roster.clear()

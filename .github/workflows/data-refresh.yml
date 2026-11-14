@@ -83,6 +83,11 @@ jobs:
           if [ "$code" -eq 3 ]; then exit 3; fi
           exit 0
 
+      # Sem boletim de lesões válido, a página de palpites de jogadores fica vazia no app online.
+      # Falha aqui não impede a publicação: o boletim anterior vale por até 48 h.
+      - name: Atualizar o boletim de lesões
+        run: python scripts/update_injuries.py --db "$WORK/home/data/nba.db" || echo "::warning::Boletim de lesões não atualizado nesta execução"
+
       - name: Gerar o pacote enxuto e a base completa
         run: |
           python scripts/build_serving_bundle.py --db "$WORK/home/data/nba.db" \

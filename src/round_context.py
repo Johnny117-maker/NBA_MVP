@@ -81,6 +81,8 @@ def _team_model_context(db_path: str, updated_at: float, selected_day: date):
 
 @st.cache_data(ttl=21600, show_spinner=False)
 def _load_current_roster() -> pd.DataFrame:
+    if is_cloud():  # versão online: sem consulta externa (a NBA recusa IPs de nuvem); usa o histórico
+        return pd.DataFrame(columns=["player_id", "player_name", "team"])
     from .current_roster import fetch_current_roster
 
     return fetch_current_roster()
